@@ -1,0 +1,10 @@
+{
+  "name": "fake-account-exposer",
+  "version": "1.0.0",
+  "description": "ভুয়া একাউন্ট এক্সপোজার",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {}
+}
