@@ -1,94 +1,23 @@
 const http = require('http');
-const https = require('https');
 const url = require('url');
 const fs = require('fs');
 const path = require('path');
 
 const PORT = 3000;
 
-// Create images directory
-const IMAGES_DIR = path.join(__dirname, 'images');
-if (!fs.existsSync(IMAGES_DIR)) {
-    fs.mkdirSync(IMAGES_DIR);
-}
-
-// YOUR ACTUAL IMAGES
+// Local image mapping
 const IMAGES = {
-    official: '/images/official.png',
-    fraud: '/images/fraud.png',
-    danger: '/images/danger.png'
+    profile: "/images/tiktok_video_Aj2NO.jpeg",
+    official: "/images/1785276289604.png",
+    fraud: "/images/1785275069221.png",
+    danger: "/images/1785274960485.png"
 };
 
-// Download images from Imgur
-function downloadImage(imageUrl, filename) {
-    return new Promise((resolve, reject) => {
-        const filePath = path.join(IMAGES_DIR, filename);
-        
-        if (fs.existsSync(filePath)) {
-            console.log(`✅ Already exists: ${filename}`);
-            resolve(filePath);
-            return;
-        }
-        
-        console.log(`📥 Downloading: ${filename} from ${imageUrl}`);
-        
-        const options = {
-            hostname: 'i.imgur.com',
-            path: new URL(imageUrl).pathname,
-            method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'image/*',
-                'Referer': 'https://imgur.com/'
-            }
-        };
-        
-        https.get(options, (response) => {
-            if (response.statusCode === 301 || response.statusCode === 302) {
-                https.get(response.headers.location, (redirectRes) => {
-                    const file = fs.createWriteStream(filePath);
-                    redirectRes.pipe(file);
-                    file.on('finish', () => {
-                        file.close();
-                        console.log(`✅ Downloaded: ${filename}`);
-                        resolve(filePath);
-                    });
-                }).on('error', reject);
-                return;
-            }
-            
-            const file = fs.createWriteStream(filePath);
-            response.pipe(file);
-            file.on('finish', () => {
-                file.close();
-                console.log(`✅ Downloaded: ${filename}`);
-                resolve(filePath);
-            });
-        }).on('error', (err) => {
-            console.error(`❌ Failed: ${filename}`, err.message);
-            reject(err);
-        });
-    });
-}
-
-// Download all images
-async function downloadAllImages() {
-    console.log('\n🔄 Downloading images...\n');
-    try {
-        await downloadImage('https://i.imgur.com/jvAsp7P.png', 'official.png');
-        await downloadImage('https://i.imgur.com/Yu1H5eT.png', 'fraud.png');
-        await downloadImage('https://i.imgur.com/J8MucwJ.png', 'danger.png');
-        console.log('\n✅ All images ready!\n');
-    } catch (error) {
-        console.error('\n❌ Error:', error.message);
-    }
-}
-
-// DATA with YOUR images
+// DATA with local images
 const DATA = {
     celebrity: {
         name: "Baiilla Maach Official",
-        photo: IMAGES.official,
+        photo: IMAGES.profile,
         bio: "শুধুমাত্র এন্টারটেইনমেন্টের জন্য। অন্য সব একাউন্ট ভুয়া।"
     },
     realAccounts: [
@@ -104,7 +33,7 @@ const DATA = {
             platform: "TikTok",
             username: "@baiilla_mach",
             profileUrl: "https://tiktok.com/@baiilla_mach",
-            screenshot: IMAGES.fraud,
+            screenshot: IMAGES.danger,
             dangerLevel: "high",
             reason: "বানান কপি করে ভুয়া একাউন্ট। একটি 'l' এবং একটি 'a' কম আছে। হুবহু লোগো ও পোস্ট কপি করে প্রতারণা করছে।"
         },
@@ -112,7 +41,7 @@ const DATA = {
             platform: "TikTok",
             username: "@hammad_fams0",
             profileUrl: "https://tiktok.com/@hammad_fams0",
-            screenshot: IMAGES.danger,
+            screenshot: IMAGES.fraud,
             dangerLevel: "medium",
             reason: "নাম ও ছবি ব্যবহার করে ভুয়া একাউন্ট। ফলোয়ারদের বিভ্রান্ত করছে।"
         }
@@ -350,6 +279,7 @@ document.addEventListener('keydown', function(e) {
 }
 
 // Create server
+const IMAGES_DIR = path.join(__dirname, 'images');
 const server = http.createServer((req, res) => {
     const parsedUrl = url.parse(req.url, true);
     const pathname = parsedUrl.pathname;
@@ -370,11 +300,12 @@ const server = http.createServer((req, res) => {
                 '.png': 'image/png',
                 '.jpg': 'image/jpeg',
                 '.jpeg': 'image/jpeg',
-                '.gif': 'image/gif'
+                '.gif': 'image/gif',
+                '.webp': 'image/webp'
             };
             
             res.writeHead(200, {
-                'Content-Type': contentTypes[ext] || 'image/png',
+                'Content-Type': contentTypes[ext] || 'application/octet-stream',
                 'Cache-Control': 'public, max-age=86400',
                 'Access-Control-Allow-Origin': '*'
             });
@@ -394,18 +325,31 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // JSON data
+    if (pathname === '/data.json') {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(DATA, null, 2));
+        return;
+    }
+
+    // Health check
+    if (pathname === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }));
+        return;
+    }
+
     // 404
     res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end('<h1 style="color:white;background:black;text-align:center;padding:50px">404 - Not Found</h1>');
 });
 
-// Start
-downloadAllImages().then(() => {
-    server.listen(PORT, () => {
-        console.log(`\n✅ SERVER RUNNING: http://localhost:${PORT}`);
-        console.log(`📁 Images: ${IMAGES_DIR}`);
-        console.log(`    - official.png`);
-        console.log(`    - fraud.png`);
-        console.log(`    - danger.png\n`);
-    });
+// Start server
+server.listen(PORT, () => {
+    console.log(`\n✅ Server running: http://localhost:${PORT}`);
+    console.log(`📁 Images serving from: ${IMAGES_DIR}`);
+    console.log(`   - Profile: ${IMAGES.profile}`);
+    console.log(`   - Official: ${IMAGES.official}`);
+    console.log(`   - Fraud: ${IMAGES.fraud}`);
+    console.log(`   - Danger: ${IMAGES.danger}\n`);
 });
