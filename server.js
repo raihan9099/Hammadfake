@@ -35,8 +35,8 @@ const GALLERY_DIR = path.join(__dirname, 'assets', 'gallery');
 const IMAGES = {
     profile: "/assets/tiktok_video_Aj2NO.jpeg",
     official: "/assets/1785276289604.png",
-    fraud: "/assets/1785275069221.png",
-    danger: "/assets/1785274960485.png"
+    fraud: "/assets/hammadfams.png",
+    danger: "/assets/baillamach.png"
 };
 
 // 2 voice files
