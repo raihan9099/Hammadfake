@@ -17,6 +17,13 @@ const IMAGES = {
     danger: "/assets/1785274960485.png"
 };
 
+// Add voice files
+const VOICE_FILES = {
+    warning1: "/assets/077f07c5d2a052c7081e448e6dfdaff6.mp3",
+    warning2: "/assets/077f07c5d2a052c7081e448e6dfdaff6_1.mp3",
+    warning3: "/assets/10ff7135b502e2f5660074fdb0969109.mp3"
+};
+
 console.log('\n📁 Checking assets...');
 for (const [key, imagePath] of Object.entries(IMAGES)) {
     const fullPath = path.join(__dirname, imagePath);
@@ -27,21 +34,32 @@ for (const [key, imagePath] of Object.entries(IMAGES)) {
         console.log(`❌ ${key}: ${imagePath} - FILE NOT FOUND!`);
     }
 }
+
+console.log('\n🎵 Checking voice files...');
+for (const [key, voicePath] of Object.entries(VOICE_FILES)) {
+    const fullPath = path.join(__dirname, voicePath);
+    if (fs.existsSync(fullPath)) {
+        const stat = fs.statSync(fullPath);
+        console.log(`✅ ${key}: ${voicePath} (${(stat.size / 1024).toFixed(1)} KB)`);
+    } else {
+        console.log(`❌ ${key}: ${voicePath} - FILE NOT FOUND!`);
+    }
+}
 console.log('');
 
 const DATA = {
     celebrity: {
-        name: "Baiilla Maach",
-        tagline: "Official Entertainment Profile",
+        name: "Baiilla Maach Official",
         photo: IMAGES.profile,
-        bio: "Entertainment purposes only."
+        bio: "Entertainment purposes only. Stay aware of impersonators."
     },
     realAccounts: [
         {
             platform: "TikTok",
             username: "@baiillamaach_official",
             url: "https://tiktok.com/@baiillamaach_official",
-            screenshot: IMAGES.official
+            screenshot: IMAGES.official,
+            description: "The only official account"
         }
     ],
     fakeAccounts: [
@@ -50,16 +68,18 @@ const DATA = {
             username: "@baiilla_mach",
             profileUrl: "https://tiktok.com/@baiilla_mach",
             screenshot: IMAGES.danger,
-            dangerLevel: "critical",
-            reason: "Copies exact logo, content and branding. Spelling difference: missing letters."
+            dangerLevel: "high",
+            reason: "This account is fake. It copies our logo and posts to deceive followers.",
+            voiceFile: VOICE_FILES.warning1
         },
         {
             platform: "TikTok",
             username: "@hammad_fams0",
             profileUrl: "https://tiktok.com/@hammad_fams0",
             screenshot: IMAGES.fraud,
-            dangerLevel: "high",
-            reason: "Uses our name and profile picture to mislead followers."
+            dangerLevel: "medium",
+            reason: "This account is fake. It uses our name and photo to mislead followers.",
+            voiceFile: VOICE_FILES.warning2
         }
     ]
 };
@@ -70,415 +90,628 @@ function getHTML() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${DATA.celebrity.name} — Official</title>
+<title>${DATA.celebrity.name} | Official Verification</title>
 <style>
-:root {
-    --bg: #050505;
-    --surface: #0a0a0a;
-    --surface2: #111111;
-    --border: #1a1a1a;
-    --text: #f5f5f5;
-    --text2: #a0a0a0;
-    --green: #00e676;
-    --red: #ff1744;
-    --red2: #ff5252;
-    --amber: #ffd740;
-    --accent: #ff2d55;
-    --radius: 16px;
-    --radius-sm: 10px;
-    --font: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-    --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
 *{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased}
+body{font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;background:#0a0b0f;color:#e4e4e7;min-height:100vh;line-height:1.6}
 
-/* ============ NAVBAR ============ */
-.navbar{
-    position:fixed;top:0;left:0;right:0;z-index:100;
-    background:rgba(5,5,5,0.85);backdrop-filter:blur(20px) saturate(180%);
-    border-bottom:1px solid rgba(255,255,255,0.06);
-    padding:0 24px;height:64px;
-    display:flex;align-items:center;justify-content:space-between;
+/* Voice notification banner */
+.voice-notification {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 2px solid #ff2d55;
+    border-radius: 12px;
+    padding: 12px 24px;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 8px 32px rgba(255, 45, 85, 0.3);
+    animation: slideDown 0.5s ease-out;
+    max-width: 90%;
 }
-.nav-logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.1em;color:var(--text);letter-spacing:-0.3px}
-.nav-logo img{width:36px;height:36px;border-radius:50%;border:2px solid var(--accent)}
-.nav-actions{display:flex;align-items:center;gap:12px}
-.nav-btn{
-    padding:8px 18px;border-radius:20px;font-weight:600;font-size:0.85em;
-    text-decoration:none;transition:var(--transition);border:none;cursor:pointer;
-    font-family:var(--font);letter-spacing:-0.2px;
+@keyframes slideDown {
+    from { transform: translateX(-50%) translateY(-100px); opacity: 0; }
+    to { transform: translateX(-50%) translateY(0); opacity: 1; }
 }
-.nav-btn-primary{background:var(--green);color:#000}
-.nav-btn-primary:hover{box-shadow:0 0 25px rgba(0,230,118,0.4);transform:translateY(-1px)}
-.nav-btn-outline{background:transparent;color:var(--text);border:1px solid rgba(255,255,255,0.2)}
-.nav-btn-outline:hover{border-color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.05)}
-
-/* ============ HERO ============ */
-.hero{
-    padding:120px 24px 60px;text-align:center;
-    background:radial-gradient(ellipse at 50% 0%, rgba(255,45,85,0.08) 0%, transparent 60%),
-               radial-gradient(ellipse at 80% 100%, rgba(0,230,118,0.04) 0%, transparent 50%);
-    position:relative;overflow:hidden;
+.voice-notification.show {
+    display: flex;
 }
-.hero::after{
-    content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
-    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.1),transparent);
+.voice-icon {
+    font-size: 1.5em;
+    animation: pulse 1.5s infinite;
 }
-.hero-content{position:relative;z-index:1;max-width:600px;margin:0 auto}
-.hero-avatar{
-    width:110px;height:110px;border-radius:50%;object-fit:cover;
-    border:4px solid var(--accent);margin-bottom:20px;
-    box-shadow:0 0 50px rgba(255,45,85,0.25);
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
 }
-.verified-pill{
-    display:inline-flex;align-items:center;gap:6px;
-    background:rgba(0,230,118,0.15);color:var(--green);
-    padding:6px 14px;border-radius:20px;font-size:0.8em;font-weight:600;
-    margin-bottom:12px;letter-spacing:0.3px;
-    border:1px solid rgba(0,230,118,0.2);
+.voice-text {
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9em;
 }
-.hero h1{font-size:2.6em;font-weight:800;letter-spacing:-1px;line-height:1.1;margin-bottom:6px}
-.hero .tagline{color:var(--text2);font-size:1.05em;font-weight:400}
-.hero .bio{color:var(--text2);font-size:0.95em;margin-top:10px}
-
-/* ============ LAYOUT ============ */
-.container{max-width:960px;margin:0 auto;padding:0 24px}
-
-/* ============ ALERT BANNER ============ */
-.alert-banner{
-    background:linear-gradient(135deg, rgba(255,23,68,0.1), rgba(255,23,68,0.05));
-    border:1px solid rgba(255,23,68,0.25);border-radius:var(--radius);
-    padding:24px 28px;margin:30px 0;display:flex;align-items:flex-start;gap:16px;
+.voice-close {
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #fff;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.8em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
 }
-.alert-banner .alert-icon{font-size:2em;flex-shrink:0}
-.alert-banner h3{color:var(--red2);font-size:1.1em;margin-bottom:4px}
-.alert-banner p{color:var(--text2);font-size:0.9em;line-height:1.6}
-
-/* ============ SECTION ============ */
-.section{margin:50px 0}
-.section-header{display:flex;align-items:center;gap:10px;margin-bottom:20px}
-.section-header h2{font-size:1.3em;font-weight:700;letter-spacing:-0.4px}
-.section-line{flex:1;height:1px;background:var(--border)}
-
-/* ============ COMPARISON ============ */
-.comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-
-.card{
-    background:var(--surface);border:1px solid var(--border);
-    border-radius:var(--radius);padding:24px;
-    transition:var(--transition);position:relative;overflow:hidden;
-}
-.card:hover{transform:translateY(-2px)}
-.card.real{border-color:rgba(0,230,118,0.3);background:rgba(0,230,118,0.03)}
-.card.fake{border-color:rgba(255,23,68,0.3);background:rgba(255,23,68,0.03)}
-
-.card-badge{
-    display:inline-flex;align-items:center;gap:5px;
-    padding:5px 12px;border-radius:15px;font-size:0.75em;font-weight:700;
-    letter-spacing:0.5px;text-transform:uppercase;margin-bottom:12px;
-}
-.card.real .card-badge{background:rgba(0,230,118,0.2);color:var(--green)}
-.card.fake .card-badge{background:rgba(255,23,68,0.2);color:var(--red)}
-
-.card-username{
-    font-size:1.2em;font-weight:700;letter-spacing:-0.3px;
-    padding:8px 14px;border-radius:8px;display:inline-block;margin-bottom:14px;
-    font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;
-}
-.card.real .card-username{background:rgba(0,230,118,0.08);color:var(--green)}
-.card.fake .card-username{background:rgba(255,23,68,0.08);color:var(--red2)}
-
-/* ============ IMAGE WRAPPER ============ */
-.img-wrapper{position:relative;border-radius:var(--radius-sm);overflow:hidden;margin-bottom:12px}
-
-/* Real image glow */
-.img-wrapper.real-img::after{
-    content:'';position:absolute;inset:0;
-    background:rgba(0,230,118,0.04);pointer-events:none;z-index:2;
+.voice-close:hover {
+    background: #ff2d55;
 }
 
-/* Fake image red overlay */
-.img-wrapper.fake-img::before{
-    content:'';position:absolute;inset:0;
-    background:rgba(255,0,0,0.08);z-index:2;pointer-events:none;
-    animation:redPulse 2s ease-in-out infinite;
+/* Mute button */
+.mute-toggle {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    z-index: 9998;
+    background: #1a1a2e;
+    border: 2px solid rgba(255,255,255,0.2);
+    color: #fff;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.5em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
-@keyframes redPulse{
-    0%,100%{background:rgba(255,0,0,0.06)}
-    50%{background:rgba(255,0,0,0.15)}
+.mute-toggle:hover {
+    border-color: #ff2d55;
+    box-shadow: 0 4px 25px rgba(255,45,85,0.4);
+}
+.mute-toggle.muted {
+    background: #ff2d55;
+    border-color: #ff2d55;
 }
 
-/* Fake image border alert */
-.img-wrapper.fake-img::after{
-    content:'';position:absolute;inset:0;
-    border:2px solid transparent;border-radius:var(--radius-sm);
-    z-index:3;pointer-events:none;
-    animation:borderAlert 2.5s ease-in-out infinite;
+.header{text-align:center;padding:45px 20px 40px;background:linear-gradient(180deg,#0f0f1a 0%,#0a0b0f 100%);position:relative;overflow:hidden;border-bottom:1px solid rgba(255,45,85,0.15)}
+.header::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(circle at center,rgba(255,45,85,0.06) 0%,transparent 70%);pointer-events:none}
+.photo{width:130px;height:130px;border-radius:50%;border:4px solid #ff2d55;object-fit:cover;margin-bottom:18px;box-shadow:0 0 45px rgba(255,45,85,0.3);transition:transform 0.3s ease;background:#1a1a2e}
+.photo:hover{transform:scale(1.04)}
+.name{font-size:2.2em;font-weight:700;color:#fff;letter-spacing:-0.3px}
+.bio{color:#a1a1aa;margin-top:6px;font-size:1.05em;font-weight:400}
+.badge-row{margin-top:15px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.badge-official{background:#ff2d55;color:#fff;padding:8px 22px;border-radius:30px;font-size:0.9em;font-weight:600;letter-spacing:0.3px;animation:softPulse 2.8s infinite}
+.badge-fun{background:#ff6b00;color:#fff;padding:8px 22px;border-radius:30px;font-size:0.9em;font-weight:600}
+@keyframes softPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,45,85,0.4)}50%{box-shadow:0 0 0 16px rgba(255,45,85,0)}}
+
+.container{max-width:960px;margin:0 auto;padding:20px 20px}
+
+.warning-hero{background:rgba(255,0,0,0.06);border:1.5px solid rgba(255,68,68,0.5);border-radius:20px;padding:28px 22px;margin:30px 0;text-align:center;backdrop-filter:blur(4px)}
+.warning-hero .big-icon{font-size:3.2em;display:block;margin-bottom:10px;animation:gentleShake 0.6s infinite}
+@keyframes gentleShake{0%,100%{transform:rotate(0)}25%{transform:rotate(-4deg)}75%{transform:rotate(4deg)}}
+.warning-hero h2{color:#ff4d4d;font-size:1.4em;margin-bottom:8px;font-weight:700}
+.warning-hero p{color:#ffb3b3;font-size:0.95em}
+
+.section{margin:35px 0}
+.section-title{font-size:1.35em;font-weight:700;margin-bottom:18px;padding-bottom:10px;border-bottom:2px solid #22c55e;display:flex;align-items:center;gap:8px;letter-spacing:-0.2px}
+.section-title.fake-title{border-bottom-color:#ff4444}
+
+.comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:20px 0}
+
+.comparison-card{border-radius:16px;padding:22px;transition:transform 0.2s ease, box-shadow 0.3s ease;position:relative;overflow:hidden}
+.comparison-card:hover{transform:translateY(-3px)}
+.comparison-card.real{background:rgba(34,197,94,0.06);border:1.5px solid rgba(34,197,94,0.45);box-shadow:0 0 25px rgba(34,197,94,0.15)}
+.comparison-card.fake{background:rgba(255,68,68,0.06);border:1.5px solid rgba(255,68,68,0.5);box-shadow:0 0 25px rgba(255,68,68,0.15)}
+
+/* Glow effect when voice is playing */
+.comparison-card.fake.voice-active {
+    box-shadow: 0 0 40px rgba(255, 45, 85, 0.6), 0 0 80px rgba(255, 0, 0, 0.3);
+    border-color: #ff2d55;
+    animation: cardGlow 1s ease-in-out infinite;
 }
-@keyframes borderAlert{
-    0%,100%{border-color:rgba(255,0,0,0);box-shadow:inset 0 0 0 rgba(255,0,0,0)}
-    50%{border-color:rgba(255,0,0,0.6);box-shadow:inset 0 0 30px rgba(255,0,0,0.2)}
+@keyframes cardGlow {
+    0%, 100% { box-shadow: 0 0 30px rgba(255, 45, 85, 0.4); }
+    50% { box-shadow: 0 0 60px rgba(255, 45, 85, 0.8), 0 0 100px rgba(255, 0, 0, 0.4); }
 }
 
-/* Cross mark on fake */
-.cross-mark{
-    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:5;pointer-events:none;
-    width:70px;height:70px;
+.comparison-header{text-align:center;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.comparison-header .icon{font-size:2.6em;display:block;margin-bottom:6px}
+.comparison-header h3{font-size:1.25em;margin:5px 0;font-weight:600}
+.comparison-card.real .comparison-header h3{color:#22c55e}
+.comparison-card.fake .comparison-header h3{color:#ff4d4d}
+
+.platform-badge{display:inline-block;font-weight:600;font-size:0.8em;padding:5px 15px;border-radius:20px;margin-bottom:10px;letter-spacing:0.3px;text-transform:uppercase}
+.real .platform-badge{background:#22c55e;color:#000}
+.fake .platform-badge{background:#ff4444;color:#fff}
+
+.username-display{font-size:1.1em;font-weight:600;letter-spacing:0.4px;padding:9px 16px;border-radius:10px;display:inline-block;margin:10px 0}
+.real .username-display{background:rgba(34,197,94,0.2);color:#22c55e;border:1px solid rgba(34,197,94,0.3)}
+.fake .username-display{background:rgba(255,68,68,0.2);color:#ff6666;border:1px solid rgba(255,68,68,0.3)}
+
+/* Screenshot wrapper with premium danger animation */
+.screenshot-wrapper{position:relative;margin:14px 0;border-radius:12px;overflow:hidden}
+
+.screenshot-box{text-align:center;background:#0d0d14;border-radius:12px;padding:12px;border:1px solid rgba(255,255,255,0.08);position:relative}
+
+/* Fake image overlay animation */
+.screenshot-wrapper.fake-image{position:relative}
+.screenshot-wrapper.fake-image::before{
+    content:'';
+    position:absolute;
+    top:0;left:0;right:0;bottom:0;
+    background:rgba(255,0,0,0.12);
+    z-index:2;
+    pointer-events:none;
+    border-radius:12px;
+    animation:redPulseOverlay 1.8s ease-in-out infinite;
 }
-.cross-mark::before,
-.cross-mark::after{
-    content:'';position:absolute;background:var(--red);
-    border-radius:3px;box-shadow:0 0 20px rgba(255,0,0,0.7);
-    animation:crossPulse 1.2s ease-in-out infinite;
+@keyframes redPulseOverlay{
+    0%,100%{background:rgba(255,0,0,0.08)}
+    50%{background:rgba(255,0,0,0.25)}
 }
-.cross-mark::before{width:3px;height:100%;left:50%;transform:translateX(-50%)}
-.cross-mark::after{width:100%;height:3px;top:50%;transform:translateY(-50%)}
+
+/* Cross mark overlay on fake images */
+.cross-overlay{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    z-index:5;
+    pointer-events:none;
+}
+.cross-overlay::before,
+.cross-overlay::after{
+    content:'';
+    position:absolute;
+    background:#ff1a1a;
+    border-radius:5px;
+    box-shadow:0 0 25px rgba(255,0,0,0.9),0 0 45px rgba(255,0,0,0.5);
+}
+.cross-overlay::before{
+    width:7px;
+    height:90px;
+    left:-3.5px;
+    top:-45px;
+    animation:crossPulse 1.1s ease-in-out infinite;
+}
+.cross-overlay::after{
+    width:90px;
+    height:7px;
+    left:-45px;
+    top:-3.5px;
+    animation:crossPulse 1.1s ease-in-out infinite 0.55s;
+}
 @keyframes crossPulse{
-    0%,100%{opacity:0.5;box-shadow:0 0 15px rgba(255,0,0,0.4)}
-    50%{opacity:0.9;box-shadow:0 0 30px rgba(255,0,0,0.9)}
+    0%,100%{opacity:0.7;transform:scale(1)}
+    50%{opacity:1;transform:scale(1.08)}
 }
 
-/* Danger label */
-.danger-label{
-    position:absolute;top:10px;right:10px;z-index:6;
-    background:linear-gradient(135deg,#ff0000,#d50000);
-    color:#fff;padding:6px 12px;border-radius:15px;
-    font-size:0.7em;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;
-    animation:dangerGlow 1.5s ease-in-out infinite;
-    display:flex;align-items:center;gap:4px;
+/* Danger badge on image */
+.danger-badge{
+    position:absolute;
+    top:12px;
+    right:12px;
+    z-index:6;
+    background:linear-gradient(135deg,#ff0000,#b30000);
+    color:#fff;
+    padding:8px 16px;
+    border-radius:25px;
+    font-weight:700;
+    font-size:0.75em;
+    letter-spacing:0.8px;
+    box-shadow:0 0 30px rgba(255,0,0,0.8);
+    animation:dangerBadgeGlow 1.3s ease-in-out infinite;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    text-transform:uppercase;
 }
-@keyframes dangerGlow{
-    0%,100%{box-shadow:0 0 10px rgba(255,0,0,0.5)}
-    50%{box-shadow:0 0 25px rgba(255,0,0,0.9),0 0 50px rgba(255,0,0,0.4)}
+@keyframes dangerBadgeGlow{
+    0%,100%{box-shadow:0 0 15px rgba(255,0,0,0.5)}
+    50%{box-shadow:0 0 40px rgba(255,0,0,0.95),0 0 70px rgba(255,0,0,0.5)}
 }
 
-/* Warning icon corner */
-.warning-corner{
-    position:absolute;top:10px;left:10px;z-index:6;
-    font-size:1.3em;animation:warningBounce 0.7s ease-in-out infinite;
+/* Corner warning triangle */
+.corner-warning{
+    position:absolute;
+    top:0;
+    left:0;
+    z-index:6;
+    width:55px;
+    height:55px;
+    overflow:hidden;
+}
+.corner-warning::before{
+    content:'⚠️';
+    position:absolute;
+    top:6px;
+    left:6px;
+    font-size:1.4em;
+    animation:warningBounce 0.9s ease-in-out infinite;
 }
 @keyframes warningBounce{
     0%,100%{transform:translateY(0)}
-    50%{transform:translateY(-4px)}
+    50%{transform:translateY(-6px)}
 }
 
-/* Scan lines */
-.scan-effect{
-    position:absolute;inset:0;z-index:1;pointer-events:none;
-    background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,0,0,0.03) 2px,rgba(255,0,0,0.03) 4px);
-    animation:scanDown 3s linear infinite;
+/* Scan lines effect */
+.scan-lines{
+    position:absolute;
+    top:0;left:0;right:0;bottom:0;
+    background:repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(255,0,0,0.04) 2px,
+        rgba(255,0,0,0.04) 4px
+    );
+    z-index:1;
+    pointer-events:none;
+    border-radius:12px;
+    animation:scanMove 3.2s linear infinite;
 }
-@keyframes scanDown{
+@keyframes scanMove{
     0%{background-position:0 0}
-    100%{background-position:0 20px}
+    100%{background-position:0 22px}
 }
 
-/* Verified checkmark for real */
-.verified-mark{
-    position:absolute;top:10px;right:10px;z-index:6;
-    background:var(--green);color:#000;width:30px;height:30px;
-    border-radius:50%;display:flex;align-items:center;justify-content:center;
-    font-weight:700;font-size:0.9em;
-    box-shadow:0 0 20px rgba(0,230,118,0.5);
+/* Alert border animation */
+.alert-border{
+    position:absolute;
+    top:-2px;left:-2px;right:-2px;bottom:-2px;
+    border:2px solid transparent;
+    border-radius:14px;
+    z-index:1;
+    pointer-events:none;
+    animation:borderAlert 2.2s linear infinite;
+}
+@keyframes borderAlert{
+    0%{border-color:rgba(255,0,0,0);box-shadow:inset 0 0 0 rgba(255,0,0,0)}
+    25%{border-color:rgba(255,0,0,0.8);box-shadow:inset 0 0 18px rgba(255,0,0,0.35)}
+    50%{border-color:rgba(255,0,0,1);box-shadow:inset 0 0 28px rgba(255,0,0,0.55)}
+    75%{border-color:rgba(255,0,0,0.8);box-shadow:inset 0 0 18px rgba(255,0,0,0.35)}
+    100%{border-color:rgba(255,0,0,0);box-shadow:inset 0 0 0 rgba(255,0,0,0)}
 }
 
-.img-display{
-    width:100%;max-width:340px;aspect-ratio:9/19.5;
-    object-fit:contain;display:block;margin:0 auto;
-    border-radius:6px;background:#000;
-}
-.img-hint{display:block;text-align:center;color:var(--text2);font-size:0.7em;margin-top:6px}
+.proof-img{width:100%;max-width:300px;height:auto;aspect-ratio:9/19.5;object-fit:contain;object-position:center;border-radius:10px;cursor:pointer;transition:transform 0.3s ease;border:1px solid rgba(255,255,255,0.12);background:#0a0a12;position:relative;z-index:0}
+.proof-img:hover{transform:scale(1.03)}
+.proof-img.zoomed{transform:scale(1.55);z-index:1000;position:relative;box-shadow:0 25px 70px rgba(0,0,0,0.95);border-radius:14px;max-width:300px;cursor:zoom-out}
 
-/* ============ REASON ============ */
-.reason-block{
-    background:rgba(255,23,68,0.06);border-left:3px solid var(--red);
-    padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:12px;
-    font-size:0.82em;color:var(--red2);line-height:1.5;
-}
+.click-hint{display:block;color:#71717a;font-size:0.7em;margin-top:6px;text-align:center;position:relative;z-index:5}
 
-/* ============ BUTTONS ============ */
-.btn{
-    display:inline-flex;align-items:center;justify-content:center;gap:6px;
-    width:100%;padding:12px 20px;border-radius:25px;
-    font-weight:600;font-size:0.9em;text-decoration:none;
-    transition:var(--transition);cursor:pointer;border:none;
-    font-family:var(--font);letter-spacing:-0.2px;
-}
-.btn-green{background:var(--green);color:#000;margin-top:10px}
-.btn-green:hover{box-shadow:0 0 30px rgba(0,230,118,0.35);transform:translateY(-1px)}
-.btn-red{background:var(--red);color:#fff;margin-top:10px}
-.btn-red:hover{box-shadow:0 0 30px rgba(255,23,68,0.4);transform:translateY(-1px)}
-.btn-dark{background:var(--surface2);color:var(--text);margin-top:8px}
-.btn-dark:hover{background:#1e1e1e}
-.btn-dark.copied{background:var(--green)!important;color:#000!important}
+.reason-box{color:#ffb3b3;font-size:0.85em;margin-top:12px;padding:12px;background:rgba(255,0,0,0.08);border-radius:10px;border-left:3px solid #ff4444;text-align:center;line-height:1.6;font-weight:500}
 
-/* ============ CTA SECTION ============ */
-.cta-card{
-    background:rgba(0,230,118,0.04);border:2px solid rgba(0,230,118,0.3);
-    border-radius:var(--radius);padding:30px;text-align:center;margin:40px 0;
-}
-.cta-card .cta-icon{font-size:3em;margin-bottom:10px}
-.cta-card h2{color:var(--green);font-size:1.4em;margin-bottom:6px}
-.cta-card p{color:var(--text2);font-size:0.9em;margin-bottom:20px}
-.cta-card .btn{width:auto;display:inline-flex;padding:14px 36px;font-size:1em}
+.btn{padding:12px 22px;border-radius:30px;text-decoration:none;font-weight:600;font-size:0.95em;transition:all 0.2s ease;cursor:pointer;border:none;font-family:inherit;display:inline-flex;align-items:center;gap:8px;justify-content:center;width:100%;margin-top:12px;letter-spacing:0.2px}
+.btn-follow{background:#22c55e;color:#000;font-size:1em}
+.btn-follow:hover{background:#1ea84e;transform:scale(1.03);box-shadow:0 6px 18px rgba(34,197,94,0.45)}
+.btn-report{background:#ff2d55;color:#fff;font-size:1em}
+.btn-report:hover{background:#e60040;transform:scale(1.03);box-shadow:0 6px 18px rgba(255,45,85,0.5)}
+.btn-copy{background:#27272a;color:#fff;margin-top:10px}
+.btn-copy:hover{background:#3f3f46}
+.btn-copy.copied{background:#22c55e!important;color:#000!important}
 
-/* ============ STEPS ============ */
-.steps-card{
-    background:var(--surface);border:1px solid rgba(255,215,64,0.3);
-    border-radius:var(--radius);padding:28px;margin:40px 0;
+.action-steps{background:rgba(255,204,0,0.05);border:1.5px solid rgba(255,204,0,0.5);border-radius:18px;padding:28px;margin:35px 0}
+.action-steps h3{color:#ffcc00;font-size:1.25em;margin-bottom:18px;text-align:center;font-weight:700}
+.action-steps ol{list-style:none;counter-reset:step;padding-left:0}
+.action-steps ol li{counter-increment:step;padding:12px 12px 12px 42px;position:relative;color:#d4d4d8;font-size:0.9em;line-height:1.7;margin:8px 0}
+.action-steps ol li::before{content:counter(step);position:absolute;left:0;top:10px;width:28px;height:28px;background:#ffcc00;color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85em}
+.tip-box{background:rgba(255,204,0,0.08);border:1px solid rgba(255,204,0,0.4);border-radius:12px;padding:16px;margin-top:20px;text-align:center}
+.tip-box strong{color:#ffcc00}
+
+.footer{text-align:center;padding:45px 20px 25px;color:#52525b;font-size:0.85em;line-height:1.8;border-top:1px solid rgba(255,255,255,0.05);margin-top:15px}
+
+/* Real image subtle glow */
+.screenshot-wrapper.real-image::before{
+    content:'';
+    position:absolute;
+    top:0;left:0;right:0;bottom:0;
+    background:rgba(34,197,94,0.04);
+    z-index:2;
+    pointer-events:none;
+    border-radius:12px;
 }
-.steps-card h3{color:var(--amber);text-align:center;font-size:1.1em;margin-bottom:20px}
-.step-list{list-style:none;counter-reset:step}
-.step-list li{
-    counter-increment:step;padding:10px 10px 10px 42px;
-    position:relative;color:var(--text2);font-size:0.88em;line-height:1.6;margin:6px 0;
-}
-.step-list li::before{
-    content:counter(step);position:absolute;left:0;top:8px;
-    width:26px;height:26px;background:var(--amber);color:#000;
-    border-radius:50%;display:flex;align-items:center;justify-content:center;
-    font-weight:700;font-size:0.8em;
-}
-.tip-box{
-    background:rgba(255,215,64,0.06);border:1px solid rgba(255,215,64,0.2);
-    border-radius:var(--radius-sm);padding:14px;text-align:center;margin-top:16px;
-    color:var(--amber);font-size:0.85em;
+.real-checkmark{
+    position:absolute;
+    top:12px;
+    right:12px;
+    z-index:5;
+    background:#22c55e;
+    color:#000;
+    width:34px;
+    height:34px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:1.2em;
+    font-weight:700;
+    box-shadow:0 0 22px rgba(34,197,94,0.7);
 }
 
-/* ============ FOOTER ============ */
-.footer{
-    text-align:center;padding:50px 20px;color:var(--text2);
-    font-size:0.8em;border-top:1px solid var(--border);margin-top:40px;
-}
-
-/* ============ RESPONSIVE ============ */
 @media(max-width:768px){
     .comparison-grid{grid-template-columns:1fr}
-    .hero h1{font-size:2em}
-    .img-display{max-width:280px}
-    .cross-mark{width:50px;height:50px}
+    .proof-img{max-width:270px}
+    .proof-img.zoomed{transform:scale(1.25);max-width:270px}
+    .cross-overlay::before{height:70px;top:-35px}
+    .cross-overlay::after{width:70px;left:-35px}
+    .voice-notification { font-size: 0.8em; padding: 10px 16px; }
+    .mute-toggle { width: 45px; height: 45px; bottom: 20px; right: 20px; }
 }
-@media(max-width:480px){
-    .hero h1{font-size:1.7em}
-    .hero-avatar{width:90px;height:90px}
-    .img-display{max-width:240px}
-    .navbar{padding:0 16px}
-    .nav-btn{padding:6px 14px;font-size:0.8em}
+@media(max-width:400px){
+    .proof-img{max-width:230px}
+    .proof-img.zoomed{transform:scale(1.15);max-width:230px}
 }
 </style>
 </head>
 <body>
 
-<!-- ============ NAVBAR ============ -->
-<nav class="navbar">
-    <div class="nav-logo">
-        <img src="${DATA.celebrity.photo}" alt="Logo">
-        <span>${DATA.celebrity.name}</span>
-    </div>
-    <div class="nav-actions">
-        <a href="#official" class="nav-btn nav-btn-primary">Follow Official</a>
-        <a href="#fake" class="nav-btn nav-btn-outline">View Fakes</a>
-    </div>
-</nav>
+<!-- Voice notification banner -->
+<div class="voice-notification" id="voiceNotification">
+    <span class="voice-icon">🔊</span>
+    <span class="voice-text" id="voiceText">⚠️ Warning: Fake account detected!</span>
+    <button class="voice-close" onclick="closeNotification()">✕</button>
+</div>
 
-<!-- ============ HERO ============ -->
-<section class="hero">
-    <div class="hero-content">
-        <img src="${DATA.celebrity.photo}" alt="${DATA.celebrity.name}" class="hero-avatar">
-        <div class="verified-pill">
-            <span>✓</span> VERIFIED OFFICIAL
-        </div>
-        <h1>${DATA.celebrity.name}</h1>
-        <p class="tagline">${DATA.celebrity.tagline}</p>
-        <p class="bio">${DATA.celebrity.bio}</p>
-    </div>
-</section>
+<!-- Mute/Unmute toggle -->
+<button class="mute-toggle" id="muteToggle" onclick="toggleMute()" title="Toggle Sound">
+    🔊
+</button>
+
+<div class="header">
+<img src="${DATA.celebrity.photo}" alt="${DATA.celebrity.name}" class="photo" onerror="this.style.display='none'">
+<h1 class="name">${DATA.celebrity.name}</h1>
+<p class="bio">${DATA.celebrity.bio}</p>
+<div class="badge-row">
+<span class="badge-official">✅ OFFICIAL PAGE</span>
+<span class="badge-fun">🎭 ENTERTAINMENT</span>
+</div>
+</div>
 
 <div class="container">
 
-<!-- ============ ALERT ============ -->
-<div class="alert-banner">
-    <span class="alert-icon">⚠️</span>
-    <div>
-        <h3>Impersonation Alert</h3>
-        <p>Multiple fake accounts are using our name to deceive followers. Please verify before engaging.</p>
-    </div>
+<div class="warning-hero">
+<span class="big-icon">⚠️</span>
+<h2>Beware of fake accounts</h2>
+<p>Multiple impersonator accounts are using ${DATA.celebrity.name.split(' ')[0]}'s identity.<br>Compare the real and fake profiles below to stay safe.</p>
 </div>
 
-<!-- ============ OFFICIAL CTA ============ -->
-<div class="cta-card" id="official">
-    <div class="cta-icon">✅</div>
-    <h2>This Is The Only Official Account</h2>
-    <p>All other accounts claiming to be us are fake. Follow only this one.</p>
-    <a href="${DATA.realAccounts[0].url}" target="_blank" rel="noopener noreferrer" class="btn btn-green">👉 Follow @baiillamaach_official</a>
+<div class="section">
+<h2 class="section-title">🔒 How to identify the real account</h2>
+<div style="background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.45);border-radius:16px;padding:28px;text-align:center;margin-bottom:25px">
+<div style="font-size:3em;margin-bottom:12px">✅</div>
+<h3 style="color:#22c55e;font-size:1.4em;margin-bottom:12px">Only this account is authentic</h3>
+<p style="color:#e4e4e7;font-size:1.05em;margin-bottom:10px"><strong style="color:#22c55e;font-size:1.3em">@baiillamaach_official</strong></p>
+<p style="color:#a1a1aa;font-size:0.9em;margin-bottom:25px">This is our one and only official profile.<br>No backup or secondary accounts exist.</p>
+<a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#22c55e;color:#000;padding:14px 42px;border-radius:35px;text-decoration:none;font-weight:700;font-size:1.1em;transition:all 0.25s;box-shadow:0 0 25px rgba(34,197,94,0.45)" onmouseover="this.style.transform='scale(1.04)';this.style.boxShadow='0 0 45px rgba(34,197,94,0.75)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 0 25px rgba(34,197,94,0.45)'">👉 Follow Now</a>
+</div>
 </div>
 
-<!-- ============ COMPARISON ============ -->
-<div class="section" id="fake">
-    <div class="section-header">
-        <h2 style="color:var(--green)">✅ Official</h2>
-        <div class="section-line"></div>
-        <h2 style="color:var(--red)">🚨 Fake</h2>
-    </div>
-    <div class="comparison-grid">
-        ${DATA.realAccounts.map(a => `
-        <div class="card real">
-            <span class="card-badge">✓ Verified Official</span>
-            <div class="card-username">${a.username}</div>
-            ${a.screenshot ? `
-            <div class="img-wrapper real-img">
-                <div class="verified-mark">✓</div>
-                <img src="${a.screenshot}" alt="Official Account" class="img-display" loading="lazy">
-            </div>
-            <span class="img-hint">Click to zoom</span>` : ''}
-            <a href="${a.url}" target="_blank" rel="noopener noreferrer" class="btn btn-green">👉 Follow Official</a>
-        </div>
-        `).join('')}
-        ${DATA.fakeAccounts.map(a => `
-        <div class="card fake">
-            <span class="card-badge">⚠️ Fake Account</span>
-            <div class="card-username">${a.username}</div>
-            ${a.screenshot ? `
-            <div class="img-wrapper fake-img">
-                <div class="scan-effect"></div>
-                <div class="warning-corner">⚠️</div>
-                <div class="danger-label">⚠ FAKE</div>
-                <div class="cross-mark"></div>
-                <img src="${a.screenshot}" alt="Fake Account" class="img-display" loading="lazy">
-            </div>
-            <span class="img-hint">Click to zoom</span>` : ''}
-            ${a.reason ? `<div class="reason-block"><strong>⚠</strong> ${a.reason}</div>` : ''}
-            <a href="${a.profileUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-red">🚨 Report This Account</a>
-            <button class="btn btn-dark copy-btn" data-username="${a.username}">📋 Copy Username</button>
-        </div>
-        `).join('')}
-    </div>
+<div class="section">
+<h2 class="section-title">⚡ Real Account</h2>
+<div class="comparison-grid">
+${DATA.realAccounts.map(a => `
+<div class="comparison-card real">
+<div class="comparison-header">
+<span class="icon">✅</span>
+<h3>Real Account</h3>
+</div>
+<span class="platform-badge">${a.platform}</span>
+<div class="username-display">${a.username}</div>
+${a.screenshot ? `
+<div class="screenshot-wrapper real-image">
+<div class="scan-lines" style="background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(34,197,94,0.03) 2px,rgba(34,197,94,0.03) 4px);animation:scanMove 3s linear infinite"></div>
+<div class="real-checkmark">✓</div>
+<div class="screenshot-box">
+<img src="${a.screenshot}" alt="Real Account Screenshot" class="proof-img" onclick="this.classList.toggle('zoomed')" loading="lazy">
+</div>
+</div>
+<span class="click-hint">🖱️ Click to zoom</span>` : ''}
+<a href="${a.url}" target="_blank" rel="noopener noreferrer" class="btn btn-follow">👉 Follow Now</a>
+</div>
+`).join('')}
+</div>
 </div>
 
-<!-- ============ STEPS ============ -->
-<div class="steps-card">
-    <h3>🛡️ How To Protect Yourself</h3>
-    <ol class="step-list">
-        <li>Go to the fake accounts above and click <strong>"Report"</strong></li>
-        <li>Never share personal information or send money to unverified accounts</li>
-        <li>Always use the official follow button on this page to reach us</li>
-    </ol>
-    <div class="tip-box">
-        <strong>💡 Tip:</strong> We will never ask for money in DMs. If someone does, it's a fake account.
-    </div>
+<div class="section" id="fakeAccountsSection">
+<h2 class="section-title fake-title">🚨 Fake Accounts — Stay Alert</h2>
+<div class="comparison-grid" id="fakeAccountsGrid">
+${DATA.fakeAccounts.map((a, index) => `
+<div class="comparison-card fake" id="fakeCard${index}" data-voice="${a.voiceFile || ''}" data-index="${index}">
+<div class="comparison-header">
+<span class="icon">🚨</span>
+<h3>Fake Account</h3>
+</div>
+<span class="platform-badge">${a.platform}</span>
+<div class="username-display">${a.username}</div>
+${a.screenshot ? `
+<div class="screenshot-wrapper fake-image">
+<div class="alert-border"></div>
+<div class="scan-lines"></div>
+<div class="corner-warning"></div>
+<div class="danger-badge">⚠️ FAKE</div>
+<div class="cross-overlay"></div>
+<div class="screenshot-box">
+<img src="${a.screenshot}" alt="Fake Account Screenshot" class="proof-img" onclick="this.classList.toggle('zoomed')" loading="lazy">
+</div>
+</div>
+<span class="click-hint">🖱️ Click to zoom</span>` : ''}
+${a.reason ? `<div class="reason-box"><strong>⚠️</strong> ${a.reason}</div>` : ''}
+<a href="${a.profileUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-report">🚨 Report Account</a>
+<button class="btn btn-copy" data-username="${a.username}">📋 Copy Username</button>
+</div>
+`).join('')}
+</div>
+</div>
+
+<div class="action-steps">
+<h3>🛡️ What you should do</h3>
+<ol>
+<li>Visit the fake accounts listed above and <strong>"Report"</strong> them immediately</li>
+<li>Never share personal information outside the official account</li>
+<li>If you're unsure, use only the official link provided here</li>
+</ol>
+<div class="tip-box">
+<strong>💡 Remember:</strong> We will never ask for money or passwords in DMs. Always verify through the <strong>Follow Now</strong> button above.
+</div>
 </div>
 
 </div>
 
-<!-- ============ FOOTER ============ -->
-<footer class="footer">
-    <p>© ${DATA.celebrity.name} — Official Entertainment Profile</p>
-</footer>
+<div class="footer">
+<p>© ${DATA.celebrity.name} • Official Verification Hub</p>
+</div>
+
+<!-- Hidden audio elements -->
+${DATA.fakeAccounts.map((a, index) => a.voiceFile ? `<audio id="voiceAudio${index}" preload="auto" src="${a.voiceFile}"></audio>` : '').join('')}
 
 <script>
-document.querySelectorAll('.copy-btn').forEach(btn => {
+// Global state
+let isMuted = false;
+let currentlyPlaying = null;
+let hasUserInteracted = false;
+
+// Voice notification elements
+const voiceNotification = document.getElementById('voiceNotification');
+const voiceText = document.getElementById('voiceText');
+const muteToggle = document.getElementById('muteToggle');
+
+// Close notification
+function closeNotification() {
+    voiceNotification.classList.remove('show');
+    if (currentlyPlaying) {
+        currentlyPlaying.pause();
+        currentlyPlaying.currentTime = 0;
+        document.querySelectorAll('.comparison-card.fake.voice-active').forEach(card => {
+            card.classList.remove('voice-active');
+        });
+        currentlyPlaying = null;
+    }
+}
+
+// Toggle mute
+function toggleMute() {
+    isMuted = !isMuted;
+    if (isMuted) {
+        muteToggle.classList.add('muted');
+        muteToggle.innerHTML = '🔇';
+        if (currentlyPlaying) {
+            currentlyPlaying.pause();
+            currentlyPlaying.currentTime = 0;
+            document.querySelectorAll('.comparison-card.fake.voice-active').forEach(card => {
+                card.classList.remove('voice-active');
+            });
+            currentlyPlaying = null;
+        }
+        voiceNotification.classList.remove('show');
+    } else {
+        muteToggle.classList.remove('muted');
+        muteToggle.innerHTML = '🔊';
+    }
+}
+
+// Play voice for specific fake account
+function playVoiceForCard(cardElement) {
+    if (isMuted) return;
+    
+    const voiceFile = cardElement.dataset.voice;
+    const index = cardElement.dataset.index;
+    
+    if (!voiceFile) return;
+    
+    // Stop current audio if playing
+    if (currentlyPlaying) {
+        currentlyPlaying.pause();
+        currentlyPlaying.currentTime = 0;
+        document.querySelectorAll('.comparison-card.fake.voice-active').forEach(c => {
+            c.classList.remove('voice-active');
+        });
+    }
+    
+    const audioElement = document.getElementById('voiceAudio' + index);
+    if (!audioElement) return;
+    
+    // Add glow effect to card
+    cardElement.classList.add('voice-active');
+    
+    // Play audio
+    audioElement.currentTime = 0;
+    audioElement.play().then(() => {
+        currentlyPlaying = audioElement;
+        
+        // Show notification
+        voiceText.textContent = '⚠️ Warning: Fake account detected! Listen carefully...';
+        voiceNotification.classList.add('show');
+        
+        // Auto-hide notification after 4 seconds
+        setTimeout(() => {
+            if (voiceNotification.classList.contains('show')) {
+                voiceNotification.classList.remove('show');
+            }
+        }, 4000);
+        
+    }).catch(err => {
+        console.log('Audio play failed:', err);
+        cardElement.classList.remove('voice-active');
+    });
+    
+    // When audio ends
+    audioElement.onended = () => {
+        cardElement.classList.remove('voice-active');
+        voiceNotification.classList.remove('show');
+        currentlyPlaying = null;
+    };
+}
+
+// Intersection Observer for fake account cards
+const observerOptions = {
+    root: null,
+    rootMargin: '0px',
+    threshold: 0.6 // Trigger when 60% of card is visible
+};
+
+const observerCallback = (entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting && !isMuted) {
+            const card = entry.target;
+            // Only play if no other voice is currently playing
+            if (!currentlyPlaying || currentlyPlaying.ended) {
+                playVoiceForCard(card);
+            }
+        } else if (!entry.isIntersecting) {
+            // Stop voice when card scrolls out of view
+            const card = entry.target;
+            if (card.classList.contains('voice-active') && currentlyPlaying) {
+                currentlyPlaying.pause();
+                currentlyPlaying.currentTime = 0;
+                card.classList.remove('voice-active');
+                voiceNotification.classList.remove('show');
+                currentlyPlaying = null;
+            }
+        }
+    });
+};
+
+const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+// Observe all fake account cards
+document.querySelectorAll('.comparison-card.fake').forEach(card => {
+    observer.observe(card);
+});
+
+// Mark user interaction on first click
+document.addEventListener('click', () => {
+    hasUserInteracted = true;
+}, { once: true });
+
+// Copy username functionality
+document.querySelectorAll('.btn-copy').forEach(btn => {
     btn.addEventListener('click', function() {
         const username = this.dataset.username;
         navigator.clipboard.writeText(username).then(() => {
@@ -494,30 +727,41 @@ document.querySelectorAll('.copy-btn').forEach(btn => {
     });
 });
 
-document.querySelectorAll('.img-display').forEach(img => {
-    img.addEventListener('click', function() {
-        this.classList.toggle('zoomed');
-        if (this.classList.contains('zoomed')) {
-            this.style.transform = 'scale(1.5)';
-            this.style.zIndex = '999';
-            this.style.position = 'relative';
-        } else {
-            this.style.transform = 'scale(1)';
-            this.style.zIndex = '1';
-            this.style.position = 'relative';
+// Image zoom functionality
+document.querySelectorAll('.proof-img').forEach(img => {
+    img.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const wasZoomed = this.classList.contains('zoomed');
+        document.querySelectorAll('.proof-img.zoomed').forEach(zoomImg => {
+            zoomImg.classList.remove('zoomed');
+        });
+        if (!wasZoomed) {
+            this.classList.add('zoomed');
         }
     });
 });
 
+// Keyboard escape to unzoom
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        document.querySelectorAll('.img-display.zoomed').forEach(img => {
+        document.querySelectorAll('.proof-img.zoomed').forEach(img => {
             img.classList.remove('zoomed');
-            img.style.transform = 'scale(1)';
-            img.style.zIndex = '1';
         });
     }
 });
+
+// Click outside to unzoom
+document.addEventListener('click', function(e) {
+    if (!e.target.classList.contains('proof-img')) {
+        document.querySelectorAll('.proof-img.zoomed').forEach(img => {
+            img.classList.remove('zoomed');
+        });
+    }
+});
+
+console.log('✅ Voice alert system initialized');
+console.log('📢 Scroll to fake accounts to trigger voice warnings');
+console.log('🔊 Click the speaker icon to mute/unmute');
 </script>
 </body>
 </html>`;
@@ -527,6 +771,7 @@ const server = http.createServer((req, res) => {
     const parsedUrl = url.parse(req.url, true);
     const pathname = parsedUrl.pathname;
 
+    // Serve assets (images and audio)
     if (pathname.startsWith('/assets/')) {
         const assetPath = path.join(__dirname, pathname);
         if (!assetPath.startsWith(ASSETS_DIR)) {
@@ -537,54 +782,129 @@ const server = http.createServer((req, res) => {
         if (fs.existsSync(assetPath)) {
             const ext = path.extname(assetPath).toLowerCase();
             const contentTypes = {
-                '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-                '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml'
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.gif': 'image/gif',
+                '.webp': 'image/webp',
+                '.svg': 'image/svg+xml',
+                '.ico': 'image/x-icon',
+                '.mp3': 'audio/mpeg',
+                '.wav': 'audio/wav',
+                '.ogg': 'audio/ogg',
+                '.m4a': 'audio/mp4'
             };
             const contentType = contentTypes[ext] || 'application/octet-stream';
             const stat = fs.statSync(assetPath);
-            res.writeHead(200, {
-                'Content-Type': contentType, 'Content-Length': stat.size,
-                'Cache-Control': 'public, max-age=86400, immutable',
-                'Access-Control-Allow-Origin': '*'
-            });
-            fs.createReadStream(assetPath).pipe(res);
+            
+            // Support range requests for audio
+            const range = req.headers.range;
+            if (range && (ext === '.mp3' || ext === '.wav' || ext === '.ogg')) {
+                const parts = range.replace(/bytes=/, "").split("-");
+                const start = parseInt(parts[0], 10);
+                const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+                const chunksize = (end - start) + 1;
+                
+                res.writeHead(206, {
+                    'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+                    'Accept-Ranges': 'bytes',
+                    'Content-Length': chunksize,
+                    'Content-Type': contentType,
+                    'Cache-Control': 'public, max-age=86400',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                
+                const stream = fs.createReadStream(assetPath, { start, end });
+                stream.pipe(res);
+                stream.on('error', (err) => {
+                    console.error('Error streaming audio:', err);
+                    if (!res.headersSent) {
+                        res.writeHead(500);
+                        res.end('Error loading audio');
+                    }
+                });
+            } else {
+                res.writeHead(200, {
+                    'Content-Type': contentType,
+                    'Content-Length': stat.size,
+                    'Cache-Control': 'public, max-age=86400, immutable',
+                    'Access-Control-Allow-Origin': '*',
+                    'X-Content-Type-Options': 'nosniff',
+                    'Accept-Ranges': 'bytes'
+                });
+                const readStream = fs.createReadStream(assetPath);
+                readStream.pipe(res);
+                readStream.on('error', (err) => {
+                    console.error('Error reading asset:', err);
+                    if (!res.headersSent) {
+                        res.writeHead(500);
+                        res.end('Error loading asset');
+                    }
+                });
+            }
         } else {
-            res.writeHead(404); res.end('Not found');
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('Asset not found');
         }
         return;
     }
 
+    // Main page
     if (pathname === '/' || pathname === '/index.html') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
         res.end(getHTML());
         return;
     }
 
+    // JSON data endpoint
     if (pathname === '/data.json') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
         res.end(JSON.stringify(DATA, null, 2));
         return;
     }
 
+    // Health check
+    if (pathname === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }));
+        return;
+    }
+
+    // 404
     res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>404</title><style>body{background:#000;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;text-align:center}h1{font-size:80px;color:#ff2d55}p{color:#aaa}a{color:#ff2d55}</style></head><body><div><h1>404</h1><p>Page not found</p><a href="/">Go Home</a></div></body></html>');
+    res.end(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>404 • Not Found</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0b0f;color:#e4e4e7;font-family:'Inter',system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}.error-code{font-size:130px;font-weight:800;background:linear-gradient(135deg,#ff2d55,#ff6b00);-webkit-background-clip:text;-webkit-text-fill-color:transparent}.message{font-size:1.5em;margin:20px 0;color:#a1a1aa}.btn{display:inline-block;padding:12px 32px;background:#ff2d55;color:#fff;text-decoration:none;border-radius:30px;font-weight:600}.btn:hover{transform:scale(1.04)}</style></head><body><div><div class="error-code">404</div><p class="message">Page not found</p><a href="/" class="btn">🏠 Back to safety</a></div></body></html>`);
 });
 
 server.listen(PORT, () => {
-    console.log('='.repeat(50));
-    console.log('✅ SERVER RUNNING');
-    console.log('='.repeat(50));
+    console.log('='.repeat(60));
+    console.log('✅ SERVER STARTED — VOICE-ENABLED VERIFICATION HUB');
+    console.log('='.repeat(60));
     console.log(`🚀 http://localhost:${PORT}`);
-    console.log(`📁 ${ASSETS_DIR}`);
-    console.log('='.repeat(50));
+    console.log(`📁 Assets directory: ${ASSETS_DIR}`);
+    console.log('='.repeat(60));
+    console.log('📸 Images:');
     for (const [key, imagePath] of Object.entries(IMAGES)) {
         const fullPath = path.join(__dirname, imagePath);
-        console.log(`   ${fs.existsSync(fullPath) ? '✅' : '❌'} ${key}`);
+        const exists = fs.existsSync(fullPath);
+        console.log(`   ${exists ? '✅' : '❌'} ${key}: ${imagePath}`);
+    }
+    console.log('🎵 Voice files:');
+    for (const [key, voicePath] of Object.entries(VOICE_FILES)) {
+        const fullPath = path.join(__dirname, voicePath);
+        const exists = fs.existsSync(fullPath);
+        console.log(`   ${exists ? '✅' : '❌'} ${key}: ${voicePath}`);
     }
     console.log('');
+    console.log('🎯 Features:');
+    console.log('   🔊 Auto-play voice when scrolling to fake accounts');
+    console.log('   🔇 Mute/Unmute toggle button');
+    console.log('   ✨ Card glow effect during voice playback');
+    console.log('   📢 Voice notification banner');
+    console.log('   🛑 Voice stops when scrolling away');
+    console.log('='.repeat(60));
 });
 
 server.on('error', (err) => {
-    console.error('❌ Error:', err.message);
+    console.error('❌ Server error:', err);
     if (err.code === 'EADDRINUSE') process.exit(1);
 });
