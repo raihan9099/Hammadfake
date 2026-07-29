@@ -94,7 +94,7 @@ function getHTML() {
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,sans-serif;background:#0a0b0f;color:#e4e4e7;min-height:100vh;line-height:1.6}
 
-/* Voice notification banner - iPhone style */
+/* Voice notification banner */
 .voice-notification {
     position: fixed;
     top: 20px;
@@ -120,14 +120,6 @@ body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,san
 @keyframes slideDown {
     from { transform: translateX(-50%) translateY(-120px); opacity: 0; }
     to { transform: translateX(-50%) translateY(0); opacity: 1; }
-}
-.voice-icon {
-    font-size: 1.4em;
-    animation: pulse 1.5s infinite;
-}
-@keyframes pulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.15); opacity: 0.8; }
 }
 .voice-text {
     color: #fff;
@@ -155,7 +147,7 @@ body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,san
     transform: scale(1.1);
 }
 
-/* Mute button - iPhone style */
+/* Mute button */
 .mute-toggle {
     position: fixed;
     bottom: 30px;
@@ -187,7 +179,7 @@ body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,san
     border-color: #ff2d55;
 }
 
-/* PREMIUM WARNING ANIMATION */
+/* PREMIUM WARNING - No emoji bounce, just text */
 .premium-warning {
     position: absolute;
     top: 0;
@@ -200,28 +192,21 @@ body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,san
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 20px;
-}
-
-.warning-text-row {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
+    gap: 12px;
 }
 
 .warning-main {
     font-family: -apple-system, 'SF Pro Display', 'Inter', sans-serif;
-    font-size: 0.9em;
+    font-size: 0.8em;
     font-weight: 800;
     letter-spacing: 2px;
     text-transform: uppercase;
     color: #ff2d55;
     text-shadow: 0 0 20px rgba(255,45,85,0.8), 0 0 40px rgba(255,0,0,0.5);
-    animation: bounceUpDown 1.5s ease-in-out infinite;
-    background: rgba(0,0,0,0.7);
-    padding: 8px 20px;
-    border-radius: 25px;
+    animation: bounceText 1.5s ease-in-out infinite;
+    background: rgba(0,0,0,0.75);
+    padding: 6px 16px;
+    border-radius: 20px;
     border: 1.5px solid rgba(255,45,85,0.6);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -229,49 +214,27 @@ body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,san
 
 .warning-sub {
     font-family: -apple-system, 'SF Pro Display', 'Inter', sans-serif;
-    font-size: 1.1em;
+    font-size: 0.9em;
     font-weight: 900;
     letter-spacing: 4px;
     text-transform: uppercase;
     color: #ff0000;
     text-shadow: 0 0 25px rgba(255,0,0,0.9), 0 0 50px rgba(255,0,0,0.6);
-    animation: bounceUpDown 1.5s ease-in-out infinite 0.3s;
-    background: rgba(0,0,0,0.75);
-    padding: 10px 28px;
-    border-radius: 25px;
+    animation: bounceText 1.5s ease-in-out infinite 0.3s;
+    background: rgba(0,0,0,0.8);
+    padding: 6px 20px;
+    border-radius: 20px;
     border: 2px solid rgba(255,0,0,0.8);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
 }
 
-@keyframes bounceUpDown {
-    0%, 100% { 
-        transform: translateY(0); 
-    }
-    30% { 
-        transform: translateY(-8px); 
-    }
-    50% { 
-        transform: translateY(-12px); 
-    }
-    70% { 
-        transform: translateY(-6px); 
-    }
-    85% { 
-        transform: translateY(-2px); 
-    }
-}
-
-/* Warning icon animation */
-.warning-icons {
-    display: flex;
-    gap: 15px;
-    animation: bounceUpDown 1.5s ease-in-out infinite 0.6s;
-}
-
-.warning-icon-item {
-    font-size: 1.5em;
-    filter: drop-shadow(0 0 10px rgba(255,0,0,0.8));
+@keyframes bounceText {
+    0%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-6px); }
+    50% { transform: translateY(-10px); }
+    70% { transform: translateY(-4px); }
+    85% { transform: translateY(-1px); }
 }
 
 .header{text-align:center;padding:45px 20px 40px;background:linear-gradient(180deg,#0f0f1a 0%,#0a0b0f 100%);position:relative;overflow:hidden;border-bottom:1px solid rgba(255,45,85,0.15)}
@@ -299,7 +262,7 @@ body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,san
 
 .comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:20px 0}
 
-.comparison-card{border-radius:16px;padding:22px;transition:transform 0.2s ease, box-shadow 0.3s ease;position:relative;overflow:hidden}
+.comparison-card{border-radius:16px;padding:16px;transition:transform 0.2s ease, box-shadow 0.3s ease;position:relative;overflow:hidden}
 .comparison-card:hover{transform:translateY(-3px)}
 .comparison-card.real{background:rgba(34,197,94,0.06);border:1.5px solid rgba(34,197,94,0.45);box-shadow:0 0 25px rgba(34,197,94,0.15)}
 .comparison-card.fake{background:rgba(255,68,68,0.06);border:1.5px solid rgba(255,68,68,0.5);box-shadow:0 0 25px rgba(255,68,68,0.15)}
@@ -315,70 +278,118 @@ body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,san
     50% { box-shadow: 0 0 60px rgba(255, 45, 85, 0.8), 0 0 100px rgba(255, 0, 0, 0.4); }
 }
 
-.comparison-header{text-align:center;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.08)}
-.comparison-header .icon{font-size:2.6em;display:block;margin-bottom:6px}
-.comparison-header h3{font-size:1.25em;margin:5px 0;font-weight:600}
+/* Compact header */
+.comparison-header{text-align:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.comparison-header .icon{font-size:1.5em;display:block;margin-bottom:2px}
+.comparison-header h3{font-size:0.95em;margin:2px 0;font-weight:600}
 .comparison-card.real .comparison-header h3{color:#22c55e}
 .comparison-card.fake .comparison-header h3{color:#ff4d4d}
 
-.platform-badge{display:inline-block;font-weight:600;font-size:0.8em;padding:5px 15px;border-radius:20px;margin-bottom:10px;letter-spacing:0.3px;text-transform:uppercase}
+/* Smaller platform badge */
+.platform-badge{display:inline-block;font-weight:600;font-size:0.7em;padding:3px 10px;border-radius:12px;margin-bottom:4px;letter-spacing:0.3px;text-transform:uppercase}
 .real .platform-badge{background:#22c55e;color:#000}
 .fake .platform-badge{background:#ff4444;color:#fff}
 
-.username-display{font-size:1.1em;font-weight:600;letter-spacing:0.4px;padding:9px 16px;border-radius:10px;display:inline-block;margin:10px 0}
+/* Compact username */
+.username-display{
+    font-size:0.8em;
+    font-weight:600;
+    letter-spacing:0.3px;
+    padding:5px 10px;
+    border-radius:6px;
+    display:inline-block;
+    margin:4px 0;
+}
 .real .username-display{background:rgba(34,197,94,0.2);color:#22c55e;border:1px solid rgba(34,197,94,0.3)}
 .fake .username-display{background:rgba(255,68,68,0.2);color:#ff6666;border:1px solid rgba(255,68,68,0.3)}
 
-/* Screenshot wrapper */
-.screenshot-wrapper{position:relative;margin:14px 0;border-radius:12px;overflow:hidden}
+/* STRONG SCREENSHOT BOX - Like TikTok full picture view */
+.screenshot-wrapper{position:relative;margin:8px 0;border-radius:12px;overflow:hidden}
 
-.screenshot-box{text-align:center;background:#0d0d14;border-radius:12px;padding:12px;border:1px solid rgba(255,255,255,0.08);position:relative}
+/* Strong box like TikTok profile picture click */
+.screenshot-box{
+    text-align:center;
+    background:#000;
+    border-radius:12px;
+    padding:2px;
+    border:3px solid rgba(255,255,255,0.2);
+    position:relative;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.15);
+    transition: all 0.3s ease;
+}
+.screenshot-box:hover {
+    border-color: rgba(255,255,255,0.4);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.9), 0 0 0 2px rgba(255,255,255,0.25);
+}
 
-/* Red overlay */
+/* Red overlay for fake images */
 .screenshot-wrapper.fake-image::before{
     content:'';
     position:absolute;
     top:0;left:0;right:0;bottom:0;
-    background:rgba(255,0,0,0.1);
+    background:rgba(255,0,0,0.06);
     z-index:2;
     pointer-events:none;
     border-radius:12px;
 }
 
-/* Danger badge */
+/* Danger badge - smaller */
 .danger-badge{
     position:absolute;
-    top:12px;
-    right:12px;
+    top:6px;
+    right:6px;
     z-index:6;
     background:linear-gradient(135deg,#ff0000,#b30000);
     color:#fff;
-    padding:8px 16px;
-    border-radius:25px;
+    padding:4px 8px;
+    border-radius:12px;
     font-weight:700;
-    font-size:0.75em;
-    letter-spacing:0.8px;
-    box-shadow:0 0 30px rgba(255,0,0,0.8);
+    font-size:0.6em;
+    letter-spacing:1px;
+    box-shadow:0 0 15px rgba(255,0,0,0.7);
     display:flex;
     align-items:center;
-    gap:6px;
+    gap:3px;
     text-transform:uppercase;
 }
 
-.proof-img{width:100%;max-width:300px;height:auto;aspect-ratio:9/19.5;object-fit:contain;object-position:center;border-radius:10px;cursor:pointer;transition:transform 0.3s ease;border:1px solid rgba(255,255,255,0.12);background:#0a0a12;position:relative;z-index:0}
-.proof-img:hover{transform:scale(1.03)}
-.proof-img.zoomed{transform:scale(1.55);z-index:1000;position:relative;box-shadow:0 25px 70px rgba(0,0,0,0.95);border-radius:14px;max-width:300px;cursor:zoom-out}
+/* Profile image - Full width like TikTok */
+.proof-img{
+    width:100%;
+    max-width:100%;
+    height:auto;
+    max-height:450px;
+    object-fit:cover;
+    object-position:center;
+    border-radius:10px;
+    cursor:pointer;
+    transition:transform 0.3s ease;
+    background:#0a0a12;
+    position:relative;
+    z-index:0;
+    display:block;
+}
+.proof-img:hover{transform:scale(1.01)}
+.proof-img.zoomed{
+    transform:scale(1.7);
+    z-index:1000;
+    position:relative;
+    box-shadow:0 25px 70px rgba(0,0,0,0.95);
+    border-radius:14px;
+    cursor:zoom-out;
+}
 
-.click-hint{display:block;color:#71717a;font-size:0.7em;margin-top:6px;text-align:center;position:relative;z-index:5}
+.click-hint{display:block;color:#71717a;font-size:0.6em;margin-top:3px;text-align:center;position:relative;z-index:5}
 
-.reason-box{color:#ffb3b3;font-size:0.85em;margin-top:12px;padding:12px;background:rgba(255,0,0,0.08);border-radius:10px;border-left:3px solid #ff4444;text-align:center;line-height:1.6;font-weight:500}
+.reason-box{color:#ffb3b3;font-size:0.75em;margin-top:8px;padding:8px;background:rgba(255,0,0,0.08);border-radius:8px;border-left:3px solid #ff4444;text-align:center;line-height:1.5;font-weight:500}
 
-.btn{padding:12px 22px;border-radius:30px;text-decoration:none;font-weight:600;font-size:0.95em;transition:all 0.2s ease;cursor:pointer;border:none;font-family:inherit;display:inline-flex;align-items:center;gap:8px;justify-content:center;width:100%;margin-top:12px;letter-spacing:0.2px}
-.btn-follow{background:#22c55e;color:#000;font-size:1em}
+/* Compact buttons */
+.btn{padding:8px 14px;border-radius:22px;text-decoration:none;font-weight:600;font-size:0.8em;transition:all 0.2s ease;cursor:pointer;border:none;font-family:inherit;display:inline-flex;align-items:center;gap:5px;justify-content:center;width:100%;margin-top:6px;letter-spacing:0.2px}
+.btn-follow{background:#22c55e;color:#000;font-size:0.85em}
 .btn-follow:hover{background:#1ea84e;transform:scale(1.03);box-shadow:0 6px 18px rgba(34,197,94,0.45)}
-.btn-report{background:#ff2d55;color:#fff;font-size:1em}
+.btn-report{background:#ff2d55;color:#fff;font-size:0.85em}
 .btn-report:hover{background:#e60040;transform:scale(1.03);box-shadow:0 6px 18px rgba(255,45,85,0.5)}
-.btn-copy{background:#27272a;color:#fff;margin-top:10px}
+.btn-copy{background:#27272a;color:#fff;margin-top:5px;font-size:0.75em}
 .btn-copy:hover{background:#3f3f46}
 .btn-copy.copied{background:#22c55e!important;color:#000!important}
 
@@ -395,42 +406,40 @@ body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,san
 /* Real image */
 .real-checkmark{
     position:absolute;
-    top:12px;
-    right:12px;
+    top:6px;
+    right:6px;
     z-index:5;
     background:#22c55e;
     color:#000;
-    width:34px;
-    height:34px;
+    width:28px;
+    height:28px;
     border-radius:50%;
     display:flex;
     align-items:center;
     justify-content:center;
-    font-size:1.2em;
+    font-size:1em;
     font-weight:700;
-    box-shadow:0 0 22px rgba(34,197,94,0.7);
+    box-shadow:0 0 18px rgba(34,197,94,0.7);
 }
 
 @media(max-width:768px){
     .comparison-grid{grid-template-columns:1fr}
-    .proof-img{max-width:270px}
-    .proof-img.zoomed{transform:scale(1.25);max-width:270px}
-    .warning-main{font-size:0.75em;padding:6px 16px}
-    .warning-sub{font-size:0.9em;padding:8px 20px}
+    .proof-img{max-width:100%;max-height:400px}
+    .proof-img.zoomed{transform:scale(1.2)}
+    .warning-main{font-size:0.7em;padding:5px 12px}
+    .warning-sub{font-size:0.8em;padding:5px 16px}
     .voice-notification{font-size:0.8em;padding:10px 16px}
     .mute-toggle{width:45px;height:45px;bottom:20px;right:20px}
 }
 @media(max-width:400px){
-    .proof-img{max-width:230px}
-    .proof-img.zoomed{transform:scale(1.15);max-width:230px}
+    .proof-img.zoomed{transform:scale(1.1)}
 }
 </style>
 </head>
 <body>
 
-<!-- Voice notification banner - iPhone style -->
+<!-- Voice notification banner -->
 <div class="voice-notification" id="voiceNotification">
-    <span class="voice-icon">🔔</span>
     <span class="voice-text" id="voiceText">⚠️ Warning: Fake account detected!</span>
     <button class="voice-close" onclick="closeNotification()">✕</button>
 </div>
@@ -507,17 +516,10 @@ ${DATA.fakeAccounts.map((a, index) => `
 <div class="username-display">${a.username}</div>
 ${a.screenshot ? `
 <div class="screenshot-wrapper fake-image">
-<!-- PREMIUM WARNING ANIMATION -->
+<!-- PREMIUM WARNING - Text only, no emoji icons -->
 <div class="premium-warning">
-    <div class="warning-text-row">
-        <div class="warning-main">⚠️ Fake Account Alert</div>
-        <div class="warning-sub">FRAUD</div>
-    </div>
-    <div class="warning-icons">
-        <span class="warning-icon-item">⚠</span>
-        <span class="warning-icon-item"></span>
-        <span class="warning-icon-item"></span>
-    </div>
+    <div class="warning-main">⚠️ Fake Account Alert</div>
+    <div class="warning-sub">FRAUD</div>
 </div>
 <div class="danger-badge">⚠️ FAKE</div>
 <div class="screenshot-box">
@@ -558,7 +560,6 @@ ${DATA.fakeAccounts.map((a, index) => a.voiceFile ? `<audio id="voiceAudio${inde
 // Global state
 let isMuted = false;
 let currentlyPlaying = null;
-let hasUserInteracted = false;
 
 // Voice notification elements
 const voiceNotification = document.getElementById('voiceNotification');
@@ -685,11 +686,6 @@ const observer = new IntersectionObserver(observerCallback, observerOptions);
 document.querySelectorAll('.comparison-card.fake').forEach(card => {
     observer.observe(card);
 });
-
-// Mark user interaction on first click
-document.addEventListener('click', () => {
-    hasUserInteracted = true;
-}, { once: true });
 
 // Copy username functionality
 document.querySelectorAll('.btn-copy').forEach(btn => {
@@ -876,14 +872,11 @@ server.listen(PORT, () => {
         console.log(`   ${exists ? '✅' : '❌'} ${key}: ${voicePath}`);
     }
     console.log('');
-    console.log('🎯 Premium Features:');
-    console.log('   ✨ "FAKE ACCOUNT ALERT" bouncing animation');
-    console.log('   ✨ "FRAUD" text bouncing with offset');
-    console.log('   ✨ iPhone-style glass morphism UI');
-    console.log('   ✨ Apple system fonts (SF Pro Display)');
-    console.log('   🔊 Auto-play voice when scrolling to fake accounts');
-    console.log('   🔇 Mute/Unmute toggle button');
-    console.log('   ✨ Card glow effect during voice playback');
+    console.log('🎯 Changes Made:');
+    console.log('   ❌ Removed emoji up-down animation from warning');
+    console.log('   📦 Stronger screenshot box (TikTok style)');
+    console.log('   📏 Compact username & header sections');
+    console.log('   🔊 Voice auto-play on scroll');
     console.log('='.repeat(60));
 });
 
