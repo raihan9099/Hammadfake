@@ -3,15 +3,22 @@ const url = require('url');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { MongoClient, ObjectId } = require('mongodb');
+const formidable = require('formidable');
 const bcrypt = require('bcryptjs');
 
 const PORT = process.env.PORT || 3000;
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/milow?retryWrites=true&w=majority';
+const DB_NAME = 'verification_hub';
+
+let db, mongoClient;
 
 const __dir = path.resolve();
 const ASSETS_DIR = path.join(__dir, 'assets');
+const GALLERY_DIR = path.join(__dir, 'assets', 'gallery');
 const COVER_MUSIC_DIR = path.join(__dir, 'assets', 'covermusic');
 
-[ASSETS_DIR, COVER_MUSIC_DIR].forEach(dir => {
+[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -49,12 +56,39 @@ function getCoverSongs() {
     } catch (e) { return []; }
 }
 
-// Simple admin credentials (hardcoded for now)
-const ADMIN_USERNAME = 'admin';
-const ADMIN_PASSWORD_HASH = bcrypt.hashSync('admin123', 10);
+async function connectDB() {
+    try {
+        mongoClient = new MongoClient(MONGO_URI);
+        await mongoClient.connect();
+        db = mongoClient.db(DB_NAME);
+        const admins = db.collection('admin_users');
+        const exists = await admins.findOne({ username: 'admin' });
+        if (!exists) await admins.insertOne({ username: 'admin', password: await bcrypt.hash('admin123', 10), createdAt: new Date() });
+        return true;
+    } catch (e) { return false; }
+}
+
+async function getGalleryPhotos() {
+    if (!db) return [];
+    try { return await db.collection('gallery_photos').find({}).sort({ uploadedAt: -1 }).toArray(); }
+    catch (e) { return []; }
+}
+
+async function savePhoto(d) {
+    if (!db) return null;
+    return await db.collection('gallery_photos').insertOne({ ...d, uploadedAt: new Date() });
+}
+
+async function deletePhoto(id) {
+    if (!db) return null;
+    return await db.collection('gallery_photos').deleteOne({ _id: new ObjectId(id) });
+}
 
 async function verifyAdmin(u, p) {
-    return u === ADMIN_USERNAME && await bcrypt.compare(p, ADMIN_PASSWORD_HASH);
+    if (!db) return u === 'admin' && p === 'admin123';
+    const a = await db.collection('admin_users').findOne({ username: u });
+    if (!a) return false;
+    return await bcrypt.compare(p, a.password);
 }
 
 const DATA = {
@@ -80,7 +114,7 @@ function createSession(u) { const id = crypto.randomBytes(32).toString('hex'); s
 function getSession(id) { const s = sessions.get(id); if (!s) return null; if (Date.now() - s.createdAt > 7200000) { sessions.delete(id); return null; } return s; }
 function parseCookies(h) { const c = {}; if (h) h.split(';').forEach(x => { const p = x.split('='); c[p[0].trim()] = p[1] ? p[1].trim() : ''; }); return c; }
 
-function getMainHTML() {
+function getMainHTML(galleryPhotos = []) {
     const coverSongs = getCoverSongs();
     const totalFake = DATA.fakeAccounts.length;
 
@@ -155,6 +189,43 @@ function getMainHTML() {
                 </div>
             </div>
         </section>`;
+    }
+
+    let galleryHTML = '';
+    if (galleryPhotos.length > 0) {
+        galleryHTML = `
+        <section class="section gallery-section" data-animate>
+            <div class="section-header">
+                <div class="section-icon gallery-icon-bg">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                </div>
+                <h2 class="section-heading">Official Gallery</h2>
+            </div>
+            <div class="gallery-grid">
+                ${galleryPhotos.map((p, i) => `
+                <div class="gallery-card" onclick="openGalleryLightbox(${i})">
+                    <div class="gallery-card-inner">
+                        <img src="${p.path}" alt="${p.caption || 'Gallery'}" class="gallery-image" loading="lazy">
+                        <div class="gallery-card-overlay">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                        </div>
+                    </div>
+                    ${p.caption ? `<p class="gallery-caption">${p.caption}</p>` : ''}
+                </div>`).join('')}
+            </div>
+        </section>
+        <div class="lightbox" id="galleryLightbox">
+            <button class="lightbox-close" onclick="closeGalleryLightbox()">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+            <button class="lightbox-nav lightbox-prev" onclick="navigateGallery(-1)">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="white"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            </button>
+            <img class="lightbox-image" id="lightboxImage" src="" alt="">
+            <button class="lightbox-nav lightbox-next" onclick="navigateGallery(1)">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="white"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            </button>
+        </div>`;
     }
 
     return `<!DOCTYPE html>
@@ -236,13 +307,13 @@ body {
     50% { height: 14px; }
 }
 
-@keyframes typing {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 1; }
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
 }
 
-[data-animate] { opacity: 0; transform: translateY(30px); transition: opacity 0.6s ease, transform 0.6s ease; }
-[data-animate].animated { opacity: 1; transform: translateY(0); }
+[data-animate] { opacity: 0; }
+[data-animate].animated { animation: fadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
 .scroll-progress {
     position: fixed;
@@ -394,7 +465,11 @@ body {
 
 .verified-icon-bg { background: linear-gradient(135deg, var(--green-500), var(--green-600)); }
 .danger-icon-bg { background: linear-gradient(135deg, var(--red-500), var(--red-600)); }
+.compare-icon-bg { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+.warning-icon-bg { background: linear-gradient(135deg, #f59e0b, var(--amber-600)); }
+.update-icon-bg { background: linear-gradient(135deg, #3b82f6, var(--blue-600)); }
 .spotify-icon-bg { background: linear-gradient(135deg, var(--spotify), #169c46); }
+.gallery-icon-bg { background: linear-gradient(135deg, #6366f1, #a855f7); }
 
 .section-heading {
     font-size: 1.35em;
@@ -779,6 +854,64 @@ body {
 
 .carousel-arrow:hover { background: var(--red-500); color: #fff; border-color: var(--red-500); }
 
+.comparison-table-wrap {
+    overflow-x: auto;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border);
+    background: #fff;
+    box-shadow: var(--shadow);
+}
+
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88em;
+}
+
+.comparison-table th {
+    background: #f1f5f9;
+    padding: 14px 16px;
+    text-align: left;
+    font-weight: 700;
+    border-bottom: 2px solid var(--border);
+}
+
+.comparison-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.comparison-table .col-official { background: #f0fdf4; border-left: 3px solid var(--green-500); }
+.comparison-table .col-fake { background: #fef2f2; border-left: 3px solid var(--red-500); }
+
+.check { color: var(--green-500); font-weight: 700; }
+.cross { color: var(--red-500); font-weight: 700; }
+
+/* Removed .warning-section and related styles */
+
+.updates-section {
+    background: #eff6ff;
+    border: 2px solid #bfdbfe;
+    border-radius: var(--radius-2xl);
+    padding: 28px;
+    text-align: center;
+}
+
+.updates-section h3 { font-size: 1.1em; font-weight: 700; color: var(--blue-700); margin-bottom: 6px; }
+.updates-section p { color: var(--blue-600); font-size: 0.85em; margin-bottom: 14px; }
+
+.update-tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+.update-tag {
+    background: #fff;
+    color: var(--blue-700);
+    padding: 6px 14px;
+    border-radius: 18px;
+    font-size: 0.78em;
+    font-weight: 600;
+    border: 1px solid #bfdbfe;
+}
+
 .spotify-player {
     background: var(--spotify-black);
     border-radius: var(--radius-xl);
@@ -1001,46 +1134,100 @@ body {
 .eq-bar:nth-child(3) { animation-delay: 0.4s; }
 .eq-bar:nth-child(4) { animation-delay: 0.6s; }
 
-.typing-indicator {
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--spotify-black);
-    color: #fff;
-    padding: 12px 24px;
-    border-radius: 24px;
-    font-size: 0.9em;
-    font-weight: 500;
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+}
+
+.gallery-card {
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: #fff;
+    box-shadow: var(--shadow);
+}
+
+.gallery-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+
+.gallery-card-inner { position: relative; overflow: hidden; }
+
+.gallery-image {
+    width: 100%;
+    display: block;
+    transition: transform 0.4s;
+}
+
+.gallery-card:hover .gallery-image { transform: scale(1.04); }
+
+.gallery-card-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
     display: flex;
     align-items: center;
-    gap: 8px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-    z-index: 9999;
+    justify-content: center;
     opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s;
 }
 
-.typing-indicator.active {
-    opacity: 1;
+.gallery-card:hover .gallery-card-overlay { opacity: 1; }
+
+.gallery-caption {
+    padding: 10px 14px;
+    font-size: 0.82em;
+    color: var(--text-secondary);
+    text-align: center;
 }
 
-.typing-dots {
-    display: flex;
-    gap: 4px;
+.lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.95);
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
 }
 
-.typing-dot {
-    width: 6px;
-    height: 6px;
+.lightbox.active { display: flex; }
+
+.lightbox-close {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    z-index: 10001;
+}
+
+.lightbox-image {
+    max-width: 90vw;
+    max-height: 85vh;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.15);
     border-radius: 50%;
-    background: var(--spotify);
-    animation: typing 1.4s infinite;
+    width: 44px; height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.25s;
 }
 
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+.lightbox-nav:hover { background: rgba(255,255,255,0.25); }
+.lightbox-prev { left: 16px; }
+.lightbox-next { right: 16px; }
 
 .footer {
     text-align: center;
@@ -1058,20 +1245,15 @@ body {
     .section-heading { font-size: 1.2em; }
     .official-card { padding: 22px; }
     .spotify-album-art { width: 120px; height: 120px; }
+    .lightbox-nav { width: 36px; height: 36px; }
+    .lightbox-prev { left: 8px; }
+    .lightbox-next { right: 8px; }
 }
 </style>
 </head>
 <body>
 
 <div class="scroll-progress" id="scrollProgress"></div>
-<div class="typing-indicator" id="typingIndicator">
-    <span>Loading content</span>
-    <div class="typing-dots">
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-    </div>
-</div>
 
 <nav class="navbar">
     <div class="container">
@@ -1228,7 +1410,74 @@ body {
     </div>
 </section>
 
+<section class="section" data-animate>
+    <div class="section-header">
+        <div class="section-icon compare-icon-bg">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M3 5v14h18V5H3zm16 2v2H5V7h14zm0 4v2H5v-2h14zm0 4v2H5v-2h14z"/></svg>
+        </div>
+        <h2 class="section-heading">Account Comparison</h2>
+    </div>
+    <div class="comparison-table-wrap">
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>✅ Official</th>
+                    <th>❌ Fake</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Verification</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Verified</td>
+                    <td class="col-fake"><span class="cross">✗</span> Not Verified</td>
+                </tr>
+                <tr>
+                    <td><strong>Username</strong></td>
+                    <td class="col-official"><span class="check">✓</span> @baiillamaach_official</td>
+                    <td class="col-fake"><span class="cross">✗</span> Similar names</td>
+                </tr>
+                <tr>
+                    <td><strong>Content</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Original</td>
+                    <td class="col-fake"><span class="cross">✗</span> Stolen</td>
+                </tr>
+                <tr>
+                    <td><strong>Trust</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Safe</td>
+                    <td class="col-fake"><span class="cross">✗</span> Dangerous</td>
+                </tr>
+                <tr>
+                    <td><strong>Reports</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Clean</td>
+                    <td class="col-fake"><span class="cross">✗</span> Multiple Reports</td>
+                </tr>
+                <tr>
+                    <td><strong>Owner</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Official</td>
+                    <td class="col-fake"><span class="cross">✗</span> Impersonator</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- "How to Stay Safe" section is removed -->
+
+<div class="updates-section" data-animate>
+    <h3>🔄 Latest Updates</h3>
+    <p>Stay informed about impersonation attempts and security.</p>
+    <div class="update-tags">
+        <span class="update-tag">📌 New fakes detected weekly</span>
+        <span class="update-tag">🔒 Verification active</span>
+        <span class="update-tag">🛡️ Community reporting</span>
+        <span class="update-tag">📢 Awareness ongoing</span>
+    </div>
+</div>
+
 ${coverSongsHTML}
+
+${galleryHTML}
 
 </main>
 
@@ -1239,69 +1488,17 @@ ${coverSongsHTML}
 <audio id="audioPlayer" preload="auto"></audio>
 
 <script>
-// Scroll-based animation with typing indicator
 const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            setTimeout(() => {
-                entry.target.classList.add('animated');
-            }, 200);
-        } else if (entry.boundingClientRect.top > window.innerHeight) {
-            // Remove animation when scrolling up past the element
-            entry.target.classList.remove('animated');
-        }
+        if (entry.isIntersecting) entry.target.classList.add('animated');
     });
-}, { 
-    threshold: 0.1,
-    rootMargin: '0px 0px -50px 0px'
-});
+}, { threshold: 0.1 });
 
 document.querySelectorAll('[data-animate]').forEach(el => observer.observe(el));
 
-// Typing indicator logic
-let scrollTimeout;
-const typingIndicator = document.getElementById('typingIndicator');
-let lastScrollTop = 0;
-let isScrollingDown = false;
-
 window.addEventListener('scroll', () => {
-    const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollHeight = document.documentElement.scrollHeight;
-    const clientHeight = document.documentElement.clientHeight;
-    const scrollBottom = scrollHeight - clientHeight - currentScrollTop;
-    
-    // Update progress bar
-    const pct = (currentScrollTop / (scrollHeight - clientHeight)) * 100;
+    const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
     document.getElementById('scrollProgress').style.width = pct + '%';
-    
-    // Determine scroll direction
-    isScrollingDown = currentScrollTop > lastScrollTop;
-    lastScrollTop = currentScrollTop;
-    
-    // Show typing indicator when near bottom
-    if (scrollBottom < 300 && isScrollingDown) {
-        typingIndicator.classList.add('active');
-    } else {
-        typingIndicator.classList.remove('active');
-    }
-    
-    // Clear previous timeout
-    clearTimeout(scrollTimeout);
-    
-    // Remove animations when scrolling up significantly
-    if (!isScrollingDown && currentScrollTop < lastScrollTop - 50) {
-        document.querySelectorAll('[data-animate].animated').forEach(el => {
-            const rect = el.getBoundingClientRect();
-            if (rect.top > window.innerHeight) {
-                el.classList.remove('animated');
-            }
-        });
-    }
-    
-    // Set timeout to hide indicator after scrolling stops
-    scrollTimeout = setTimeout(() => {
-        typingIndicator.classList.remove('active');
-    }, 1000);
 });
 
 let currentSlide = 0;
@@ -1409,6 +1606,36 @@ document.getElementById('progressBar').addEventListener('click', e => {
 });
 
 ap.volume = 0.7;
+
+let galleryIdx = 0;
+const galleryImgs = document.querySelectorAll('.gallery-image');
+const lightbox = document.getElementById('galleryLightbox');
+const lightboxImg = document.getElementById('lightboxImage');
+
+function openGalleryLightbox(i) {
+    galleryIdx = i;
+    lightboxImg.src = galleryImgs[i].src;
+    lightbox.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeGalleryLightbox() {
+    lightbox.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+function navigateGallery(dir) {
+    galleryIdx = (galleryIdx + dir + galleryImgs.length) % galleryImgs.length;
+    lightboxImg.src = galleryImgs[galleryIdx].src;
+}
+
+lightbox.addEventListener('click', e => { if (e.target === lightbox) closeGalleryLightbox(); });
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeGalleryLightbox();
+    if (e.key === 'ArrowLeft' && lightbox.classList.contains('active')) navigateGallery(-1);
+    if (e.key === 'ArrowRight' && lightbox.classList.contains('active')) navigateGallery(1);
+});
 </script>
 </body>
 </html>`;
@@ -1416,6 +1643,11 @@ ap.volume = 0.7;
 
 function getAdminLoginHTML(error = '') {
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh}.box{background:#fff;border:2px solid #e2e8f0;border-radius:20px;padding:40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.08)}h2{text-align:center;color:#ff0050;margin-bottom:30px}.fg{margin-bottom:20px}label{display:block;margin-bottom:8px;color:#475569;font-weight:600;font-size:.9em}input{width:100%;padding:12px 16px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;font-size:1em;outline:none}input:focus{border-color:#ff0050}.btn{width:100%;padding:14px;background:#ff0050;color:#fff;border:none;border-radius:10px;font-size:1em;font-weight:600;cursor:pointer}.btn:hover{background:#d90040}.error{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px;text-align:center}.back{text-align:center;margin-top:20px}a{color:#64748b;text-decoration:none}a:hover{color:#ff0050}</style></head><body><div class="box"><h2>Admin Login</h2>${error?`<div class="error">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="fg"><label>Username</label><input type="text" name="username" required></div><div class="fg"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">Login</button></form><div class="back"><a href="/">Back to Home</a></div></div></body></html>`;
+}
+
+function getAdminPanelHTML(photos = [], msg = '', err = '') {
+    const phtml = photos.map(p => `<div class="pc"><img src="${p.path}" class="pi"><div class="info">${p.caption?`<p>${p.caption}</p>`:''}<p class="dt">${new Date(p.uploadedAt).toLocaleDateString()}</p></div><form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="del" onclick="return confirm('Delete?')">Delete</button></form></div>`).join('');
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#f8fafc;color:#0f172a}.hdr{background:#fff;padding:20px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e2e8f0;flex-wrap:wrap;gap:10px}.hdr h2{color:#ff0050}.hdr a{color:#64748b;text-decoration:none;padding:8px 16px;border:2px solid #e2e8f0;border-radius:8px;margin-left:10px;font-weight:600}.hdr a:hover{background:#ff0050;color:#fff;border-color:#ff0050}.cnt{max-width:1100px;margin:0 auto;padding:30px 20px}.up{background:#fff;border:2px solid #e2e8f0;border-radius:16px;padding:30px;margin-bottom:30px}.up h3{color:#ff0050;margin-bottom:20px}.fg{margin-bottom:15px}label{display:block;margin-bottom:6px;color:#475569;font-weight:600}input,textarea{width:100%;padding:10px 14px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:8px;font-size:.95em;outline:none}input:focus,textarea:focus{border-color:#ff0050}.bu{background:#22c55e;color:#fff;padding:12px 24px;border:none;border-radius:10px;font-weight:600;cursor:pointer}.bu:hover{background:#16a34a}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:20px}.pc{background:#fff;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden}.pc:hover{border-color:#ff0050}.pi{width:100%;height:200px;object-fit:cover}.info{padding:12px}.dt{font-size:.75em;color:#94a3b8;margin-top:2px}.del{background:#fef2f2;color:#dc2626;border:2px solid #fecaca;padding:6px 12px;border-radius:6px;cursor:pointer;margin:0 12px 12px;width:calc(100% - 24px);font-weight:600}.del:hover{background:#ef4444;color:#fff}.msg{background:#f0fdf4;border:2px solid #bbf7d0;color:#166534;padding:12px;border-radius:8px;margin-bottom:20px}.err{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px}</style></head><body><div class="hdr"><h2>Admin Panel</h2><div><a href="/">Home</a><a href="/admin/logout">Logout</a></div></div><div class="cnt">${msg?`<div class="msg">${msg}</div>`:''}${err?`<div class="err">${err}</div>`:''}<div class="up"><h3>Upload Photo</h3><form method="POST" action="/admin/upload" enctype="multipart/form-data"><div class="fg"><label>Select Photo</label><input type="file" name="photo" accept="image/*" required></div><div class="fg"><label>Caption</label><input type="text" name="caption"></div><button type="submit" class="bu">Upload</button></form></div><h3 style="margin-bottom:20px">Gallery (${photos.length})</h3>${photos.length?`<div class="grid">${phtml}</div>`:'<p style="color:#94a3b8;text-align:center;padding:40px">No photos</p>'}</div></body></html>`;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -1439,11 +1671,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/admin' && req.method === 'GET') {
         const s = getSession(cookies.sessionId);
-        if (s) {
-            res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'});
-            res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Admin</title><style>body{font-family:sans-serif;background:#f8fafc;padding:40px;text-align:center}a{color:#ff0050}</style></head><body><h2>Welcome Admin</h2><p>You are logged in.</p><a href="/admin/logout">Logout</a> | <a href="/">Home</a></body></html>`);
-            return;
-        }
+        if (s) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p)); return; }
         res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminLoginHTML()); return;
     }
 
@@ -1459,9 +1687,36 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/admin/logout') { sessions.delete(cookies.sessionId); res.writeHead(302,{'Location':'/admin','Set-Cookie':'sessionId=;HttpOnly;Path=/;Max-Age=0'}); res.end(); return; }
 
+    if (pathname === '/admin/upload' && req.method === 'POST') {
+        if (!getSession(cookies.sessionId)) { res.writeHead(302,{'Location':'/admin'}); res.end(); return; }
+        const form = new formidable.IncomingForm({ uploadDir:GALLERY_DIR, keepExtensions:true, maxFileSize:10*1024*1024 });
+        form.parse(req, async (err, fields, files) => {
+            if (err) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Upload error')); return; }
+            const pf = Array.isArray(files.photo)?files.photo[0]:files.photo;
+            if (!pf||!pf.originalFilename) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','No file')); return; }
+            if (!['.jpg','.jpeg','.png','.gif','.webp'].includes(path.extname(pf.originalFilename).toLowerCase())) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Invalid format')); return; }
+            const fn = Date.now()+'_'+pf.originalFilename.replace(/[^a-zA-Z0-9.]/g,'_');
+            try {
+                fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
+                await savePhoto({ path:'/assets/gallery/'+fn, caption:fields.caption?(Array.isArray(fields.caption)?fields.caption[0]:fields.caption):'' });
+                const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'Uploaded!'));
+            } catch(e) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Save error')); }
+        }); return;
+    }
+
+    if (pathname === '/admin/delete' && req.method === 'POST') {
+        if (!getSession(cookies.sessionId)) { res.writeHead(302,{'Location':'/admin'}); res.end(); return; }
+        let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
+            const params = new URLSearchParams(body);
+            try { const photo = await db.collection('gallery_photos').findOne({_id:new ObjectId(params.get('photoId'))}); if(photo){const fp=path.join(__dir,photo.path);if(fs.existsSync(fp))fs.unlinkSync(fp);} await deletePhoto(params.get('photoId')); } catch(e){}
+            const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'Deleted'));
+        }); return;
+    }
+
     if (pathname === '/' || pathname === '/index.html') {
+        const photos = await getGalleryPhotos();
         res.writeHead(200,{'Content-Type':'text/html;charset=utf-8','Cache-Control':'public, max-age=3600'});
-        res.end(getMainHTML());
+        res.end(getMainHTML(photos));
         return;
     }
 
@@ -1469,5 +1724,10 @@ const server = http.createServer(async (req, res) => {
     res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>404</title><style>body{background:#f8fafc;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center}h1{font-size:100px;color:#ff0050}</style></head><body><div><h1>404</h1><p>Page not found</p><a href="/">Go Home</a></div></body></html>`);
 });
 
-server.listen(PORT, () => console.log(`Server running: http://localhost:${PORT}`));
+async function start() {
+    await connectDB();
+    server.listen(PORT, () => console.log(`Server running: http://localhost:${PORT}`));
+}
+
+start();
 server.on('error', e => { if (e.code === 'EADDRINUSE') process.exit(1); });
