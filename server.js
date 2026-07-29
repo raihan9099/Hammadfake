@@ -55,7 +55,7 @@ const DATA = {
             profileUrl: "https://tiktok.com/@baiilla_mach",
             screenshot: IMAGES.danger,
             dangerLevel: "high",
-            reason: "বানান কপি করে ভুয়া একাউন্ট। একটি 'l' এবং একটি 'a' কম আছে। হুবহু লোগো ও পোস্ট কপি করে প্রতারণা করছে।"
+            reason: "বানান কপি করে ভুয়া একাউন্ট। এবং এইটাতে " official" word টি নাই। হুবহু প্রোফাইল ও পোস্ট কপি করলেও ইউজারনাম ভুল আছে এবং ফ্যান দের সাথে প্রতারণা করছে।"
         },
         {
             platform: "TikTok",
@@ -228,7 +228,7 @@ function getHTML() {
 <h1 class="name">${DATA.celebrity.name}</h1>
 <p class="bio">${DATA.celebrity.bio}</p>
 <div class="badge-row">
-<span class="badge-official">✅ অফিসিয়াল পেজ</span>
+<span class="badge-official">✅ অফিসিয়াল একাউন্ট</span>
 <span class="badge-fun">🎭 এন্টারটেইনমেন্ট</span>
 </div>
 </div>
@@ -253,7 +253,7 @@ function getHTML() {
 <div class="guide-step fake-step high">
 <h4><span class="step-num">২</span> প্রধান ভুয়া একাউন্ট</h4>
 <p><strong>নকল ইউজারনেম:</strong> <span class="highlight">@baiilla_mach</span></p>
-<p class="spelling-note">⚠️ বানান খেয়াল করুন: এখানে একটি <strong>'l'</strong> এবং একটি <strong>'a'</strong> কম আছে</p>
+<p class="spelling-note">⚠️ বানান খেয়াল করুন: এখানে<strong>'Official'</strong> 'শব্দটি নেই এবং একটি <strong>'a'</strong> কম আছে</p>
 <p>এই একাউন্টটি হুবহু আমাদের লোগো এবং পোস্ট কপি করে।</p>
 </div>
 
