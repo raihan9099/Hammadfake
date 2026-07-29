@@ -514,9 +514,9 @@ ${a.screenshot ? `
         <div class="warning-sub">FRAUD</div>
     </div>
     <div class="warning-icons">
-        <span class="warning-icon-item">⚠️</span>
-        <span class="warning-icon-item">🚫</span>
-        <span class="warning-icon-item">⛔</span>
+        <span class="warning-icon-item">⚠</span>
+        <span class="warning-icon-item"></span>
+        <span class="warning-icon-item"></span>
     </div>
 </div>
 <div class="danger-badge">⚠️ FAKE</div>
