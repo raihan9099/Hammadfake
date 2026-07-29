@@ -30,41 +30,28 @@ const IMAGES = {
 
 function getCoverSongs() {
     try {
-        const allSongs = [];
-        const audioExts = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.wma', '.opus', '.weba', '.mid', '.midi'];
-        const coverExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'];
-        const scanDirs = [COVER_MUSIC_DIR, ASSETS_DIR];
-        const processedBases = new Set();
-
-        scanDirs.forEach(dir => {
-            if (!fs.existsSync(dir)) return;
-            const files = fs.readdirSync(dir);
-            const groups = {};
-
-            files.forEach(f => {
-                const ext = path.extname(f).toLowerCase();
-                const base = path.basename(f, ext);
-                if (!groups[base]) groups[base] = { audio: null, cover: null, dir: dir };
-                if (audioExts.includes(ext)) groups[base].audio = f;
-                if (coverExts.includes(ext)) groups[base].cover = f;
-            });
-
-            Object.entries(groups).forEach(([base, v]) => {
-                if (v.audio && !processedBases.has(base)) {
-                    processedBases.add(base);
-                    const dirPath = v.dir === ASSETS_DIR ? '/assets' : '/assets/covermusic';
-                    allSongs.push({
-                        id: base.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
-                        title: base.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                        artist: 'Cover Song',
-                        audioUrl: `${dirPath}/${v.audio}`,
-                        coverUrl: v.cover ? `${dirPath}/${v.cover}` : null
-                    });
-                }
-            });
+        if (!fs.existsSync(COVER_MUSIC_DIR)) return [];
+        const files = fs.readdirSync(COVER_MUSIC_DIR);
+        const audioExts = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.wma', '.opus', '.weba'];
+        const coverExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+        const groups = {};
+        files.forEach(f => {
+            const ext = path.extname(f).toLowerCase();
+            const base = path.basename(f, ext);
+            if (!groups[base]) groups[base] = { audio: null, cover: null };
+            if (audioExts.includes(ext)) groups[base].audio = f;
+            if (coverExts.includes(ext)) groups[base].cover = f;
         });
-
-        return allSongs.sort((a, b) => a.title.localeCompare(b.title));
+        return Object.entries(groups)
+            .filter(([_, v]) => v.audio)
+            .map(([base, v]) => ({
+                id: base.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
+                title: base.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                artist: 'Cover Song',
+                audioUrl: `/assets/covermusic/${v.audio}`,
+                coverUrl: v.cover ? `/assets/covermusic/${v.cover}` : null
+            }))
+            .sort((a, b) => a.title.localeCompare(b.title));
     } catch (e) { return []; }
 }
 
@@ -124,7 +111,6 @@ function getMainHTML(galleryPhotos = []) {
     const coverSongs = getCoverSongs();
     const totalFake = DATA.fakeAccounts.length;
 
-    // Build cover songs playlist HTML
     let coverSongsHTML = '';
     if (coverSongs.length > 0) {
         coverSongsHTML = `
@@ -161,7 +147,7 @@ function getMainHTML(galleryPhotos = []) {
                         ${coverSongs.map((s, i) => `
                         <div class="playlist-item" data-index="${i}" data-audio="${s.audioUrl}" data-cover="${s.coverUrl || ''}" onclick="playSong(${i})">
                             <div class="playlist-number">${(i+1).toString().padStart(2,'0')}</div>
-                            <div class="playlist-cover-small">${s.coverUrl ? `<img src="${s.coverUrl}" alt="${s.title}" onerror="this.parentElement.innerHTML='<div class=default-cover-small><svg viewBox=0 0 24 24 width=20 height=20><path fill=currentColor d=M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z/></svg></div>'">` : '<div class="default-cover-small"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>'}</div>
+                            <div class="playlist-cover-small">${s.coverUrl ? `<img src="${s.coverUrl}" alt="">` : '<div class="default-cover-small"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>'}</div>
                             <div class="playlist-info"><div class="playlist-title">${s.title}</div><div class="playlist-artist">${s.artist}</div></div>
                             <div class="playlist-eq"><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span></div>
                         </div>`).join('')}
@@ -171,7 +157,6 @@ function getMainHTML(galleryPhotos = []) {
         </div>`;
     }
 
-    // Gallery HTML
     let galleryHTML = '';
     if (galleryPhotos.length > 0) {
         galleryHTML = `
@@ -242,7 +227,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .comparison-card{border-radius:18px;padding:22px;transition:all .3s;background:var(--bg);border:2px solid var(--border)}
 .comparison-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
 .comparison-card.real{border-color:rgba(34,197,94,.3);background:linear-gradient(135deg,#f0fdf4,#fff)}
-.comparison-card.fake{border-color:rgba(239,68,68,.3);background:linear-gradient(135deg,#fef2f2,#fff)}
 
 .comparison-header{text-align:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f1f3f5}
 .comparison-header .icon{font-size:1.6em;display:block;margin-bottom:2px}
@@ -262,17 +246,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .proof-img:hover{transform:scale(1.02)}.proof-img.zoomed{transform:scale(1.5);z-index:1000;position:relative;box-shadow:0 25px 70px rgba(0,0,0,.3);border-radius:16px;cursor:zoom-out}
 
 .real-checkmark{position:absolute;top:6px;right:6px;z-index:5;background:var(--green);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8em;font-weight:700;box-shadow:0 2px 10px rgba(34,197,94,.4)}
-.danger-badge{position:absolute;top:6px;right:6px;z-index:6;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;padding:4px 10px;border-radius:14px;font-weight:700;font-size:.65em;letter-spacing:1px;box-shadow:0 2px 12px rgba(239,68,68,.4);text-transform:uppercase}
-.premium-warning{position:absolute;top:0;left:0;right:0;bottom:0;z-index:3;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
-.warning-main{font-size:.78em;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#ef4444;background:rgba(255,255,255,.95);padding:6px 16px;border-radius:20px;border:2px solid rgba(239,68,68,.3);animation:pulse 2s infinite}
-.warning-sub{font-size:.9em;font-weight:900;letter-spacing:3px;text-transform:uppercase;color:#dc2626;background:rgba(255,255,255,.95);padding:6px 18px;border-radius:20px;border:2px solid rgba(220,38,38,.4);animation:pulse 2s infinite .3s}
+
 .click-hint{display:block;color:#adb5bd;font-size:.65em;margin-top:4px;text-align:center}
-.reason-box{color:#991b1b;font-size:.78em;margin-top:8px;padding:8px 12px;background:#fee2e2;border-radius:8px;border-left:3px solid var(--red);text-align:center;line-height:1.5}
 
 .btn{padding:9px 14px;border-radius:22px;text-decoration:none;font-weight:600;font-size:.8em;transition:all .2s;cursor:pointer;border:none;display:inline-flex;align-items:center;justify-content:center;gap:5px;width:100%;margin-top:6px}
 .btn-follow{background:var(--green);color:#fff}.btn-follow:hover{background:#16a34a;transform:scale(1.02)}
+
+/* FAKE ACCOUNTS CAROUSEL */
+.fake-carousel-container{position:relative;margin:20px 0;overflow:hidden;border-radius:18px}
+.fake-carousel-track{display:flex;transition:transform .5s cubic-bezier(.25,.46,.45,.94)}
+.fake-carousel-slide{min-width:100%;padding:0 5px}
+.fake-card{border-radius:18px;padding:22px;background:linear-gradient(135deg,#fef2f2,#fff);border:2px solid rgba(239,68,68,.3)}
+.fake-card .comparison-header{text-align:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f1f3f5}
+.fake-card .comparison-header h3{color:var(--red)}
+.fake-card .danger-badge{position:absolute;top:6px;right:6px;z-index:6;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;padding:4px 10px;border-radius:14px;font-weight:700;font-size:.65em;letter-spacing:1px;box-shadow:0 2px 12px rgba(239,68,68,.4);text-transform:uppercase}
+.fake-card .premium-warning{position:absolute;top:0;left:0;right:0;bottom:0;z-index:3;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.fake-card .warning-main{font-size:.78em;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#ef4444;background:rgba(255,255,255,.95);padding:6px 16px;border-radius:20px;border:2px solid rgba(239,68,68,.3);animation:pulse 2s infinite}
+.fake-card .warning-sub{font-size:.9em;font-weight:900;letter-spacing:3px;text-transform:uppercase;color:#dc2626;background:rgba(255,255,255,.95);padding:6px 18px;border-radius:20px;border:2px solid rgba(220,38,38,.4);animation:pulse 2s infinite .3s}
+.fake-card .reason-box{color:#991b1b;font-size:.78em;margin-top:8px;padding:8px 12px;background:#fee2e2;border-radius:8px;border-left:3px solid var(--red);text-align:center;line-height:1.5}
 .btn-report{background:var(--red);color:#fff}.btn-report:hover{background:#dc2626;transform:scale(1.02)}
 .btn-copy{background:var(--bg2);color:var(--text);border:1px solid var(--border)}.btn-copy:hover{background:#f1f3f5}.btn-copy.copied{background:var(--green)!important;color:#fff!important;border-color:var(--green)}
+
+.carousel-nav{display:flex;justify-content:center;align-items:center;gap:15px;margin-top:15px}
+.carousel-dots{display:flex;gap:8px}
+.carousel-dot{width:10px;height:10px;border-radius:50%;background:#d1d5db;border:none;cursor:pointer;transition:all .3s}
+.carousel-dot.active{background:var(--red);width:30px;border-radius:5px}
+.carousel-arrow{background:var(--bg);border:2px solid var(--border);color:var(--text);width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.2em;transition:all .3s}
+.carousel-arrow:hover{background:var(--red);color:#fff;border-color:var(--red)}
 
 .fake-info-panel{background:#fff;border:2px solid #fecaca;border-radius:16px;padding:25px;margin:30px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;text-align:center}
 .fake-stat{background:#fef2f2;border-radius:12px;padding:20px}
@@ -381,7 +381,7 @@ Facebook
 <div class="warning-hero fade-up">
 <span class="big-icon">⚠️</span>
 <h2>Beware of Fake Accounts</h2>
-<p>Multiple impersonator accounts are using this identity. Check the real and fake profiles below to stay safe.</p>
+<p>Multiple impersonator accounts are using this identity. Swipe to see all fake accounts below.</p>
 </div>
 
 <div class="official-box fade-up">
@@ -410,7 +410,7 @@ ${a.screenshot ? `<div class="screenshot-wrapper"><div class="real-checkmark">�
 </div>
 
 <div class="section fade-up">
-<h2 class="section-title fake">🚨 Fake Accounts - Stay Alert</h2>
+<h2 class="section-title fake">🚨 Fake Accounts - Swipe to See All</h2>
 
 <div class="fake-info-panel">
 <div class="fake-stat"><div class="num">${totalFake}</div><div class="lbl">Fake Accounts Detected</div></div>
@@ -418,18 +418,31 @@ ${a.screenshot ? `<div class="screenshot-wrapper"><div class="real-checkmark">�
 <div class="fake-stat"><div class="num">100%</div><div class="lbl">Impersonation Risk Level</div></div>
 </div>
 
-<div class="comparison-grid">
-${DATA.fakeAccounts.map(a => `
-<div class="comparison-card fake">
-<div class="comparison-header"><span class="icon">⚠️</span><h3>Fake Account</h3></div>
-<span class="platform-badge">${a.platform}</span>
-<div class="username-display">${a.username}</div>
+<div class="fake-carousel-container" id="fakeCarousel">
+<div class="fake-carousel-track" id="fakeCarouselTrack">
+${DATA.fakeAccounts.map((a, i) => `
+<div class="fake-carousel-slide">
+<div class="fake-card">
+<div class="comparison-header"><span class="icon">⚠️</span><h3>Fake Account ${i+1} of ${totalFake}</h3></div>
+<span class="platform-badge" style="background:#fee2e2;color:#991b1b">${a.platform}</span>
+<div class="username-display" style="background:#fee2e2;color:#991b1b">${a.username}</div>
 ${a.screenshot ? `<div class="screenshot-wrapper"><div class="premium-warning"><div class="warning-main">⚠️ Fake Account Alert</div><div class="warning-sub">FRAUD</div></div><div class="danger-badge">⚠️ FAKE</div><div class="screenshot-box"><img src="${a.screenshot}" alt="Fake Account" class="proof-img" onclick="this.classList.toggle('zoomed')" loading="lazy"></div></div><span class="click-hint">Click to zoom</span>` : ''}
 ${a.reason ? `<div class="reason-box"><strong>⚠️</strong> ${a.reason}</div>` : ''}
 <a href="${a.profileUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-report">🚨 Report Account</a>
 <button class="btn btn-copy" data-username="${a.username}">📋 Copy Username</button>
+</div>
 </div>`).join('')}
 </div>
+</div>
+
+<div class="carousel-nav">
+<button class="carousel-arrow" onclick="moveCarousel(-1)">◀</button>
+<div class="carousel-dots" id="carouselDots">
+${DATA.fakeAccounts.map((_, i) => `<button class="carousel-dot${i===0?' active':''}" onclick="goToSlide(${i})"></button>`).join('')}
+</div>
+<button class="carousel-arrow" onclick="moveCarousel(1)">▶</button>
+</div>
+
 </div>
 
 <div class="updates-section fade-up">
@@ -468,6 +481,37 @@ window.addEventListener('scroll',()=>{const p=(window.scrollY/(document.document
 const ob=new IntersectionObserver((e)=>{e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('vis')})},{threshold:.15});
 document.querySelectorAll('.fade-up,.scale-in').forEach(el=>ob.observe(el));
 
+// CAROUSEL
+let currentSlide=0;
+const totalSlides=${totalFake};
+const track=document.getElementById('fakeCarouselTrack');
+const dots=document.querySelectorAll('.carousel-dot');
+
+function updateCarousel(){
+track.style.transform='translateX(-'+(currentSlide*100)+'%)';
+dots.forEach((d,i)=>d.classList.toggle('active',i===currentSlide));
+}
+function moveCarousel(dir){
+currentSlide=(currentSlide+dir+totalSlides)%totalSlides;
+updateCarousel();
+}
+function goToSlide(i){currentSlide=i;updateCarousel();}
+
+// SWIPE SUPPORT
+let touchStartX=0;
+let touchEndX=0;
+const carousel=document.getElementById('fakeCarousel');
+carousel.addEventListener('touchstart',e=>{touchStartX=e.changedTouches[0].screenX});
+carousel.addEventListener('touchend',e=>{
+touchEndX=e.changedTouches[0].screenX;
+if(touchEndX<touchStartX-50)moveCarousel(1);
+if(touchEndX>touchStartX+50)moveCarousel(-1);
+});
+
+// AUTO PLAY
+setInterval(()=>{moveCarousel(1)},5000);
+
+// MUSIC PLAYER
 let cur=-1,playing=false,ap=document.getElementById('audioPlayer'),items=document.querySelectorAll('.playlist-item');
 function loadSong(i){
 if(!items.length||i<0||i>=items.length)return;cur=i;const it=items[i];
@@ -521,20 +565,11 @@ const server = http.createServer(async (req, res) => {
         if (!assetPath.startsWith(ASSETS_DIR)) { res.writeHead(403); res.end(); return; }
         if (fs.existsSync(assetPath)) {
             const ext = path.extname(assetPath).toLowerCase();
-            const types = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac','.wma':'audio/x-ms-wma','.opus':'audio/opus','.weba':'audio/webm','.mid':'audio/midi','.midi':'audio/midi' };
+            const types = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac','.wma':'audio/x-ms-wma','.opus':'audio/opus','.weba':'audio/webm' };
             const ct = types[ext] || 'application/octet-stream';
             const stat = fs.statSync(assetPath);
-            const range = req.headers.range;
-            if (range && ['.mp3','.wav','.ogg','.m4a','.aac','.flac','.opus'].includes(ext)) {
-                const parts = range.replace(/bytes=/, "").split("-");
-                const start = parseInt(parts[0], 10);
-                const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
-                res.writeHead(206, { 'Content-Range':`bytes ${start}-${end}/${stat.size}`,'Accept-Ranges':'bytes','Content-Length':(end-start)+1,'Content-Type':ct,'Cache-Control':'public, max-age=86400' });
-                fs.createReadStream(assetPath, { start, end }).pipe(res);
-            } else {
-                res.writeHead(200, { 'Content-Type':ct,'Content-Length':stat.size,'Cache-Control':'public, max-age=86400','Accept-Ranges':'bytes' });
-                fs.createReadStream(assetPath).pipe(res);
-            }
+            res.writeHead(200, { 'Content-Type':ct,'Content-Length':stat.size,'Cache-Control':'public, max-age=86400','Accept-Ranges':'bytes' });
+            fs.createReadStream(assetPath).pipe(res);
         } else { res.writeHead(404); res.end(); }
         return;
     }
@@ -587,7 +622,8 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/' || pathname === '/index.html') {
         const photos = await getGalleryPhotos();
         const songs = getCoverSongs();
-        console.log(`Page requested - Cover songs found: ${songs.length}`);
+        console.log(`Cover songs from covermusic folder: ${songs.length}`);
+        songs.forEach((s,i) => console.log(`  ${i+1}. ${s.title}`));
         res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'});
         res.end(getMainHTML(photos));
         return;
@@ -602,7 +638,7 @@ const server = http.createServer(async (req, res) => {
 async function start() {
     await connectDB();
     const songs = getCoverSongs();
-    console.log(`Cover songs detected: ${songs.length}`);
+    console.log(`Cover songs detected in covermusic/: ${songs.length}`);
     songs.forEach((s,i) => console.log(`  ${i+1}. ${s.title} - ${s.audioUrl}`));
     server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
