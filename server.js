@@ -9,7 +9,7 @@ const bcrypt = require('bcryptjs');
 const PORT = 3000;
 
 // ==================== MONGODB CONFIG ====================
-const MONGO_URI = 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/milow?retryWrites=true&w=majority'; // 👈 YOUR MONGODB URI HERE
+const MONGO_URI = 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/milow?retryWrites=true&w=majority';
 const DB_NAME = 'verification_hub';
 const COLLECTIONS = {
     photos: 'gallery_photos',
@@ -39,7 +39,6 @@ const IMAGES = {
     danger: "/assets/baillamach.png"
 };
 
-// 2 voice files
 const VOICE_FILES = {
     warning1: "/assets/10ff7135b502e2f5660074fdb0969109.mp3",
     warning2: "/assets/077f07c5d2a052c7081e448e6dfdaff6_1.mp3"
@@ -53,6 +52,20 @@ async function connectDB() {
         await mongoClient.connect();
         db = mongoClient.db(DB_NAME);
         console.log('✅ MongoDB Connected Successfully');
+        
+        // Create collections if they don't exist
+        const collections = await db.listCollections().toArray();
+        const collectionNames = collections.map(c => c.name);
+        
+        if (!collectionNames.includes(COLLECTIONS.photos)) {
+            await db.createCollection(COLLECTIONS.photos);
+        }
+        if (!collectionNames.includes(COLLECTIONS.admins)) {
+            await db.createCollection(COLLECTIONS.admins);
+        }
+        
+        // Create indexes
+        await db.collection(COLLECTIONS.photos).createIndex({ uploadedAt: -1 });
         
         // Create default admin if not exists
         const admins = db.collection(COLLECTIONS.admins);
@@ -352,6 +365,38 @@ body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,san
 
 .footer{text-align:center;padding:45px 20px 25px;color:#52525b;font-size:0.85em;border-top:1px solid rgba(255,255,255,0.05);margin-top:15px}
 
+/* Social Links */
+.social-links {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+.social-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 25px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9em;
+    transition: all 0.3s ease;
+}
+.social-link.tiktok {
+    background: linear-gradient(45deg, #ff0050, #00f2ea);
+    color: white;
+}
+.social-link.facebook {
+    background: linear-gradient(45deg, #1877f2, #0c63d4);
+    color: white;
+}
+.social-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
+
 @media(max-width:768px){
     .comparison-grid{grid-template-columns:1fr}
     .gallery-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
@@ -395,6 +440,14 @@ body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,san
 <span class="badge-official">✓ OFFICIAL PAGE</span>
 <span class="badge-fun">✦ ENTERTAINMENT</span>
 </div>
+<div class="social-links fade-in-up">
+    <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener noreferrer" class="social-link tiktok">
+        🎵 TikTok
+    </a>
+    <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" rel="noopener noreferrer" class="social-link facebook">
+        📘 Facebook
+    </a>
+</div>
 </div>
 
 <div class="container">
@@ -412,7 +465,14 @@ body{font-family:-apple-system,'Inter','SF Pro Display','Segoe UI',system-ui,san
 <h3 style="color:#22c55e;font-size:1.4em;margin-bottom:12px" id="onlyAccount"></h3>
 <p style="color:#e4e4e7;font-size:1.05em;margin-bottom:10px"><strong style="color:#22c55e;font-size:1.3em">@baiillamaach_official</strong></p>
 <p style="color:#a1a1aa;font-size:0.9em;margin-bottom:25px" id="noBackup"></p>
-<a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#22c55e;color:#000;padding:14px 42px;border-radius:35px;text-decoration:none;font-weight:700;font-size:1.1em;transition:all 0.25s;box-shadow:0 0 25px rgba(34,197,94,0.45)" onmouseover="this.style.transform='scale(1.04)';this.style.boxShadow='0 0 45px rgba(34,197,94,0.75)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 0 25px rgba(34,197,94,0.45)'">→ Follow Now</a>
+<div class="social-links">
+    <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener noreferrer" class="social-link tiktok" style="font-size:1.1em;padding:15px 35px;">
+        🎵 Follow on TikTok
+    </a>
+    <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" rel="noopener noreferrer" class="social-link facebook" style="font-size:1.1em;padding:15px 35px;">
+        📘 Follow on Facebook
+    </a>
+</div>
 </div>
 </div>
 
@@ -689,40 +749,42 @@ function getAdminPanelHTML(galleryPhotos = [], message = '', error = '') {
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,'Inter',sans-serif;background:#0a0b0f;color:#e4e4e7;min-height:100vh}
-.admin-header{background:#1a1a2e;padding:20px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.1)}
-.admin-header h2{color:#ff2d55}
-.admin-header a{color:#a1a1aa;text-decoration:none;padding:8px 16px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;transition:all 0.3s}
+.admin-header{background:#1a1a2e;padding:20px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.1);flex-wrap:wrap;gap:10px}
+.admin-header h2{color:#ff2d55;font-size:1.5em}
+.admin-header a{color:#a1a1aa;text-decoration:none;padding:8px 16px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;transition:all 0.3s;font-size:0.9em}
 .admin-header a:hover{background:#ff2d55;color:#fff;border-color:#ff2d55}
 .container{max-width:1000px;margin:0 auto;padding:30px 20px}
 .upload-section{background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:30px;margin-bottom:30px}
-.upload-section h3{color:#ff2d55;margin-bottom:20px}
+.upload-section h3{color:#ff2d55;margin-bottom:20px;font-size:1.3em}
 .form-group{margin-bottom:15px}
 .form-group label{display:block;margin-bottom:6px;color:#a1a1aa;font-size:0.9em}
 .form-group input,.form-group textarea{width:100%;padding:10px 14px;background:#0a0b0f;border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.95em;outline:none}
+.form-group input[type="file"]{padding:8px}
 .form-group textarea{resize:vertical;min-height:60px}
 .form-group input:focus,.form-group textarea:focus{border-color:#ff2d55}
 .btn-upload{background:#22c55e;color:#000;padding:12px 24px;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:1em;transition:all 0.3s}
 .btn-upload:hover{background:#1ea84e;transform:translateY(-2px)}
 .photos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:20px}
-.photo-card{background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;overflow:hidden;transition:all 0.3s}
+.photo-card{background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;overflow:hidden;transition:all 0.3s;display:flex;flex-direction:column}
 .photo-card:hover{border-color:rgba(255,45,85,0.5)}
 .photo-preview{width:100%;height:200px;object-fit:cover}
-.photo-info{padding:12px}
+.photo-info{padding:12px;flex:1}
 .photo-caption{font-size:0.85em;color:#e4e4e7;margin-bottom:4px}
 .photo-date{font-size:0.75em;color:#71717a}
-.btn-delete{background:rgba(255,0,0,0.2);color:#ff4d4d;border:1px solid rgba(255,0,0,0.3);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.8em;margin:0 12px 12px;transition:all 0.3s}
+.btn-delete{background:rgba(255,0,0,0.2);color:#ff4d4d;border:1px solid rgba(255,0,0,0.3);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.8em;margin:0 12px 12px;transition:all 0.3s;width:calc(100% - 24px)}
 .btn-delete:hover{background:#ff2d55;color:#fff}
 .message{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#22c55e;padding:12px;border-radius:8px;margin-bottom:20px}
 .error-message{background:rgba(255,0,0,0.1);border:1px solid rgba(255,0,0,0.3);color:#ff4d4d;padding:12px;border-radius:8px;margin-bottom:20px}
 .empty-state{text-align:center;padding:40px;color:#71717a}
+.info-box{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;padding:12px;border-radius:8px;margin-bottom:20px;font-size:0.9em}
 </style>
 </head>
 <body>
 <div class="admin-header">
 <h2>📸 Admin Panel</h2>
-<div>
+<div style="display:flex;gap:10px">
 <a href="/">🏠 Home</a>
-<a href="/admin/logout" style="margin-left:10px">🚪 Logout</a>
+<a href="/admin/logout">🚪 Logout</a>
 </div>
 </div>
 
@@ -731,10 +793,13 @@ ${message ? `<div class="message">${message}</div>` : ''}
 ${error ? `<div class="error-message">${error}</div>` : ''}
 
 <div class="upload-section">
-<h3>📤 Upload New Photo</h3>
+<h3>📤 Upload New Photo to Gallery</h3>
+<div class="info-box">
+📌 Upload photos to display in the gallery section of the main page. Supported formats: JPG, PNG, GIF, WebP. Max size: 10MB.
+</div>
 <form method="POST" action="/admin/upload" enctype="multipart/form-data">
 <div class="form-group">
-<label>Select Photo</label>
+<label>Select Photo *</label>
 <input type="file" name="photo" accept="image/*" required>
 </div>
 <div class="form-group">
@@ -765,7 +830,14 @@ const DATA = {
             username: "@baiillamaach_official",
             url: "https://tiktok.com/@baiillamaach_official",
             screenshot: IMAGES.official,
-            description: "The only official account"
+            description: "The only official TikTok account"
+        },
+        {
+            platform: "Facebook",
+            username: "@BaiillaMaachOfficial",
+            url: "https://www.facebook.com/profile.php?id=61575202118828",
+            screenshot: null,
+            description: "The only official Facebook page"
         }
     ],
     fakeAccounts: [
@@ -945,35 +1017,49 @@ const server = http.createServer(async (req, res) => {
 
         form.parse(req, async (err, fields, files) => {
             if (err) {
+                console.error('Upload error:', err);
                 const photos = await getGalleryPhotos();
                 res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
                 res.end(getAdminPanelHTML(photos, '', 'Upload error: ' + err.message));
                 return;
             }
 
-            const photoFile = files.photo;
-            if (!photoFile) {
+            const photoFile = Array.isArray(files.photo) ? files.photo[0] : files.photo;
+            
+            if (!photoFile || !photoFile.originalFilename) {
                 const photos = await getGalleryPhotos();
                 res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
                 res.end(getAdminPanelHTML(photos, '', 'Please select a photo to upload'));
                 return;
             }
 
-            const fileName = Date.now() + '_' + photoFile.originalFilename;
+            const ext = path.extname(photoFile.originalFilename).toLowerCase();
+            const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+            if (!allowedExts.includes(ext)) {
+                const photos = await getGalleryPhotos();
+                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+                res.end(getAdminPanelHTML(photos, '', 'Invalid file type. Allowed: JPG, PNG, GIF, WebP'));
+                return;
+            }
+
+            const fileName = Date.now() + '_' + photoFile.originalFilename.replace(/[^a-zA-Z0-9.]/g, '_');
             const newPath = path.join(GALLERY_DIR, fileName);
             
             try {
                 fs.renameSync(photoFile.filepath, newPath);
+                
                 await savePhoto({
                     path: '/assets/gallery/' + fileName,
-                    caption: fields.caption || '',
+                    caption: fields.caption ? (Array.isArray(fields.caption) ? fields.caption[0] : fields.caption) : '',
                     originalName: photoFile.originalFilename
                 });
                 
+                console.log('✅ Photo saved:', fileName);
                 const photos = await getGalleryPhotos();
                 res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
                 res.end(getAdminPanelHTML(photos, '✅ Photo uploaded successfully!'));
             } catch (error) {
+                console.error('Save error:', error);
                 const photos = await getGalleryPhotos();
                 res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
                 res.end(getAdminPanelHTML(photos, '', 'Error saving photo: ' + error.message));
