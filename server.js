@@ -29,11 +29,6 @@ const IMAGES = {
     danger: "/assets/baillamach.png"
 };
 
-const VOICE_FILES = {
-    fakeAlert1: "/assets/10ff7135b502e2f5660074fdb0969109.mp3",
-    fakeAlert2: "/assets/077f07c5d2a052c7081e448e6dfdaff6_1.mp3"
-};
-
 function getCoverSongs() {
     try {
         if (!fs.existsSync(COVER_MUSIC_DIR)) return [];
@@ -102,68 +97,15 @@ const DATA = {
         fullName: "Baiilla Maach Official",
         photo: IMAGES.profile,
         bio: "Official Entertainment Profile",
-        joinedDate: "2024",
-        followers: "500K+",
-        verificationId: "VF-2024-001",
-        trustScore: 100
+        username: "@baiillamaach_official"
     },
     realAccounts: [
-        {
-            platform: "TikTok",
-            username: "@baiillamaach_official",
-            url: "https://tiktok.com/@baiillamaach_official",
-            screenshot: IMAGES.official,
-            followers: "500K+",
-            verified: true,
-            status: "Active",
-            trustScore: 100,
-            reportStatus: "Clean",
-            riskLevel: "None",
-            owner: "Official"
-        },
-        {
-            platform: "Facebook",
-            username: "Baiilla Maach Official",
-            url: "https://www.facebook.com/profile.php?id=61575202118828",
-            screenshot: null,
-            followers: "Growing",
-            verified: true,
-            status: "Active",
-            trustScore: 100,
-            reportStatus: "Clean",
-            riskLevel: "None",
-            owner: "Official"
-        }
+        { platform: "TikTok", username: "@baiillamaach_official", url: "https://tiktok.com/@baiillamaach_official", screenshot: IMAGES.official },
+        { platform: "Facebook", username: "Baiilla Maach Official", url: "https://www.facebook.com/profile.php?id=61575202118828", screenshot: null }
     ],
     fakeAccounts: [
-        {
-            platform: "TikTok",
-            username: "@baiilla_mach",
-            profileUrl: "https://tiktok.com/@baiilla_mach",
-            screenshot: IMAGES.danger,
-            reason: "Copies official logo and content to deceive followers. Impersonating verified creator.",
-            riskScore: 95,
-            detectionDate: "2024",
-            status: "Active Threat",
-            reportStatus: "Multiple Reports",
-            riskLevel: "Critical",
-            owner: "Impersonator",
-            voiceFile: VOICE_FILES.fakeAlert1
-        },
-        {
-            platform: "TikTok",
-            username: "@hammad_fams0",
-            profileUrl: "https://tiktok.com/@hammad_fams0",
-            screenshot: IMAGES.fraud,
-            reason: "Uses official name and profile photo to mislead followers. Fraudulent account.",
-            riskScore: 89,
-            detectionDate: "2024",
-            status: "Active Threat",
-            reportStatus: "Under Review",
-            riskLevel: "High",
-            owner: "Impersonator",
-            voiceFile: VOICE_FILES.fakeAlert2
-        }
+        { platform: "TikTok", username: "@baiilla_mach", profileUrl: "https://tiktok.com/@baiilla_mach", screenshot: IMAGES.danger, reason: "Copies official logo and content to deceive followers." },
+        { platform: "TikTok", username: "@hammad_fams0", profileUrl: "https://tiktok.com/@hammad_fams0", screenshot: IMAGES.fraud, reason: "Uses official name and photo to mislead followers." }
     ]
 };
 
@@ -181,8 +123,8 @@ function getMainHTML(galleryPhotos = []) {
         coverSongsHTML = `
         <section class="section music-section" data-animate>
             <div class="section-header">
-                <div class="section-icon" style="background:linear-gradient(135deg,#1db954,#169c46)">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                <div class="section-icon spotify-icon-bg">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                 </div>
                 <h2 class="section-heading">Cover Music</h2>
             </div>
@@ -190,7 +132,7 @@ function getMainHTML(galleryPhotos = []) {
                 <div class="spotify-now-playing">
                     <div class="spotify-album-art" id="nowPlayingCover">
                         <div class="spotify-default-art">
-                            <svg viewBox="0 0 24 24" width="64" height="64"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                            <svg viewBox="0 0 24 24" width="56" height="56"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                         </div>
                     </div>
                     <div class="spotify-track-info">
@@ -199,7 +141,6 @@ function getMainHTML(galleryPhotos = []) {
                         <div class="spotify-progress">
                             <div class="spotify-progress-bar" id="progressBar">
                                 <div class="spotify-progress-fill" id="progressFill"></div>
-                                <div class="spotify-progress-thumb" id="progressThumb"></div>
                             </div>
                             <div class="spotify-time">
                                 <span id="currentTime">0:00</span>
@@ -207,22 +148,22 @@ function getMainHTML(galleryPhotos = []) {
                             </div>
                         </div>
                         <div class="spotify-controls">
-                            <button class="spotify-btn" onclick="prevSong()" aria-label="Previous">
+                            <button class="spotify-btn" onclick="prevSong()">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
                             </button>
-                            <button class="spotify-btn spotify-play-btn" id="playPauseBtn" onclick="togglePlay()" aria-label="Play">
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                            <button class="spotify-btn spotify-play-btn" id="playPauseBtn" onclick="togglePlay()">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
                                     <path id="playIcon" d="M8 5v14l11-7z"/>
                                     <path id="pauseIcon" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" style="display:none"/>
                                 </svg>
                             </button>
-                            <button class="spotify-btn" onclick="nextSong()" aria-label="Next">
+                            <button class="spotify-btn" onclick="nextSong()">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
                             </button>
                         </div>
                         <div class="spotify-volume">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
-                            <input type="range" class="spotify-volume-slider" id="volumeSlider" min="0" max="100" value="70" onchange="setVol(this.value)" aria-label="Volume">
+                            <input type="range" class="spotify-volume-slider" id="volumeSlider" min="0" max="100" value="70" onchange="setVol(this.value)">
                         </div>
                     </div>
                 </div>
@@ -235,7 +176,7 @@ function getMainHTML(galleryPhotos = []) {
                         ${coverSongs.map((s, i) => `
                         <div class="spotify-playlist-item" data-index="${i}" data-audio="${s.audioUrl}" data-cover="${s.coverUrl || ''}" onclick="playSong(${i})">
                             <div class="spotify-track-number">${(i+1).toString().padStart(2,'0')}</div>
-                            <div class="spotify-track-cover-small">${s.coverUrl ? `<img src="${s.coverUrl}" alt="" loading="lazy">` : '<div class="spotify-default-art-small"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>'}</div>
+                            <div class="spotify-track-cover-small">${s.coverUrl ? `<img src="${s.coverUrl}" alt="" loading="lazy">` : '<div class="spotify-default-art-small"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>'}</div>
                             <div class="spotify-track-details">
                                 <div class="spotify-track-title">${s.title}</div>
                                 <div class="spotify-track-artist-small">${s.artist}</div>
@@ -255,36 +196,34 @@ function getMainHTML(galleryPhotos = []) {
         galleryHTML = `
         <section class="section gallery-section" data-animate>
             <div class="section-header">
-                <div class="section-icon" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                <div class="section-icon gallery-icon-bg">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
                 </div>
                 <h2 class="section-heading">Official Gallery</h2>
             </div>
-            <div class="gallery-masonry" id="galleryMasonry">
+            <div class="gallery-grid">
                 ${galleryPhotos.map((p, i) => `
-                <div class="gallery-card" data-index="${i}">
+                <div class="gallery-card" onclick="openGalleryLightbox(${i})">
                     <div class="gallery-card-inner">
-                        <img src="${p.path}" alt="${p.caption || 'Gallery image'}" class="gallery-image" loading="lazy" onclick="openGalleryLightbox(${i})">
+                        <img src="${p.path}" alt="${p.caption || 'Gallery'}" class="gallery-image" loading="lazy">
                         <div class="gallery-card-overlay">
-                            <button class="gallery-zoom-btn" onclick="openGalleryLightbox(${i})" aria-label="View full size">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                            </button>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
                         </div>
                     </div>
                     ${p.caption ? `<p class="gallery-caption">${p.caption}</p>` : ''}
                 </div>`).join('')}
             </div>
         </section>
-        <div class="lightbox-overlay" id="galleryLightbox">
+        <div class="lightbox" id="galleryLightbox">
             <button class="lightbox-close" onclick="closeGalleryLightbox()">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             </button>
             <button class="lightbox-nav lightbox-prev" onclick="navigateGallery(-1)">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="white"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="white"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
             </button>
             <img class="lightbox-image" id="lightboxImage" src="" alt="">
             <button class="lightbox-nav lightbox-next" onclick="navigateGallery(1)">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="white"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="white"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
             </button>
         </div>`;
     }
@@ -301,83 +240,71 @@ function getMainHTML(galleryPhotos = []) {
 :root {
     --bg: #ffffff;
     --bg-secondary: #f8fafc;
-    --bg-tertiary: #f1f5f9;
     --text: #0f172a;
     --text-secondary: #475569;
     --text-muted: #94a3b8;
     --border: #e2e8f0;
-    --border-light: #f1f5f9;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-    --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
-    --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
-    --shadow-lg: 0 10px 15px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05);
-    --shadow-xl: 0 20px 25px rgba(0,0,0,0.1), 0 10px 10px rgba(0,0,0,0.04);
-    --shadow-2xl: 0 25px 50px rgba(0,0,0,0.12);
+    --shadow: 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 30px rgba(0,0,0,0.08);
+    --shadow-xl: 0 20px 50px rgba(0,0,0,0.1);
     --green-50: #f0fdf4;
     --green-100: #dcfce7;
-    --green-200: #bbf7d0;
     --green-500: #22c55e;
     --green-600: #16a34a;
-    --green-700: #15803d;
     --red-50: #fef2f2;
     --red-100: #fee2e2;
-    --red-200: #fecaca;
     --red-500: #ef4444;
     --red-600: #dc2626;
     --red-700: #b91c1c;
     --amber-50: #fffbeb;
     --amber-100: #fef3c7;
-    --amber-500: #f59e0b;
     --amber-600: #d97706;
     --blue-50: #eff6ff;
     --blue-100: #dbeafe;
-    --blue-500: #3b82f6;
     --blue-600: #2563eb;
     --blue-700: #1d4ed8;
-    --tiktok-pink: #ff0050;
-    --tiktok-cyan: #00f2ea;
-    --tiktok-black: #000000;
-    --fb-blue: #1877f2;
-    --spotify-green: #1db954;
+    --pink: #ff0050;
+    --cyan: #00f2ea;
+    --fb: #1877f2;
+    --spotify: #1db954;
     --spotify-black: #191414;
-    --gradient-verified: linear-gradient(135deg, #22c55e, #16a34a);
-    --gradient-danger: linear-gradient(135deg, #ef4444, #dc2626);
-    --gradient-official: linear-gradient(135deg, #f0fdf4 0%, #ffffff 50%, #dcfce7 100%);
-    --gradient-fake: linear-gradient(135deg, #fef2f2 0%, #ffffff 50%, #fee2e2 100%);
-    --radius-sm: 8px;
     --radius: 12px;
     --radius-lg: 16px;
     --radius-xl: 20px;
     --radius-2xl: 24px;
-    --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
 
 body {
-    font-family: var(--font-sans);
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
     background: var(--bg);
     color: var(--text);
     line-height: 1.6;
     overflow-x: hidden;
-    min-height: 100vh;
 }
 
-@keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(40px); }
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+@keyframes pulse-green {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+    50% { box-shadow: 0 0 0 16px rgba(34,197,94,0); }
 }
 
-@keyframes scaleIn {
-    from { opacity: 0; transform: scale(0.9); }
-    to { opacity: 1; transform: scale(1); }
+@keyframes pulse-red {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+    50% { box-shadow: 0 0 0 16px rgba(239,68,68,0); }
+}
+
+@keyframes equalizer {
+    0%, 100% { height: 4px; }
+    50% { height: 14px; }
 }
 
 @keyframes shimmer {
@@ -385,163 +312,116 @@ body {
     100% { background-position: 200% 0; }
 }
 
-@keyframes pulse-green {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
-    50% { box-shadow: 0 0 0 20px rgba(34,197,94,0); }
-}
-
-@keyframes pulse-red {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
-    50% { box-shadow: 0 0 0 20px rgba(239,68,68,0); }
-}
-
-@keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
-}
-
-@keyframes equalizer {
-    0%, 100% { height: 4px; }
-    50% { height: 16px; }
-}
-
-@keyframes dangerPulse {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
-}
-
-@keyframes verifiedSpin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
 [data-animate] { opacity: 0; }
-[data-animate].animated { animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+[data-animate].animated { animation: fadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
 .scroll-progress {
     position: fixed;
     top: 0;
     left: 0;
     height: 3px;
-    background: linear-gradient(90deg, var(--tiktok-pink), var(--tiktok-cyan), var(--green-500));
+    background: linear-gradient(90deg, var(--pink), var(--cyan), var(--green-500));
     z-index: 10001;
-    transition: width 0.1s linear;
+    transition: width 0.1s;
 }
 
 .navbar {
     position: sticky;
     top: 0;
     z-index: 1000;
-    background: rgba(255,255,255,0.85);
+    background: rgba(255,255,255,0.9);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border);
-    padding: 16px 0;
+    padding: 14px 0;
 }
 
 .navbar .container {
-    max-width: 1200px;
+    max-width: 1100px;
     margin: 0 auto;
     padding: 0 24px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
 }
 
-.navbar-logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 700;
-    font-size: 1.1em;
-    color: var(--text);
-    text-decoration: none;
-}
-
-.navbar-logo img {
-    width: 36px;
-    height: 36px;
+.navbar-logo-img {
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
-    border: 2px solid var(--tiktok-pink);
-}
-
-.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-
-.hero-section {
-    padding: 60px 0 40px;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-}
-
-.hero-section::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(ellipse at center, rgba(255,0,80,0.03) 0%, transparent 70%);
-    pointer-events: none;
-}
-
-.hero-profile {
-    width: 140px;
-    height: 140px;
-    border-radius: 50%;
-    border: 4px solid var(--tiktok-pink);
+    border: 2px solid var(--pink);
     object-fit: cover;
-    box-shadow: 0 0 0 8px rgba(255,0,80,0.1), 0 8px 32px rgba(0,0,0,0.12);
-    margin-bottom: 24px;
+}
+
+.navbar-logo-text {
+    font-weight: 700;
+    font-size: 1.05em;
+    color: var(--text);
+}
+
+.container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+.hero {
+    padding: 50px 0 36px;
+    text-align: center;
+}
+
+.hero-img {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 3px solid var(--pink);
+    object-fit: cover;
+    box-shadow: 0 0 0 6px rgba(255,0,80,0.08), 0 6px 24px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
 }
 
 .hero-name {
-    font-size: 2.8em;
+    font-size: 2.4em;
     font-weight: 800;
     letter-spacing: -0.5px;
-    color: var(--text);
     margin-bottom: 4px;
 }
 
 .hero-bio {
-    font-size: 1.1em;
+    font-size: 1.05em;
     color: var(--text-secondary);
-    margin-bottom: 20px;
+    margin-bottom: 18px;
 }
 
 .hero-badges {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     justify-content: center;
     flex-wrap: wrap;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
 }
 
 .badge {
-    padding: 8px 20px;
-    border-radius: 25px;
-    font-size: 0.85em;
+    padding: 7px 18px;
+    border-radius: 22px;
+    font-size: 0.82em;
     font-weight: 600;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
 }
 
 .badge-verified {
-    background: var(--gradient-verified);
+    background: linear-gradient(135deg, var(--green-500), var(--green-600));
     color: white;
     animation: pulse-green 2.5s infinite;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
 }
 
-.badge-entertainment {
-    background: linear-gradient(135deg, var(--tiktok-pink), #ff6b00);
+.badge-fun {
+    background: linear-gradient(135deg, var(--pink), #ff6b00);
     color: white;
 }
 
 .hero-social {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     justify-content: center;
     flex-wrap: wrap;
 }
@@ -549,370 +429,295 @@ body {
 .social-btn {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 28px;
-    border-radius: 30px;
+    gap: 7px;
+    padding: 10px 24px;
+    border-radius: 28px;
     text-decoration: none;
     font-weight: 600;
-    font-size: 0.9em;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 0.88em;
+    transition: all 0.25s;
     border: 2px solid transparent;
 }
 
-.social-btn.tiktok {
-    background: var(--tiktok-black);
-    color: white;
-}
+.social-btn.tiktok { background: #000; color: #fff; }
+.social-btn.tiktok:hover { background: #fff; color: #000; border-color: #000; transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.social-btn.facebook { background: var(--fb); color: #fff; }
+.social-btn.facebook:hover { background: #fff; color: var(--fb); border-color: var(--fb); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 
-.social-btn.tiktok:hover {
-    background: white;
-    color: var(--tiktok-black);
-    border-color: var(--tiktok-black);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-}
-
-.social-btn.facebook {
-    background: var(--fb-blue);
-    color: white;
-}
-
-.social-btn.facebook:hover {
-    background: white;
-    color: var(--fb-blue);
-    border-color: var(--fb-blue);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-}
-
-.section { padding: 40px 0; }
+.section { padding: 36px 0; }
 
 .section-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 28px;
+    gap: 10px;
+    margin-bottom: 24px;
 }
 
 .section-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius);
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 }
 
+.verified-icon-bg { background: linear-gradient(135deg, var(--green-500), var(--green-600)); }
+.danger-icon-bg { background: linear-gradient(135deg, var(--red-500), var(--red-600)); }
+.compare-icon-bg { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+.warning-icon-bg { background: linear-gradient(135deg, #f59e0b, var(--amber-600)); }
+.update-icon-bg { background: linear-gradient(135deg, #3b82f6, var(--blue-600)); }
+.spotify-icon-bg { background: linear-gradient(135deg, var(--spotify), #169c46); }
+.gallery-icon-bg { background: linear-gradient(135deg, #6366f1, #a855f7); }
+
 .section-heading {
-    font-size: 1.5em;
+    font-size: 1.35em;
     font-weight: 700;
-    color: var(--text);
-    letter-spacing: -0.3px;
+    letter-spacing: -0.2px;
 }
 
-/* OFFICIAL ACCOUNT CARD */
-.official-account-card {
-    background: var(--gradient-official);
-    border: 2px solid var(--green-200);
+.official-card {
+    background: linear-gradient(135deg, #f0fdf4 0%, #fff 50%, #dcfce7 100%);
+    border: 2px solid #bbf7d0;
     border-radius: var(--radius-2xl);
-    padding: 40px;
+    padding: 32px;
     position: relative;
-    overflow: hidden;
-    box-shadow: var(--shadow-xl), 0 0 0 1px rgba(34,197,94,0.1);
-    margin-bottom: 20px;
+    box-shadow: var(--shadow-xl);
 }
 
-.official-account-card::before {
+.official-card::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
+    top: 0; left: 0; right: 0;
     height: 4px;
-    background: var(--gradient-verified);
+    background: linear-gradient(90deg, var(--green-500), var(--green-600));
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
 }
 
-.official-glow {
-    position: absolute;
-    top: -50px;
-    right: -50px;
-    width: 200px;
-    height: 200px;
-    background: radial-gradient(circle, rgba(34,197,94,0.15) 0%, transparent 70%);
-    pointer-events: none;
-}
-
-.official-header {
+.official-card-header {
     display: flex;
     align-items: center;
-    gap: 16px;
-    margin-bottom: 24px;
+    gap: 12px;
+    margin-bottom: 20px;
     flex-wrap: wrap;
 }
 
-.official-verified-icon {
-    width: 48px;
-    height: 48px;
-    background: var(--gradient-verified);
+.official-verify-icon {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, var(--green-500), var(--green-600));
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
     animation: pulse-green 2.5s infinite;
+    flex-shrink: 0;
 }
 
-.official-title-group h2 {
-    font-size: 1.5em;
+.official-card-title h2 {
+    font-size: 1.3em;
     font-weight: 700;
-    color: var(--green-700);
+    color: #15803d;
 }
 
-.official-title-group span {
-    font-size: 0.9em;
+.official-card-title span {
+    font-size: 0.85em;
     color: var(--green-600);
     font-weight: 600;
 }
 
-.official-content {
+.official-card-body {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 30px;
-    align-items: start;
+    gap: 24px;
 }
 
-@media (max-width: 768px) {
-    .official-content { grid-template-columns: 1fr; }
-}
+@media (max-width: 700px) { .official-card-body { grid-template-columns: 1fr; } }
 
-.official-info-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+.official-info-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .official-info-item {
-    background: white;
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    border: 1px solid var(--green-100);
+    background: #fff;
+    border-radius: 10px;
+    padding: 12px 16px;
+    border: 1px solid #dcfce7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .official-info-label {
-    font-size: 0.75em;
+    font-size: 0.8em;
     color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }
 
 .official-info-value {
-    font-size: 1em;
     font-weight: 700;
     color: var(--text);
-    margin-top: 2px;
 }
 
-.official-account-preview {
-    background: white;
+.official-preview {
+    background: #fff;
     border-radius: var(--radius-xl);
     padding: 24px;
     border: 1px solid var(--border);
     text-align: center;
 }
 
-.official-account-preview img {
-    width: 80px;
-    height: 80px;
+.official-preview img {
+    width: 72px;
+    height: 72px;
     border-radius: 50%;
     border: 3px solid var(--green-500);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
-.official-account-preview .username {
-    font-size: 1.1em;
+.official-preview .uname {
+    font-size: 1.05em;
     font-weight: 700;
-    color: var(--text);
 }
 
-.official-account-preview .platform {
+.official-preview .plat {
     font-size: 0.8em;
     color: var(--text-secondary);
     margin: 4px 0 16px;
 }
 
-.official-follow-btn {
+.btn-follow {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 14px 32px;
-    background: var(--gradient-verified);
-    color: white;
-    border-radius: 30px;
+    gap: 6px;
+    padding: 12px 28px;
+    background: linear-gradient(135deg, var(--green-500), var(--green-600));
+    color: #fff;
+    border-radius: 28px;
     text-decoration: none;
     font-weight: 700;
-    font-size: 0.95em;
-    transition: all 0.3s;
-    box-shadow: 0 4px 15px rgba(34,197,94,0.3);
+    font-size: 0.9em;
+    transition: all 0.25s;
+    box-shadow: 0 4px 15px rgba(34,197,94,0.25);
 }
 
-.official-follow-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(34,197,94,0.4);
-}
+.btn-follow:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(34,197,94,0.35); }
 
-/* FAKE ACCOUNTS SECTION */
-.fake-accounts-section {
+.fake-section {
     background: var(--red-50);
-    border: 2px solid var(--red-200);
+    border: 2px solid #fecaca;
     border-radius: var(--radius-2xl);
-    padding: 36px;
-    position: relative;
-    overflow: hidden;
+    padding: 28px;
 }
 
-.fake-accounts-section::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: var(--gradient-danger);
-}
-
-.fake-alert-header {
+.fake-alert {
     display: flex;
     align-items: center;
-    gap: 14px;
-    margin-bottom: 24px;
-    background: white;
-    padding: 16px 20px;
+    gap: 12px;
+    background: #fff;
+    padding: 14px 18px;
     border-radius: var(--radius-lg);
-    border: 2px solid var(--red-200);
+    border: 2px solid #fecaca;
+    margin-bottom: 20px;
 }
 
 .fake-alert-icon {
-    width: 48px;
-    height: 48px;
-    background: var(--gradient-danger);
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, var(--red-500), var(--red-600));
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5em;
+    font-size: 1.3em;
     animation: pulse-red 2s infinite;
     flex-shrink: 0;
 }
 
-.fake-alert-text h3 {
-    font-size: 1.2em;
-    font-weight: 700;
-    color: var(--red-700);
-}
+.fake-alert-text h3 { font-size: 1.1em; font-weight: 700; color: var(--red-700); }
+.fake-alert-text p { font-size: 0.85em; color: var(--red-600); }
 
-.fake-alert-text p {
-    font-size: 0.9em;
-    color: var(--red-600);
-}
-
-.fake-carousel-wrapper {
-    position: relative;
-    overflow: hidden;
-    border-radius: var(--radius-xl);
-}
+.fake-carousel { position: relative; overflow: hidden; border-radius: var(--radius-xl); }
 
 .fake-carousel-track {
     display: flex;
-    transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition: transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-.fake-carousel-slide {
-    min-width: 100%;
-    padding: 0 4px;
-}
+.fake-slide { min-width: 100%; padding: 0 2px; }
 
-.fake-account-card {
-    background: white;
+.fake-card {
+    background: #fff;
     border-radius: var(--radius-xl);
-    border: 2px solid var(--red-200);
-    padding: 28px;
+    border: 2px solid #fecaca;
+    padding: 24px;
     position: relative;
-    overflow: hidden;
 }
 
-.fake-account-card::after {
+.fake-card::after {
     content: 'FAKE';
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-30deg);
-    font-size: 6em;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-25deg);
+    font-size: 5em;
     font-weight: 900;
-    color: rgba(239,68,68,0.04);
+    color: rgba(239,68,68,0.03);
     pointer-events: none;
-    letter-spacing: 20px;
+    letter-spacing: 15px;
 }
 
-.fake-card-header {
+.fake-card-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
 }
 
 .fake-card-title {
     display: flex;
     align-items: center;
-    gap: 10px;
-}
-
-.fake-card-title .fake-icon {
-    font-size: 1.8em;
-}
-
-.fake-card-title h3 {
-    font-size: 1.1em;
+    gap: 8px;
+    font-size: 1em;
     font-weight: 700;
     color: var(--red-700);
 }
 
-.fake-risk-badge {
+.fake-card-badge {
     background: var(--red-500);
-    color: white;
-    padding: 4px 14px;
-    border-radius: 20px;
-    font-size: 0.7em;
+    color: #fff;
+    padding: 3px 12px;
+    border-radius: 16px;
+    font-size: 0.65em;
     font-weight: 700;
-    letter-spacing: 1px;
+    letter-spacing: 0.8px;
     text-transform: uppercase;
 }
 
 .fake-card-body {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 16px;
 }
 
-@media (max-width: 600px) {
-    .fake-card-body { grid-template-columns: 1fr; }
-}
+@media (max-width: 600px) { .fake-card-body { grid-template-columns: 1fr; } }
 
-.fake-card-screenshot {
+.fake-screenshot {
     position: relative;
     border-radius: var(--radius);
     overflow: hidden;
-    border: 3px solid var(--red-200);
+    border: 3px solid #fecaca;
 }
 
-.fake-card-screenshot img {
+.fake-screenshot img {
     width: 100%;
-    height: auto;
     display: block;
-    filter: brightness(0.9);
 }
 
 .fake-watermark {
@@ -923,347 +728,248 @@ body {
     align-items: center;
     justify-content: center;
     pointer-events: none;
-    gap: 8px;
+    gap: 6px;
 }
 
-.fake-watermark-text {
-    background: rgba(239,68,68,0.9);
-    color: white;
-    padding: 8px 20px;
-    border-radius: 20px;
+.fake-watermark span {
+    background: rgba(239,68,68,0.85);
+    color: #fff;
+    padding: 5px 14px;
+    border-radius: 14px;
     font-weight: 800;
-    font-size: 0.9em;
-    letter-spacing: 2px;
-    animation: dangerPulse 1.5s infinite;
+    font-size: 0.8em;
+    letter-spacing: 1.5px;
 }
 
-.fake-card-details {
+.fake-details {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .fake-detail-row {
     display: flex;
     justify-content: space-between;
-    align-items: center;
     padding: 8px 12px;
     background: var(--red-50);
-    border-radius: var(--radius-sm);
-    font-size: 0.85em;
+    border-radius: 8px;
+    font-size: 0.82em;
 }
 
-.fake-detail-label {
-    color: var(--red-600);
-    font-weight: 600;
-}
-
-.fake-detail-value {
-    color: var(--red-700);
-    font-weight: 700;
-}
+.fake-detail-label { color: var(--red-600); font-weight: 600; }
+.fake-detail-value { color: var(--red-700); font-weight: 700; }
 
 .fake-reason {
-    background: white;
-    border: 2px solid var(--red-100);
-    border-radius: var(--radius);
-    padding: 14px;
-    margin-top: 8px;
-    font-size: 0.85em;
+    background: #fff;
+    border: 2px solid #fee2e2;
+    border-radius: 10px;
+    padding: 12px;
+    margin-top: 6px;
+    font-size: 0.82em;
     color: var(--red-700);
-    line-height: 1.6;
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
+    line-height: 1.5;
 }
 
-.fake-card-actions {
+.fake-actions {
     display: flex;
-    gap: 10px;
-    margin-top: 16px;
+    gap: 8px;
+    margin-top: 14px;
     flex-wrap: wrap;
 }
 
-.btn-danger {
+.btn-report {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 12px 24px;
-    background: var(--gradient-danger);
-    color: white;
-    border-radius: 25px;
+    gap: 5px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, var(--red-500), var(--red-600));
+    color: #fff;
+    border-radius: 22px;
     text-decoration: none;
     font-weight: 700;
-    font-size: 0.85em;
-    border: none;
-    cursor: pointer;
-    transition: all 0.3s;
+    font-size: 0.82em;
+    transition: all 0.25s;
     flex: 1;
     justify-content: center;
-    min-width: 140px;
+    min-width: 120px;
 }
 
-.btn-danger:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(239,68,68,0.3);
-}
+.btn-report:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(239,68,68,0.3); }
 
-.btn-outline-danger {
+.btn-copy {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 12px 24px;
-    background: white;
+    gap: 5px;
+    padding: 10px 20px;
+    background: #fff;
     color: var(--red-600);
-    border: 2px solid var(--red-200);
-    border-radius: 25px;
+    border: 2px solid #fecaca;
+    border-radius: 22px;
     font-weight: 700;
-    font-size: 0.85em;
+    font-size: 0.82em;
     cursor: pointer;
-    transition: all 0.3s;
+    transition: all 0.25s;
     flex: 1;
     justify-content: center;
-    min-width: 140px;
+    min-width: 120px;
 }
 
-.btn-outline-danger:hover {
-    background: var(--red-50);
-    border-color: var(--red-500);
-}
-
-.btn-outline-danger.copied {
-    background: var(--green-500) !important;
-    color: white !important;
-    border-color: var(--green-500) !important;
-}
+.btn-copy:hover { background: var(--red-50); border-color: var(--red-500); }
+.btn-copy.copied { background: var(--green-500) !important; color: #fff !important; border-color: var(--green-500) !important; }
 
 .carousel-nav {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 16px;
-    margin-top: 20px;
+    gap: 14px;
+    margin-top: 16px;
 }
 
-.carousel-dots {
-    display: flex;
-    gap: 8px;
-}
+.carousel-dots { display: flex; gap: 6px; }
 
 .carousel-dot {
-    width: 10px;
-    height: 10px;
+    width: 8px; height: 8px;
     border-radius: 50%;
-    background: var(--red-200);
+    background: #fecaca;
     border: none;
     cursor: pointer;
     transition: all 0.3s;
 }
 
-.carousel-dot.active {
-    background: var(--red-500);
-    width: 28px;
-    border-radius: 5px;
-}
+.carousel-dot.active { background: var(--red-500); width: 24px; border-radius: 4px; }
 
 .carousel-arrow {
-    width: 40px;
-    height: 40px;
+    width: 36px; height: 36px;
     border-radius: 50%;
-    background: white;
+    background: #fff;
     border: 2px solid var(--border);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1em;
+    font-size: 1em;
     color: var(--text);
-    transition: all 0.3s;
+    transition: all 0.25s;
 }
 
-.carousel-arrow:hover {
-    background: var(--red-500);
-    color: white;
-    border-color: var(--red-500);
-}
+.carousel-arrow:hover { background: var(--red-500); color: #fff; border-color: var(--red-500); }
 
-/* COMPARISON TABLE */
-.comparison-table-wrapper {
+.comparison-table-wrap {
     overflow-x: auto;
     border-radius: var(--radius-xl);
     border: 1px solid var(--border);
-    background: white;
-    box-shadow: var(--shadow-md);
+    background: #fff;
+    box-shadow: var(--shadow);
 }
 
 .comparison-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9em;
+    font-size: 0.88em;
 }
 
 .comparison-table th {
-    background: var(--bg-tertiary);
-    padding: 16px;
+    background: #f1f5f9;
+    padding: 14px 16px;
     text-align: left;
     font-weight: 700;
-    color: var(--text);
     border-bottom: 2px solid var(--border);
-    white-space: nowrap;
-}
-
-.comparison-table th:first-child {
-    border-radius: var(--radius-xl) 0 0 0;
 }
 
 .comparison-table td {
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border-light);
-    vertical-align: middle;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
 }
 
-.comparison-table .official-col {
-    background: var(--green-50);
-    border-left: 3px solid var(--green-500);
-}
+.comparison-table .col-official { background: #f0fdf4; border-left: 3px solid var(--green-500); }
+.comparison-table .col-fake { background: #fef2f2; border-left: 3px solid var(--red-500); }
 
-.comparison-table .fake-col {
-    background: var(--red-50);
-    border-left: 3px solid var(--red-500);
-}
+.check { color: var(--green-500); font-weight: 700; }
+.cross { color: var(--red-500); font-weight: 700; }
 
-.comparison-table .check-icon { color: var(--green-500); font-weight: 700; }
-.comparison-table .cross-icon { color: var(--red-500); font-weight: 700; }
-
-/* WARNING SECTION */
 .warning-section {
-    background: var(--amber-50);
-    border: 2px solid var(--amber-100);
+    background: #fffbeb;
+    border: 2px solid #fde68a;
     border-radius: var(--radius-2xl);
-    padding: 36px;
-    margin: 40px 0;
+    padding: 28px;
 }
 
 .warning-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
-    margin-top: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
 }
 
 .warning-card {
-    background: white;
+    background: #fff;
     border-radius: var(--radius-lg);
-    padding: 24px;
-    border: 1px solid var(--amber-100);
-    transition: all 0.3s;
+    padding: 20px;
+    border: 1px solid #fde68a;
+    transition: all 0.25s;
 }
 
-.warning-card:hover {
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-2px);
-}
+.warning-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
 
-.warning-card-icon {
-    font-size: 2em;
-    margin-bottom: 12px;
-}
+.warning-card-icon { font-size: 1.8em; margin-bottom: 8px; }
+.warning-card h4 { font-size: 0.95em; font-weight: 700; margin-bottom: 4px; }
+.warning-card p { font-size: 0.82em; color: var(--text-secondary); line-height: 1.5; }
 
-.warning-card h4 {
-    font-size: 1em;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 6px;
-}
-
-.warning-card p {
-    font-size: 0.85em;
-    color: var(--text-secondary);
-    line-height: 1.6;
-}
-
-/* UPDATES SECTION */
 .updates-section {
-    background: var(--blue-50);
-    border: 2px solid var(--blue-100);
+    background: #eff6ff;
+    border: 2px solid #bfdbfe;
     border-radius: var(--radius-2xl);
-    padding: 32px;
+    padding: 28px;
     text-align: center;
-    margin: 40px 0;
 }
 
-.updates-section h3 {
-    font-size: 1.2em;
-    font-weight: 700;
-    color: var(--blue-700);
-    margin-bottom: 8px;
-}
+.updates-section h3 { font-size: 1.1em; font-weight: 700; color: var(--blue-700); margin-bottom: 6px; }
+.updates-section p { color: var(--blue-600); font-size: 0.85em; margin-bottom: 14px; }
 
-.updates-section p {
-    color: var(--blue-600);
-    font-size: 0.9em;
-    margin-bottom: 16px;
-}
-
-.update-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-}
+.update-tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 
 .update-tag {
-    background: white;
+    background: #fff;
     color: var(--blue-700);
-    padding: 8px 18px;
-    border-radius: 20px;
-    font-size: 0.8em;
+    padding: 6px 14px;
+    border-radius: 18px;
+    font-size: 0.78em;
     font-weight: 600;
-    border: 1px solid var(--blue-100);
+    border: 1px solid #bfdbfe;
 }
 
-/* SPOTIFY PLAYER */
 .spotify-player {
     background: var(--spotify-black);
     border-radius: var(--radius-xl);
     overflow: hidden;
-    box-shadow: var(--shadow-2xl);
+    box-shadow: var(--shadow-xl);
 }
 
 .spotify-now-playing {
     display: flex;
-    gap: 24px;
-    padding: 28px;
+    gap: 20px;
+    padding: 24px;
     background: linear-gradient(135deg, #282828, #191414);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
-@media (max-width: 768px) {
-    .spotify-now-playing { flex-direction: column; align-items: center; text-align: center; }
-}
+@media (max-width: 680px) { .spotify-now-playing { flex-direction: column; align-items: center; text-align: center; } }
 
 .spotify-album-art {
-    width: 180px;
-    height: 180px;
-    border-radius: var(--radius);
+    width: 150px; height: 150px;
+    border-radius: 10px;
     overflow: hidden;
     flex-shrink: 0;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.4);
 }
 
-.spotify-album-art img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
+.spotify-album-art img { width: 100%; height: 100%; object-fit: cover; }
 
 .spotify-default-art {
-    width: 100%;
-    height: 100%;
+    width: 100%; height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--spotify-green), #169c46);
+    background: linear-gradient(135deg, var(--spotify), #169c46);
 }
 
 .spotify-track-info {
@@ -1271,70 +977,53 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-width: 200px;
+    min-width: 180px;
 }
 
 .spotify-track-name {
-    font-size: 1.6em;
+    font-size: 1.3em;
     font-weight: 700;
-    color: white;
-    margin-bottom: 4px;
+    color: #fff;
+    margin-bottom: 3px;
 }
 
 .spotify-track-artist {
-    font-size: 0.95em;
+    font-size: 0.85em;
     color: #b3b3b3;
-    margin-bottom: 20px;
-}
-
-.spotify-progress {
     margin-bottom: 16px;
 }
 
+.spotify-progress { margin-bottom: 14px; }
+
 .spotify-progress-bar {
     width: 100%;
-    height: 5px;
+    height: 4px;
     background: rgba(255,255,255,0.2);
-    border-radius: 3px;
+    border-radius: 2px;
     cursor: pointer;
-    position: relative;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
 }
 
 .spotify-progress-fill {
     height: 100%;
-    background: var(--spotify-green);
-    border-radius: 3px;
+    background: var(--spotify);
+    border-radius: 2px;
     width: 0%;
     transition: width 0.1s linear;
 }
 
-.spotify-progress-thumb {
-    position: absolute;
-    right: -6px;
-    top: -3px;
-    width: 12px;
-    height: 12px;
-    background: white;
-    border-radius: 50%;
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-
-.spotify-progress-bar:hover .spotify-progress-thumb { opacity: 1; }
-
 .spotify-time {
     display: flex;
     justify-content: space-between;
-    font-size: 0.7em;
+    font-size: 0.68em;
     color: #b3b3b3;
 }
 
 .spotify-controls {
     display: flex;
     align-items: center;
-    gap: 16px;
-    margin-bottom: 16px;
+    gap: 14px;
+    margin-bottom: 14px;
 }
 
 .spotify-btn {
@@ -1342,7 +1031,7 @@ body {
     border: none;
     color: #b3b3b3;
     cursor: pointer;
-    padding: 6px;
+    padding: 5px;
     border-radius: 50%;
     transition: all 0.2s;
     display: flex;
@@ -1350,28 +1039,26 @@ body {
     justify-content: center;
 }
 
-.spotify-btn:hover { color: white; transform: scale(1.1); }
+.spotify-btn:hover { color: #fff; transform: scale(1.1); }
 
 .spotify-play-btn {
-    background: white;
-    color: var(--spotify-black);
-    width: 48px;
-    height: 48px;
+    background: #fff;
+    color: #191414;
+    width: 44px; height: 44px;
     border-radius: 50%;
 }
 
-.spotify-play-btn:hover { transform: scale(1.08); background: #f0f0f0; color: var(--spotify-black); }
+.spotify-play-btn:hover { transform: scale(1.08); }
 
 .spotify-volume {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     color: #b3b3b3;
 }
 
 .spotify-volume-slider {
-    width: 100px;
-    height: 4px;
+    width: 90px; height: 3px;
     -webkit-appearance: none;
     appearance: none;
     background: rgba(255,255,255,0.2);
@@ -1382,124 +1069,88 @@ body {
 
 .spotify-volume-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
+    width: 12px; height: 12px;
     border-radius: 50%;
-    background: white;
+    background: #fff;
     cursor: pointer;
 }
 
-.spotify-playlist-container {
-    max-height: 420px;
-    overflow-y: auto;
-}
+.spotify-playlist-container { max-height: 360px; overflow-y: auto; }
 
 .spotify-playlist-header {
-    padding: 16px 24px;
+    padding: 12px 20px;
     border-bottom: 1px solid rgba(255,255,255,0.06);
     display: flex;
     justify-content: space-between;
     align-items: center;
     position: sticky;
     top: 0;
-    background: var(--spotify-black);
+    background: #191414;
     z-index: 1;
 }
 
-.spotify-playlist-header h3 {
-    font-size: 1em;
-    font-weight: 700;
-    color: white;
-}
-
-.spotify-song-count {
-    font-size: 0.8em;
-    color: #b3b3b3;
-}
+.spotify-playlist-header h3 { font-size: 0.95em; font-weight: 700; color: #fff; }
+.spotify-song-count { font-size: 0.75em; color: #b3b3b3; }
 
 .spotify-playlist-item {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 12px 24px;
+    gap: 12px;
+    padding: 10px 20px;
     cursor: pointer;
     transition: all 0.2s;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.03);
 }
 
-.spotify-playlist-item:hover {
-    background: rgba(255,255,255,0.06);
-}
-
-.spotify-playlist-item.active {
-    background: rgba(29,185,84,0.12);
-}
+.spotify-playlist-item:hover { background: rgba(255,255,255,0.05); }
+.spotify-playlist-item.active { background: rgba(29,185,84,0.1); }
 
 .spotify-track-number {
-    font-size: 0.85em;
+    font-size: 0.8em;
     color: #b3b3b3;
-    width: 28px;
+    width: 24px;
     text-align: center;
     font-weight: 600;
 }
 
 .spotify-track-cover-small {
-    width: 44px;
-    height: 44px;
-    border-radius: 6px;
+    width: 38px; height: 38px;
+    border-radius: 5px;
     overflow: hidden;
     flex-shrink: 0;
     background: #282828;
 }
 
-.spotify-track-cover-small img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
+.spotify-track-cover-small img { width: 100%; height: 100%; object-fit: cover; }
 
 .spotify-default-art-small {
-    width: 100%;
-    height: 100%;
+    width: 100%; height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--spotify-green), #169c46);
+    background: linear-gradient(135deg, var(--spotify), #169c46);
 }
 
-.spotify-track-details {
-    flex: 1;
-    min-width: 0;
-}
+.spotify-track-details { flex: 1; min-width: 0; }
 
 .spotify-track-title {
     font-weight: 600;
-    font-size: 0.88em;
-    color: white;
+    font-size: 0.84em;
+    color: #fff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.spotify-track-artist-small {
-    font-size: 0.75em;
-    color: #b3b3b3;
-}
+.spotify-track-artist-small { font-size: 0.72em; color: #b3b3b3; }
 
-.spotify-equalizer {
-    display: none;
-    gap: 2px;
-    align-items: flex-end;
-    height: 18px;
-}
+.spotify-equalizer { display: none; gap: 2px; align-items: flex-end; height: 16px; }
 
-.spotify-playlist-item.active .spotify-equalizer {
-    display: flex;
-}
+.spotify-playlist-item.active .spotify-equalizer { display: flex; }
 
 .eq-bar {
     width: 3px;
-    background: var(--spotify-green);
+    background: var(--spotify);
     border-radius: 1px;
     animation: equalizer 0.8s infinite;
 }
@@ -1509,50 +1160,37 @@ body {
 .eq-bar:nth-child(3) { animation-delay: 0.4s; }
 .eq-bar:nth-child(4) { animation-delay: 0.6s; }
 
-/* GALLERY */
-.gallery-masonry {
-    column-count: 3;
-    column-gap: 20px;
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
 }
 
-@media (max-width: 900px) { .gallery-masonry { column-count: 2; } }
-@media (max-width: 500px) { .gallery-masonry { column-count: 1; } }
-
 .gallery-card {
-    break-inside: avoid;
-    margin-bottom: 20px;
     border-radius: var(--radius-xl);
     overflow: hidden;
+    cursor: pointer;
     transition: all 0.3s;
-    background: white;
+    background: #fff;
     box-shadow: var(--shadow);
 }
 
-.gallery-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-xl);
-}
+.gallery-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
 
-.gallery-card-inner {
-    position: relative;
-    overflow: hidden;
-}
+.gallery-card-inner { position: relative; overflow: hidden; }
 
 .gallery-image {
     width: 100%;
     display: block;
-    cursor: pointer;
-    transition: transform 0.5s;
+    transition: transform 0.4s;
 }
 
-.gallery-card:hover .gallery-image {
-    transform: scale(1.03);
-}
+.gallery-card:hover .gallery-image { transform: scale(1.04); }
 
 .gallery-card-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.4);
+    background: rgba(0,0,0,0.35);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1560,38 +1198,16 @@ body {
     transition: opacity 0.3s;
 }
 
-.gallery-card:hover .gallery-card-overlay {
-    opacity: 1;
-}
-
-.gallery-zoom-btn {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.2);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.3);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s;
-}
-
-.gallery-zoom-btn:hover {
-    background: rgba(255,255,255,0.3);
-    transform: scale(1.1);
-}
+.gallery-card:hover .gallery-card-overlay { opacity: 1; }
 
 .gallery-caption {
-    padding: 12px 16px;
-    font-size: 0.85em;
+    padding: 10px 14px;
+    font-size: 0.82em;
     color: var(--text-secondary);
     text-align: center;
 }
 
-/* LIGHTBOX */
-.lightbox-overlay {
+.lightbox {
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.95);
@@ -1599,84 +1215,65 @@ body {
     display: none;
     align-items: center;
     justify-content: center;
-    flex-direction: column;
 }
 
-.lightbox-overlay.active { display: flex; }
+.lightbox.active { display: flex; }
 
 .lightbox-close {
     position: absolute;
-    top: 20px;
-    right: 20px;
+    top: 16px; right: 16px;
     background: none;
     border: none;
     cursor: pointer;
     z-index: 10001;
-    padding: 8px;
 }
 
 .lightbox-image {
     max-width: 90vw;
     max-height: 85vh;
     object-fit: contain;
-    border-radius: var(--radius);
+    border-radius: 8px;
 }
 
 .lightbox-nav {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(255,255,255,0.15);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.15);
     border-radius: 50%;
-    width: 50px;
-    height: 50px;
+    width: 44px; height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.3s;
-    color: white;
+    transition: all 0.25s;
 }
 
-.lightbox-nav:hover { background: rgba(255,255,255,0.3); }
+.lightbox-nav:hover { background: rgba(255,255,255,0.25); }
+.lightbox-prev { left: 16px; }
+.lightbox-next { right: 16px; }
 
-.lightbox-prev { left: 20px; }
-.lightbox-next { right: 20px; }
-
-/* FOOTER */
 .footer {
     text-align: center;
-    padding: 40px 20px;
+    padding: 36px 20px;
     color: var(--text-muted);
-    font-size: 0.9em;
+    font-size: 0.85em;
     border-top: 1px solid var(--border);
-    margin-top: 40px;
+    margin-top: 36px;
     background: var(--bg-secondary);
 }
 
-/* RESPONSIVE */
 @media (max-width: 768px) {
-    .hero-name { font-size: 2em; }
-    .hero-profile { width: 110px; height: 110px; }
-    .section-heading { font-size: 1.25em; }
-    .official-account-card { padding: 24px; }
-    .official-info-grid { grid-template-columns: 1fr; }
-    .fake-accounts-section { padding: 20px; }
-    .fake-card-body { grid-template-columns: 1fr; }
-    .comparison-table { font-size: 0.8em; }
-    .lightbox-nav { width: 40px; height: 40px; }
-    .lightbox-prev { left: 10px; }
-    .lightbox-next { right: 10px; }
-}
-
-@media (max-width: 480px) {
-    .hero-name { font-size: 1.6em; }
-    .hero-profile { width: 90px; height: 90px; }
-    .hero-section { padding: 40px 0 30px; }
-    .social-btn { padding: 10px 20px; font-size: 0.8em; }
-    .spotify-album-art { width: 140px; height: 140px; }
+    .hero-name { font-size: 1.8em; }
+    .hero-img { width: 100px; height: 100px; }
+    .section-heading { font-size: 1.2em; }
+    .official-card { padding: 22px; }
+    .spotify-album-art { width: 120px; height: 120px; }
+    .lightbox-nav { width: 36px; height: 36px; }
+    .lightbox-prev { left: 8px; }
+    .lightbox-next { right: 8px; }
 }
 </style>
 </head>
@@ -1686,32 +1283,30 @@ body {
 
 <nav class="navbar">
     <div class="container">
-        <a href="/" class="navbar-logo">
-            <img src="${DATA.celebrity.photo}" alt="${DATA.celebrity.name}" onerror="this.style.display='none'">
-            <span>Verification Hub</span>
-        </a>
+        <img src="${DATA.celebrity.photo}" alt="" class="navbar-logo-img" onerror="this.style.display='none'">
+        <span class="navbar-logo-text">Verification Hub</span>
     </div>
 </nav>
 
-<header class="hero-section" data-animate>
+<header class="hero" data-animate>
     <div class="container">
-        <img src="${DATA.celebrity.photo}" alt="${DATA.celebrity.name}" class="hero-profile" onerror="this.style.display='none'">
+        <img src="${DATA.celebrity.photo}" alt="${DATA.celebrity.name}" class="hero-img" onerror="this.style.display='none'">
         <h1 class="hero-name">${DATA.celebrity.fullName}</h1>
         <p class="hero-bio">${DATA.celebrity.bio}</p>
         <div class="hero-badges">
             <span class="badge badge-verified">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
                 VERIFIED OFFICIAL
             </span>
-            <span class="badge badge-entertainment">✦ ENTERTAINMENT</span>
+            <span class="badge badge-fun">✦ ENTERTAINMENT</span>
         </div>
         <div class="hero-social">
-            <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener noreferrer" class="social-btn tiktok">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.89a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
+            <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="social-btn tiktok">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.89a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
                 TikTok
             </a>
-            <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" rel="noopener noreferrer" class="social-btn facebook">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+            <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" rel="noopener" class="social-btn facebook">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
                 Facebook
             </a>
         </div>
@@ -1722,56 +1317,47 @@ body {
 
 <section class="section" data-animate>
     <div class="section-header">
-        <div class="section-icon" style="background:var(--gradient-verified)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+        <div class="section-icon verified-icon-bg">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
         </div>
         <h2 class="section-heading">Official Verified Account</h2>
     </div>
 
-    <div class="official-account-card">
-        <div class="official-glow"></div>
-        <div class="official-header">
-            <div class="official-verified-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+    <div class="official-card">
+        <div class="official-card-header">
+            <div class="official-verify-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
             </div>
-            <div class="official-title-group">
+            <div class="official-card-title">
                 <h2>The Only Authentic Account</h2>
-                <span>✓ Identity Verified • Trust Score: ${DATA.celebrity.trustScore}%</span>
+                <span>✓ Identity Verified</span>
             </div>
         </div>
-        <div class="official-content">
-            <div class="official-info-grid">
+        <div class="official-card-body">
+            <div class="official-info-list">
                 <div class="official-info-item">
-                    <div class="official-info-label">Username</div>
-                    <div class="official-info-value">@baiillamaach_official</div>
+                    <span class="official-info-label">Username</span>
+                    <span class="official-info-value">@baiillamaach_official</span>
                 </div>
                 <div class="official-info-item">
-                    <div class="official-info-label">Verification ID</div>
-                    <div class="official-info-value">${DATA.celebrity.verificationId}</div>
+                    <span class="official-info-label">Platforms</span>
+                    <span class="official-info-value">TikTok • Facebook</span>
                 </div>
                 <div class="official-info-item">
-                    <div class="official-info-label">Status</div>
-                    <div class="official-info-value" style="color:var(--green-600)">● Active & Verified</div>
+                    <span class="official-info-label">Status</span>
+                    <span class="official-info-value" style="color:var(--green-600)">● Active & Verified</span>
                 </div>
                 <div class="official-info-item">
-                    <div class="official-info-label">Followers</div>
-                    <div class="official-info-value">${DATA.celebrity.followers}</div>
-                </div>
-                <div class="official-info-item">
-                    <div class="official-info-label">Risk Level</div>
-                    <div class="official-info-value" style="color:var(--green-600)">None - Safe</div>
-                </div>
-                <div class="official-info-item">
-                    <div class="official-info-label">Joined</div>
-                    <div class="official-info-value">${DATA.celebrity.joinedDate}</div>
+                    <span class="official-info-label">Security</span>
+                    <span class="official-info-value" style="color:var(--green-600)">Safe</span>
                 </div>
             </div>
-            <div class="official-account-preview">
-                <img src="${DATA.celebrity.photo}" alt="${DATA.celebrity.name}" onerror="this.style.display='none'">
-                <div class="username">@baiillamaach_official</div>
-                <div class="platform">TikTok • Facebook</div>
-                <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener noreferrer" class="official-follow-btn">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+            <div class="official-preview">
+                <img src="${DATA.celebrity.photo}" alt="" onerror="this.style.display='none'">
+                <div class="uname">@baiillamaach_official</div>
+                <div class="plat">TikTok • Facebook</div>
+                <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="btn-follow">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
                     Follow Official Account
                 </a>
             </div>
@@ -1779,36 +1365,42 @@ body {
     </div>
 </section>
 
-<section class="fake-accounts-section" data-animate>
-    <div class="fake-alert-header">
+<section class="fake-section" data-animate>
+    <div class="section-header">
+        <div class="section-icon danger-icon-bg">
+            <span style="font-size:1.3em">⚠</span>
+        </div>
+        <h2 class="section-heading">Fake Accounts Detected</h2>
+    </div>
+
+    <div class="fake-alert">
         <div class="fake-alert-icon">🚨</div>
         <div class="fake-alert-text">
-            <h3>WARNING: ${totalFake} Fake Accounts Detected</h3>
-            <p>These accounts are NOT affiliated with Baiilla Maach. Report them immediately.</p>
+            <h3>${totalFake} Fake Account${totalFake > 1 ? 's' : ''} Found</h3>
+            <p>These are NOT affiliated with Baiilla Maach. Report them immediately.</p>
         </div>
     </div>
 
-    <div class="fake-carousel-wrapper" id="fakeCarousel">
+    <div class="fake-carousel" id="fakeCarousel">
         <div class="fake-carousel-track" id="fakeCarouselTrack">
             ${DATA.fakeAccounts.map((a, i) => `
-            <div class="fake-carousel-slide">
-                <div class="fake-account-card" data-voice="${a.voiceFile || ''}" data-index="${i}">
-                    <div class="fake-card-header">
+            <div class="fake-slide">
+                <div class="fake-card">
+                    <div class="fake-card-top">
                         <div class="fake-card-title">
-                            <span class="fake-icon">⚠️</span>
-                            <h3>Fake Account #${i+1}</h3>
+                            <span>⚠️</span> Fake Account #${i+1}
                         </div>
-                        <span class="fake-risk-badge">${a.riskLevel} RISK</span>
+                        <span class="fake-card-badge">Dangerous</span>
                     </div>
                     <div class="fake-card-body">
-                        <div class="fake-card-screenshot">
-                            ${a.screenshot ? `<img src="${a.screenshot}" alt="Fake Account Screenshot" loading="lazy">` : ''}
+                        <div class="fake-screenshot">
+                            ${a.screenshot ? `<img src="${a.screenshot}" alt="" loading="lazy">` : ''}
                             <div class="fake-watermark">
-                                <span class="fake-watermark-text">⚠️ FAKE ACCOUNT</span>
-                                <span class="fake-watermark-text" style="font-size:0.7em">DO NOT TRUST</span>
+                                <span>⚠️ FAKE</span>
+                                <span style="font-size:0.65em">DO NOT TRUST</span>
                             </div>
                         </div>
-                        <div class="fake-card-details">
+                        <div class="fake-details">
                             <div class="fake-detail-row">
                                 <span class="fake-detail-label">Platform</span>
                                 <span class="fake-detail-value">${a.platform}</span>
@@ -1818,34 +1410,17 @@ body {
                                 <span class="fake-detail-value">${a.username}</span>
                             </div>
                             <div class="fake-detail-row">
-                                <span class="fake-detail-label">Risk Score</span>
-                                <span class="fake-detail-value">${a.riskScore}/100</span>
-                            </div>
-                            <div class="fake-detail-row">
                                 <span class="fake-detail-label">Status</span>
-                                <span class="fake-detail-value">${a.status}</span>
-                            </div>
-                            <div class="fake-detail-row">
-                                <span class="fake-detail-label">Reports</span>
-                                <span class="fake-detail-value">${a.reportStatus}</span>
-                            </div>
-                            <div class="fake-detail-row">
-                                <span class="fake-detail-label">Owner</span>
-                                <span class="fake-detail-value">${a.owner}</span>
+                                <span class="fake-detail-value">Active Threat</span>
                             </div>
                             <div class="fake-reason">
-                                <span>⚠️</span>
-                                <span>${a.reason}</span>
+                                <span>⚠️ ${a.reason}</span>
                             </div>
                         </div>
                     </div>
-                    <div class="fake-card-actions">
-                        <a href="${a.profileUrl}" target="_blank" rel="noopener noreferrer" class="btn-danger">
-                            🚨 Report Account
-                        </a>
-                        <button class="btn-outline-danger copy-username-btn" data-username="${a.username}">
-                            📋 Copy Username
-                        </button>
+                    <div class="fake-actions">
+                        <a href="${a.profileUrl}" target="_blank" rel="noopener" class="btn-report">🚨 Report</a>
+                        <button class="btn-copy copy-btn" data-username="${a.username}">📋 Copy Username</button>
                     </div>
                 </div>
             </div>`).join('')}
@@ -1853,70 +1428,60 @@ body {
     </div>
 
     <div class="carousel-nav">
-        <button class="carousel-arrow" onclick="moveCarousel(-1)" aria-label="Previous">◀</button>
+        <button class="carousel-arrow" onclick="moveCarousel(-1)">◀</button>
         <div class="carousel-dots" id="carouselDots">
-            ${DATA.fakeAccounts.map((_, i) => `<button class="carousel-dot${i===0?' active':''}" onclick="goToSlide(${i})" aria-label="Slide ${i+1}"></button>`).join('')}
+            ${DATA.fakeAccounts.map((_, i) => `<button class="carousel-dot${i===0?' active':''}" onclick="goToSlide(${i})"></button>`).join('')}
         </div>
-        <button class="carousel-arrow" onclick="moveCarousel(1)" aria-label="Next">▶</button>
+        <button class="carousel-arrow" onclick="moveCarousel(1)">▶</button>
     </div>
 </section>
 
 <section class="section" data-animate>
     <div class="section-header">
-        <div class="section-icon" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M3 5v14h18V5H3zm16 2v2H5V7h14zm0 4v2H5v-2h14zm0 4v2H5v-2h14z"/></svg>
+        <div class="section-icon compare-icon-bg">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M3 5v14h18V5H3zm16 2v2H5V7h14zm0 4v2H5v-2h14zm0 4v2H5v-2h14z"/></svg>
         </div>
         <h2 class="section-heading">Account Comparison</h2>
     </div>
-    <div class="comparison-table-wrapper">
+    <div class="comparison-table-wrap">
         <table class="comparison-table">
             <thead>
                 <tr>
                     <th>Feature</th>
-                    <th>✅ Official Account</th>
-                    <th>❌ Fake Accounts</th>
+                    <th>✅ Official</th>
+                    <th>❌ Fake</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
                     <td><strong>Verification</strong></td>
-                    <td class="official-col"><span class="check-icon">✓</span> Verified</td>
-                    <td class="fake-col"><span class="cross-icon">✗</span> Not Verified</td>
+                    <td class="col-official"><span class="check">✓</span> Verified</td>
+                    <td class="col-fake"><span class="cross">✗</span> Not Verified</td>
                 </tr>
                 <tr>
                     <td><strong>Username</strong></td>
-                    <td class="official-col"><span class="check-icon">✓</span> @baiillamaach_official</td>
-                    <td class="fake-col"><span class="cross-icon">✗</span> Similar copycat names</td>
-                </tr>
-                <tr>
-                    <td><strong>Followers</strong></td>
-                    <td class="official-col"><span class="check-icon">✓</span> ${DATA.celebrity.followers}</td>
-                    <td class="fake-col"><span class="cross-icon">✗</span> Few or fake followers</td>
+                    <td class="col-official"><span class="check">✓</span> @baiillamaach_official</td>
+                    <td class="col-fake"><span class="cross">✗</span> Similar names</td>
                 </tr>
                 <tr>
                     <td><strong>Content</strong></td>
-                    <td class="official-col"><span class="check-icon">✓</span> Original content</td>
-                    <td class="fake-col"><span class="cross-icon">✗</span> Stolen content</td>
+                    <td class="col-official"><span class="check">✓</span> Original</td>
+                    <td class="col-fake"><span class="cross">✗</span> Stolen</td>
                 </tr>
                 <tr>
-                    <td><strong>Trust Score</strong></td>
-                    <td class="official-col"><span class="check-icon">✓</span> 100%</td>
-                    <td class="fake-col"><span class="cross-icon">✗</span> Below 20%</td>
+                    <td><strong>Trust</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Safe</td>
+                    <td class="col-fake"><span class="cross">✗</span> Dangerous</td>
                 </tr>
                 <tr>
-                    <td><strong>Risk Level</strong></td>
-                    <td class="official-col"><span class="check-icon">✓</span> None</td>
-                    <td class="fake-col"><span class="cross-icon">✗</span> Critical/High</td>
-                </tr>
-                <tr>
-                    <td><strong>Report Status</strong></td>
-                    <td class="official-col"><span class="check-icon">✓</span> Clean</td>
-                    <td class="fake-col"><span class="cross-icon">✗</span> Multiple Reports</td>
+                    <td><strong>Reports</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Clean</td>
+                    <td class="col-fake"><span class="cross">✗</span> Multiple Reports</td>
                 </tr>
                 <tr>
                     <td><strong>Owner</strong></td>
-                    <td class="official-col"><span class="check-icon">✓</span> Official</td>
-                    <td class="fake-col"><span class="cross-icon">✗</span> Impersonator</td>
+                    <td class="col-official"><span class="check">✓</span> Official</td>
+                    <td class="col-fake"><span class="cross">✗</span> Impersonator</td>
                 </tr>
             </tbody>
         </table>
@@ -1925,43 +1490,43 @@ body {
 
 <div class="warning-section" data-animate>
     <div class="section-header">
-        <div class="section-icon" style="background:linear-gradient(135deg,var(--amber-500),#d97706)">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+        <div class="section-icon warning-icon-bg">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
         </div>
         <h2 class="section-heading">How to Stay Safe</h2>
     </div>
     <div class="warning-grid">
         <div class="warning-card">
             <div class="warning-card-icon">🔍</div>
-            <h4>Verify Before Trusting</h4>
-            <p>Always check the username carefully. Official account is @baiillamaach_official only.</p>
+            <h4>Verify First</h4>
+            <p>Check username carefully. Official: @baiillamaach_official</p>
         </div>
         <div class="warning-card">
             <div class="warning-card-icon">🚫</div>
-            <h4>Never Share Personal Info</h4>
-            <p>Fake accounts may ask for passwords, money, or personal details. Never share them.</p>
+            <h4>Never Share Info</h4>
+            <p>Fake accounts ask for passwords or money. Never share them.</p>
         </div>
         <div class="warning-card">
             <div class="warning-card-icon">📢</div>
-            <h4>Report Immediately</h4>
-            <p>If you find a fake account, report it using the platform's report feature right away.</p>
+            <h4>Report Fast</h4>
+            <p>Use platform report feature when you spot a fake account.</p>
         </div>
         <div class="warning-card">
             <div class="warning-card-icon">🔗</div>
-            <h4>Use Official Links Only</h4>
-            <p>Only use the links provided on this page to access the official account.</p>
+            <h4>Use Official Links</h4>
+            <p>Only use links on this page to access the real account.</p>
         </div>
     </div>
 </div>
 
 <div class="updates-section" data-animate>
-    <h3>🔄 Latest Updates & Security Information</h3>
-    <p>Stay informed about impersonation attempts and security measures.</p>
+    <h3>🔄 Latest Updates</h3>
+    <p>Stay informed about impersonation attempts and security.</p>
     <div class="update-tags">
-        <span class="update-tag">📌 New fake accounts detected weekly</span>
-        <span class="update-tag">🔒 Official verification active</span>
-        <span class="update-tag">🛡️ Community reporting active</span>
-        <span class="update-tag">📢 Awareness campaign ongoing</span>
+        <span class="update-tag">📌 New fakes detected weekly</span>
+        <span class="update-tag">🔒 Verification active</span>
+        <span class="update-tag">🛡️ Community reporting</span>
+        <span class="update-tag">📢 Awareness ongoing</span>
     </div>
 </div>
 
@@ -1972,101 +1537,75 @@ ${galleryHTML}
 </main>
 
 <footer class="footer">
-    <p>© ${DATA.celebrity.fullName} • Official Verification Hub • All Rights Reserved</p>
+    <p>© ${DATA.celebrity.fullName} • Official Verification Hub</p>
 </footer>
 
-${DATA.fakeAccounts.map((a, i) => a.voiceFile ? `<audio id="fakeVoice${i}" preload="auto" src="${a.voiceFile}"></audio>` : '').join('')}
 <audio id="audioPlayer" preload="auto"></audio>
 
 <script>
 const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            entry.target.classList.add('animated');
-        }
+        if (entry.isIntersecting) entry.target.classList.add('animated');
     });
-}, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+}, { threshold: 0.1 });
 
 document.querySelectorAll('[data-animate]').forEach(el => observer.observe(el));
 
 window.addEventListener('scroll', () => {
-    const scrollPercent = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
-    document.getElementById('scrollProgress').style.width = scrollPercent + '%';
+    const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+    document.getElementById('scrollProgress').style.width = pct + '%';
 });
 
 let currentSlide = 0;
 const totalSlides = ${totalFake};
 const track = document.getElementById('fakeCarouselTrack');
 const dots = document.querySelectorAll('.carousel-dot');
-let autoSlideInterval;
+let autoSlide;
 
 function updateCarousel() {
     track.style.transform = 'translateX(-' + (currentSlide * 100) + '%)';
     dots.forEach((d, i) => d.classList.toggle('active', i === currentSlide));
-    playFakeVoiceAlert(currentSlide);
 }
 
 function moveCarousel(dir) {
     currentSlide = (currentSlide + dir + totalSlides) % totalSlides;
     updateCarousel();
-    resetAutoSlide();
+    clearInterval(autoSlide);
+    autoSlide = setInterval(() => moveCarousel(1), 5000);
 }
 
 function goToSlide(i) {
     currentSlide = i;
     updateCarousel();
-    resetAutoSlide();
+    clearInterval(autoSlide);
+    autoSlide = setInterval(() => moveCarousel(1), 5000);
 }
 
-function resetAutoSlide() {
-    clearInterval(autoSlideInterval);
-    autoSlideInterval = setInterval(() => moveCarousel(1), 5000);
-}
-
-function playFakeVoiceAlert(index) {
-    const card = document.querySelectorAll('.fake-account-card')[index];
-    if (!card) return;
-    const voiceFile = card.dataset.voice;
-    if (!voiceFile) return;
-    const audio = document.getElementById('fakeVoice' + card.dataset.index);
-    if (!audio) return;
-    audio.currentTime = 0;
-    audio.volume = 0.5;
-    audio.play().catch(() => {});
-}
-
-autoSlideInterval = setInterval(() => moveCarousel(1), 5000);
+autoSlide = setInterval(() => moveCarousel(1), 5000);
 
 const carousel = document.getElementById('fakeCarousel');
-let touchStartX = 0;
-carousel.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; });
+let touchX = 0;
+carousel.addEventListener('touchstart', e => { touchX = e.changedTouches[0].screenX; });
 carousel.addEventListener('touchend', e => {
-    const diff = touchStartX - e.changedTouches[0].screenX;
-    if (Math.abs(diff) > 50) {
-        moveCarousel(diff > 0 ? 1 : -1);
-    }
+    const diff = touchX - e.changedTouches[0].screenX;
+    if (Math.abs(diff) > 40) moveCarousel(diff > 0 ? 1 : -1);
 });
 
-playFakeVoiceAlert(0);
-
-document.querySelectorAll('.copy-username-btn').forEach(btn => {
+document.querySelectorAll('.copy-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         navigator.clipboard.writeText(this.dataset.username).then(() => {
             this.innerHTML = '✓ Copied!';
             this.classList.add('copied');
-            setTimeout(() => {
-                this.innerHTML = '📋 Copy Username';
-                this.classList.remove('copied');
-            }, 2000);
+            setTimeout(() => { this.innerHTML = '📋 Copy Username'; this.classList.remove('copied'); }, 2000);
         });
     });
 });
 
 let cur = -1, playing = false, ap = document.getElementById('audioPlayer'), items = document.querySelectorAll('.spotify-playlist-item');
+
 function loadSong(i) {
     if (!items.length || i < 0 || i >= items.length) return;
-    cur = i;
-    const it = items[i];
+    cur = i; const it = items[i];
     ap.src = it.dataset.audio;
     document.getElementById('nowPlayingTitle').textContent = it.querySelector('.spotify-track-title').textContent;
     document.getElementById('nowPlayingArtist').textContent = it.querySelector('.spotify-track-artist-small').textContent;
@@ -2074,7 +1613,7 @@ function loadSong(i) {
     if (it.dataset.cover) {
         cc.innerHTML = '<img src="' + it.dataset.cover + '" alt="">';
     } else {
-        cc.innerHTML = '<div class="spotify-default-art"><svg viewBox="0 0 24 24" width="64" height="64"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>';
+        cc.innerHTML = '<div class="spotify-default-art"><svg viewBox="0 0 24 24" width="56" height="56"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>';
     }
     document.querySelectorAll('.spotify-playlist-item').forEach(el => el.classList.remove('active'));
     it.classList.add('active');
@@ -2083,43 +1622,54 @@ function loadSong(i) {
     document.getElementById('totalTime').textContent = '0:00';
     ap.play().then(() => { playing = true; upPlayBtn(); }).catch(() => {});
 }
-function playSong(i) { if (i === cur) { togglePlay(); } else { loadSong(i); } }
-function togglePlay() { if (!ap.src && items.length > 0) { loadSong(0); return; } if (playing) { ap.pause(); } else { ap.play(); } playing = !playing; upPlayBtn(); }
-function upPlayBtn() { document.getElementById('playIcon').style.display = playing ? 'none' : 'block'; document.getElementById('pauseIcon').style.display = playing ? 'block' : 'none'; }
-function nextSong() { if (!items.length) return; loadSong((cur + 1) % items.length); }
-function prevSong() { if (!items.length) return; loadSong(cur <= 0 ? items.length - 1 : cur - 1); }
+
+function playSong(i) { if (i === cur) togglePlay(); else loadSong(i); }
+
+function togglePlay() {
+    if (!ap.src && items.length > 0) { loadSong(0); return; }
+    if (playing) ap.pause(); else ap.play();
+    playing = !playing; upPlayBtn();
+}
+
+function upPlayBtn() {
+    document.getElementById('playIcon').style.display = playing ? 'none' : 'block';
+    document.getElementById('pauseIcon').style.display = playing ? 'block' : 'none';
+}
+
+function nextSong() { if (items.length) loadSong((cur + 1) % items.length); }
+function prevSong() { if (items.length) loadSong(cur <= 0 ? items.length - 1 : cur - 1); }
 function setVol(v) { ap.volume = v / 100; }
+
 ap.addEventListener('timeupdate', () => {
     if (ap.duration) {
-        const pct = (ap.currentTime / ap.duration) * 100;
-        document.getElementById('progressFill').style.width = pct + '%';
-        document.getElementById('progressThumb').style.left = pct + '%';
-        const cm = Math.floor(ap.currentTime / 60), cs = Math.floor(ap.currentTime % 60);
-        document.getElementById('currentTime').textContent = cm + ':' + cs.toString().padStart(2, '0');
+        document.getElementById('progressFill').style.width = (ap.currentTime / ap.duration) * 100 + '%';
+        const m = Math.floor(ap.currentTime / 60), s = Math.floor(ap.currentTime % 60);
+        document.getElementById('currentTime').textContent = m + ':' + s.toString().padStart(2, '0');
     }
 });
+
 ap.addEventListener('loadedmetadata', () => {
-    const tm = Math.floor(ap.duration / 60), ts = Math.floor(ap.duration % 60);
-    document.getElementById('totalTime').textContent = tm + ':' + ts.toString().padStart(2, '0');
+    const m = Math.floor(ap.duration / 60), s = Math.floor(ap.duration % 60);
+    document.getElementById('totalTime').textContent = m + ':' + s.toString().padStart(2, '0');
 });
+
 ap.addEventListener('ended', nextSong);
-const pb = document.getElementById('progressBar');
-if (pb) {
-    pb.addEventListener('click', e => {
-        const r = e.target.getBoundingClientRect();
-        ap.currentTime = ((e.clientX - r.left) / r.width) * ap.duration;
-    });
-}
+
+document.getElementById('progressBar').addEventListener('click', e => {
+    const r = e.target.getBoundingClientRect();
+    ap.currentTime = ((e.clientX - r.left) / r.width) * ap.duration;
+});
+
 ap.volume = 0.7;
 
-let currentGalleryIndex = 0;
-const galleryImages = document.querySelectorAll('.gallery-image');
+let galleryIdx = 0;
+const galleryImgs = document.querySelectorAll('.gallery-image');
 const lightbox = document.getElementById('galleryLightbox');
-const lightboxImage = document.getElementById('lightboxImage');
+const lightboxImg = document.getElementById('lightboxImage');
 
-function openGalleryLightbox(index) {
-    currentGalleryIndex = index;
-    lightboxImage.src = galleryImages[index].src;
+function openGalleryLightbox(i) {
+    galleryIdx = i;
+    lightboxImg.src = galleryImgs[i].src;
     lightbox.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
@@ -2130,13 +1680,11 @@ function closeGalleryLightbox() {
 }
 
 function navigateGallery(dir) {
-    currentGalleryIndex = (currentGalleryIndex + dir + galleryImages.length) % galleryImages.length;
-    lightboxImage.src = galleryImages[currentGalleryIndex].src;
+    galleryIdx = (galleryIdx + dir + galleryImgs.length) % galleryImgs.length;
+    lightboxImg.src = galleryImgs[galleryIdx].src;
 }
 
-lightbox.addEventListener('click', function(e) {
-    if (e.target === lightbox) closeGalleryLightbox();
-});
+lightbox.addEventListener('click', e => { if (e.target === lightbox) closeGalleryLightbox(); });
 
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeGalleryLightbox();
@@ -2149,12 +1697,12 @@ document.addEventListener('keydown', e => {
 }
 
 function getAdminLoginHTML(error = '') {
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh}.login-box{background:#fff;border:2px solid #e2e8f0;border-radius:20px;padding:40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.08)}h2{text-align:center;color:#ff0050;margin-bottom:30px;font-size:1.6em}.form-group{margin-bottom:20px}label{display:block;margin-bottom:8px;color:#475569;font-weight:600;font-size:.9em}input{width:100%;padding:12px 16px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;font-size:1em;outline:none;transition:border .3s}input:focus{border-color:#ff0050}.btn{width:100%;padding:14px;background:#ff0050;color:#fff;border:none;border-radius:10px;font-size:1em;font-weight:600;cursor:pointer;transition:all .3s}.btn:hover{background:#d90040;transform:translateY(-2px)}.error{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px;text-align:center}.back-link{text-align:center;margin-top:20px}a{color:#64748b;text-decoration:none}a:hover{color:#ff0050}</style></head><body><div class="login-box"><h2>Admin Login</h2>${error?`<div class="error">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="form-group"><label>Username</label><input type="text" name="username" required></div><div class="form-group"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">Login</button></form><div class="back-link"><a href="/">Back to Home</a></div></div></body></html>`;
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh}.box{background:#fff;border:2px solid #e2e8f0;border-radius:20px;padding:40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.08)}h2{text-align:center;color:#ff0050;margin-bottom:30px}.fg{margin-bottom:20px}label{display:block;margin-bottom:8px;color:#475569;font-weight:600;font-size:.9em}input{width:100%;padding:12px 16px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;font-size:1em;outline:none}input:focus{border-color:#ff0050}.btn{width:100%;padding:14px;background:#ff0050;color:#fff;border:none;border-radius:10px;font-size:1em;font-weight:600;cursor:pointer}.btn:hover{background:#d90040}.error{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px;text-align:center}.back{text-align:center;margin-top:20px}a{color:#64748b;text-decoration:none}a:hover{color:#ff0050}</style></head><body><div class="box"><h2>Admin Login</h2>${error?`<div class="error">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="fg"><label>Username</label><input type="text" name="username" required></div><div class="fg"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">Login</button></form><div class="back"><a href="/">Back to Home</a></div></div></body></html>`;
 }
 
 function getAdminPanelHTML(photos = [], msg = '', err = '') {
-    const phtml = photos.map(p => `<div class="pc"><img src="${p.path}" class="pi"><div class="info">${p.caption?`<p>${p.caption}</p>`:''}<p class="date">${new Date(p.uploadedAt).toLocaleDateString()}</p></div><form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="del" onclick="return confirm('Delete?')">Delete</button></form></div>`).join('');
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#f8fafc;color:#0f172a}.header{background:#fff;padding:20px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e2e8f0;flex-wrap:wrap;gap:10px}.header h2{color:#ff0050}.header a{color:#64748b;text-decoration:none;padding:8px 16px;border:2px solid #e2e8f0;border-radius:8px;margin-left:10px;font-weight:600}.header a:hover{background:#ff0050;color:#fff;border-color:#ff0050}.container{max-width:1100px;margin:0 auto;padding:30px 20px}.upload{background:#fff;border:2px solid #e2e8f0;border-radius:16px;padding:30px;margin-bottom:30px;box-shadow:0 4px 15px rgba(0,0,0,.05)}.upload h3{color:#ff0050;margin-bottom:20px}.form-group{margin-bottom:15px}label{display:block;margin-bottom:6px;color:#475569;font-weight:600}input,textarea{width:100%;padding:10px 14px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:8px;font-size:.95em;outline:none}input:focus,textarea:focus{border-color:#ff0050}.btn-up{background:#22c55e;color:#fff;padding:12px 24px;border:none;border-radius:10px;font-weight:600;cursor:pointer;transition:all .3s}.btn-up:hover{background:#16a34a;transform:translateY(-2px)}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:20px}.pc{background:#fff;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden;transition:all .3s}.pc:hover{border-color:#ff0050;box-shadow:0 8px 25px rgba(0,0,0,.1)}.pi{width:100%;height:200px;object-fit:cover}.info{padding:12px}.info p{font-size:.85em}.date{font-size:.75em;color:#94a3b8;margin-top:2px}.del{background:#fef2f2;color:#dc2626;border:2px solid #fecaca;padding:6px 12px;border-radius:6px;cursor:pointer;margin:0 12px 12px;width:calc(100% - 24px);font-weight:600}.del:hover{background:#ef4444;color:#fff;border-color:#ef4444}.msg{background:#f0fdf4;border:2px solid #bbf7d0;color:#166534;padding:12px;border-radius:8px;margin-bottom:20px}.err{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px}</style></head><body><div class="header"><h2>Admin Panel</h2><div><a href="/">Home</a><a href="/admin/logout">Logout</a></div></div><div class="container">${msg?`<div class="msg">${msg}</div>`:''}${err?`<div class="err">${err}</div>`:''}<div class="upload"><h3>Upload Photo</h3><form method="POST" action="/admin/upload" enctype="multipart/form-data"><div class="form-group"><label>Select Photo</label><input type="file" name="photo" accept="image/*" required></div><div class="form-group"><label>Caption</label><input type="text" name="caption"></div><button type="submit" class="btn-up">Upload</button></form></div><h3 style="margin-bottom:20px">Gallery (${photos.length})</h3>${photos.length?`<div class="grid">${phtml}</div>`:'<p style="color:#94a3b8;text-align:center;padding:40px">No photos yet</p>'}</div></body></html>`;
+    const phtml = photos.map(p => `<div class="pc"><img src="${p.path}" class="pi"><div class="info">${p.caption?`<p>${p.caption}</p>`:''}<p class="dt">${new Date(p.uploadedAt).toLocaleDateString()}</p></div><form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="del" onclick="return confirm('Delete?')">Delete</button></form></div>`).join('');
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#f8fafc;color:#0f172a}.hdr{background:#fff;padding:20px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e2e8f0;flex-wrap:wrap;gap:10px}.hdr h2{color:#ff0050}.hdr a{color:#64748b;text-decoration:none;padding:8px 16px;border:2px solid #e2e8f0;border-radius:8px;margin-left:10px;font-weight:600}.hdr a:hover{background:#ff0050;color:#fff;border-color:#ff0050}.cnt{max-width:1100px;margin:0 auto;padding:30px 20px}.up{background:#fff;border:2px solid #e2e8f0;border-radius:16px;padding:30px;margin-bottom:30px}.up h3{color:#ff0050;margin-bottom:20px}.fg{margin-bottom:15px}label{display:block;margin-bottom:6px;color:#475569;font-weight:600}input,textarea{width:100%;padding:10px 14px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:8px;font-size:.95em;outline:none}input:focus,textarea:focus{border-color:#ff0050}.bu{background:#22c55e;color:#fff;padding:12px 24px;border:none;border-radius:10px;font-weight:600;cursor:pointer}.bu:hover{background:#16a34a}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:20px}.pc{background:#fff;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden}.pc:hover{border-color:#ff0050}.pi{width:100%;height:200px;object-fit:cover}.info{padding:12px}.dt{font-size:.75em;color:#94a3b8;margin-top:2px}.del{background:#fef2f2;color:#dc2626;border:2px solid #fecaca;padding:6px 12px;border-radius:6px;cursor:pointer;margin:0 12px 12px;width:calc(100% - 24px);font-weight:600}.del:hover{background:#ef4444;color:#fff}.msg{background:#f0fdf4;border:2px solid #bbf7d0;color:#166534;padding:12px;border-radius:8px;margin-bottom:20px}.err{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px}</style></head><body><div class="hdr"><h2>Admin Panel</h2><div><a href="/">Home</a><a href="/admin/logout">Logout</a></div></div><div class="cnt">${msg?`<div class="msg">${msg}</div>`:''}${err?`<div class="err">${err}</div>`:''}<div class="up"><h3>Upload Photo</h3><form method="POST" action="/admin/upload" enctype="multipart/form-data"><div class="fg"><label>Select Photo</label><input type="file" name="photo" accept="image/*" required></div><div class="fg"><label>Caption</label><input type="text" name="caption"></div><button type="submit" class="bu">Upload</button></form></div><h3 style="margin-bottom:20px">Gallery (${photos.length})</h3>${photos.length?`<div class="grid">${phtml}</div>`:'<p style="color:#94a3b8;text-align:center;padding:40px">No photos</p>'}</div></body></html>`;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -2170,17 +1718,8 @@ const server = http.createServer(async (req, res) => {
             const types = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac','.wma':'audio/x-ms-wma','.opus':'audio/opus','.weba':'audio/webm' };
             const ct = types[ext] || 'application/octet-stream';
             const stat = fs.statSync(assetPath);
-            const range = req.headers.range;
-            if (range && ['.mp3','.wav','.ogg','.m4a','.aac','.flac'].includes(ext)) {
-                const parts = range.replace(/bytes=/, "").split("-");
-                const start = parseInt(parts[0], 10);
-                const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
-                res.writeHead(206, { 'Content-Range':`bytes ${start}-${end}/${stat.size}`,'Accept-Ranges':'bytes','Content-Length':(end-start)+1,'Content-Type':ct,'Cache-Control':'public, max-age=86400' });
-                fs.createReadStream(assetPath, { start, end }).pipe(res);
-            } else {
-                res.writeHead(200, { 'Content-Type':ct,'Content-Length':stat.size,'Cache-Control':'public, max-age=86400','Accept-Ranges':'bytes' });
-                fs.createReadStream(assetPath).pipe(res);
-            }
+            res.writeHead(200, { 'Content-Type':ct, 'Content-Length':stat.size, 'Cache-Control':'public, max-age=86400', 'Accept-Ranges':'bytes' });
+            fs.createReadStream(assetPath).pipe(res);
         } else { res.writeHead(404); res.end(); }
         return;
     }
@@ -2205,13 +1744,12 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/admin/upload' && req.method === 'POST') {
         if (!getSession(cookies.sessionId)) { res.writeHead(302,{'Location':'/admin'}); res.end(); return; }
-        const form = new formidable.IncomingForm({ uploadDir:GALLERY_DIR,keepExtensions:true,maxFileSize:MAX_UPLOAD_SIZE });
+        const form = new formidable.IncomingForm({ uploadDir:GALLERY_DIR, keepExtensions:true, maxFileSize:10*1024*1024 });
         form.parse(req, async (err, fields, files) => {
             if (err) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Upload error')); return; }
             const pf = Array.isArray(files.photo)?files.photo[0]:files.photo;
-            if (!pf||!pf.originalFilename) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','No file selected')); return; }
-            const ext = path.extname(pf.originalFilename).toLowerCase();
-            if (!['.jpg','.jpeg','.png','.gif','.webp'].includes(ext)) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Invalid format')); return; }
+            if (!pf||!pf.originalFilename) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','No file')); return; }
+            if (!['.jpg','.jpeg','.png','.gif','.webp'].includes(path.extname(pf.originalFilename).toLowerCase())) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Invalid format')); return; }
             const fn = Date.now()+'_'+pf.originalFilename.replace(/[^a-zA-Z0-9.]/g,'_');
             try {
                 fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
@@ -2237,15 +1775,13 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    if (pathname === '/health') { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({status:'ok',coverSongs:getCoverSongs().length,timestamp:new Date().toISOString()})); return; }
-
     res.writeHead(404,{'Content-Type':'text/html;charset=utf-8'});
     res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>404</title><style>body{background:#f8fafc;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center}h1{font-size:100px;color:#ff0050}</style></head><body><div><h1>404</h1><p>Page not found</p><a href="/">Go Home</a></div></body></html>`);
 });
 
 async function start() {
     await connectDB();
-    server.listen(PORT, () => console.log(`Server: http://localhost:${PORT}`));
+    server.listen(PORT, () => console.log(`Server running: http://localhost:${PORT}`));
 }
 
 start();
