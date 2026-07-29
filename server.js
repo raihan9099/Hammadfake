@@ -19,8 +19,8 @@ const IMAGES = {
 
 // 2 voice files
 const VOICE_FILES = {
-    warning1: "/assets/077f07c5d2a052c7081e448e6dfdaff6_1.mp3",
-    warning2: "/assets/10ff7135b502e2f5660074fdb0969109.mp3"
+    warning1: "/assets/10ff7135b502e2f5660074fdb0969109.mp3",
+    warning2: "/assets/077f07c5d2a052c7081e448e6dfdaff6_1.mp3"
 };
 
 console.log('\n📁 Checking assets...');
