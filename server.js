@@ -92,13 +92,7 @@ async function verifyAdmin(u, p) {
 }
 
 const DATA = {
-    celebrity: {
-        name: "Baiilla Maach",
-        fullName: "Baiilla Maach Official",
-        photo: IMAGES.profile,
-        bio: "Official Entertainment Profile",
-        username: "@baiillamaach_official"
-    },
+    celebrity: { name: "Baiilla Maach", fullName: "Baiilla Maach Official", photo: IMAGES.profile, bio: "Official Entertainment Profile" },
     realAccounts: [
         { platform: "TikTok", username: "@baiillamaach_official", url: "https://tiktok.com/@baiillamaach_official", screenshot: IMAGES.official },
         { platform: "Facebook", username: "Baiilla Maach Official", url: "https://www.facebook.com/profile.php?id=61575202118828", screenshot: null }
@@ -118,1524 +112,401 @@ function getMainHTML(galleryPhotos = []) {
     const coverSongs = getCoverSongs();
     const totalFake = DATA.fakeAccounts.length;
 
-    let coverSongsHTML = '';
-    if (coverSongs.length > 0) {
-        coverSongsHTML = `
-        <section class="section music-section" data-animate>
-            <div class="section-header">
-                <div class="section-icon spotify-icon-bg">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-                </div>
-                <h2 class="section-heading">Cover Music</h2>
-            </div>
-            <div class="spotify-player">
-                <div class="spotify-now-playing">
-                    <div class="spotify-album-art" id="nowPlayingCover">
-                        <div class="spotify-default-art">
-                            <svg viewBox="0 0 24 24" width="56" height="56"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-                        </div>
-                    </div>
-                    <div class="spotify-track-info">
-                        <div class="spotify-track-name" id="nowPlayingTitle">Select a song</div>
-                        <div class="spotify-track-artist" id="nowPlayingArtist">Cover Songs Collection</div>
-                        <div class="spotify-progress">
-                            <div class="spotify-progress-bar" id="progressBar">
-                                <div class="spotify-progress-fill" id="progressFill"></div>
-                            </div>
-                            <div class="spotify-time">
-                                <span id="currentTime">0:00</span>
-                                <span id="totalTime">0:00</span>
-                            </div>
-                        </div>
-                        <div class="spotify-controls">
-                            <button class="spotify-btn" onclick="prevSong()">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-                            </button>
-                            <button class="spotify-btn spotify-play-btn" id="playPauseBtn" onclick="togglePlay()">
-                                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
-                                    <path id="playIcon" d="M8 5v14l11-7z"/>
-                                    <path id="pauseIcon" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" style="display:none"/>
-                                </svg>
-                            </button>
-                            <button class="spotify-btn" onclick="nextSong()">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-                            </button>
-                        </div>
-                        <div class="spotify-volume">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
-                            <input type="range" class="spotify-volume-slider" id="volumeSlider" min="0" max="100" value="70" onchange="setVol(this.value)">
-                        </div>
-                    </div>
-                </div>
-                <div class="spotify-playlist-container">
-                    <div class="spotify-playlist-header">
-                        <h3>Playlist</h3>
-                        <span class="spotify-song-count">${coverSongs.length} songs</span>
-                    </div>
-                    <div class="spotify-playlist" id="playlist">
-                        ${coverSongs.map((s, i) => `
-                        <div class="spotify-playlist-item" data-index="${i}" data-audio="${s.audioUrl}" data-cover="${s.coverUrl || ''}" onclick="playSong(${i})">
-                            <div class="spotify-track-number">${(i+1).toString().padStart(2,'0')}</div>
-                            <div class="spotify-track-cover-small">${s.coverUrl ? `<img src="${s.coverUrl}" alt="" loading="lazy">` : '<div class="spotify-default-art-small"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>'}</div>
-                            <div class="spotify-track-details">
-                                <div class="spotify-track-title">${s.title}</div>
-                                <div class="spotify-track-artist-small">${s.artist}</div>
-                            </div>
-                            <div class="spotify-equalizer">
-                                <span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span>
-                            </div>
-                        </div>`).join('')}
-                    </div>
-                </div>
-            </div>
-        </section>`;
-    }
-
-    let galleryHTML = '';
-    if (galleryPhotos.length > 0) {
-        galleryHTML = `
-        <section class="section gallery-section" data-animate>
-            <div class="section-header">
-                <div class="section-icon gallery-icon-bg">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-                </div>
-                <h2 class="section-heading">Official Gallery</h2>
-            </div>
-            <div class="gallery-grid">
-                ${galleryPhotos.map((p, i) => `
-                <div class="gallery-card" onclick="openGalleryLightbox(${i})">
-                    <div class="gallery-card-inner">
-                        <img src="${p.path}" alt="${p.caption || 'Gallery'}" class="gallery-image" loading="lazy">
-                        <div class="gallery-card-overlay">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                        </div>
-                    </div>
-                    ${p.caption ? `<p class="gallery-caption">${p.caption}</p>` : ''}
-                </div>`).join('')}
-            </div>
-        </section>
-        <div class="lightbox" id="galleryLightbox">
-            <button class="lightbox-close" onclick="closeGalleryLightbox()">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-            </button>
-            <button class="lightbox-nav lightbox-prev" onclick="navigateGallery(-1)">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="white"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            </button>
-            <img class="lightbox-image" id="lightboxImage" src="" alt="">
-            <button class="lightbox-nav lightbox-next" onclick="navigateGallery(1)">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="white"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-            </button>
-        </div>`;
-    }
-
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Official Verification Hub for Baiilla Maach. Identify real vs fake accounts.">
 <meta name="theme-color" content="#ffffff">
-<title>${DATA.celebrity.fullName} | Official Verification Hub</title>
+<title>${DATA.celebrity.fullName} | Verification Hub</title>
 <style>
 :root {
-    --bg: #ffffff;
-    --bg-secondary: #f8fafc;
-    --text: #0f172a;
-    --text-secondary: #475569;
-    --text-muted: #94a3b8;
-    --border: #e2e8f0;
-    --shadow: 0 1px 3px rgba(0,0,0,0.06);
-    --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
-    --shadow-lg: 0 10px 30px rgba(0,0,0,0.08);
-    --shadow-xl: 0 20px 50px rgba(0,0,0,0.1);
-    --green-50: #f0fdf4;
-    --green-100: #dcfce7;
-    --green-500: #22c55e;
-    --green-600: #16a34a;
-    --red-50: #fef2f2;
-    --red-100: #fee2e2;
-    --red-500: #ef4444;
-    --red-600: #dc2626;
-    --red-700: #b91c1c;
-    --amber-50: #fffbeb;
-    --amber-100: #fef3c7;
-    --amber-600: #d97706;
-    --blue-50: #eff6ff;
-    --blue-100: #dbeafe;
-    --blue-600: #2563eb;
-    --blue-700: #1d4ed8;
-    --pink: #ff0050;
-    --cyan: #00f2ea;
-    --fb: #1877f2;
-    --spotify: #1db954;
-    --spotify-black: #191414;
-    --radius: 12px;
-    --radius-lg: 16px;
-    --radius-xl: 20px;
-    --radius-2xl: 24px;
-}
-
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.6;
-    overflow-x: hidden;
-}
-
-@keyframes fadeUp {
-    from { opacity: 0; transform: translateY(30px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulse-green {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
-    50% { box-shadow: 0 0 0 16px rgba(34,197,94,0); }
-}
-
-@keyframes pulse-red {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
-    50% { box-shadow: 0 0 0 16px rgba(239,68,68,0); }
-}
-
-@keyframes equalizer {
-    0%, 100% { height: 4px; }
-    50% { height: 14px; }
-}
-
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-}
-
-[data-animate] { opacity: 0; }
-[data-animate].animated { animation: fadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-
-.scroll-progress {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--pink), var(--cyan), var(--green-500));
-    z-index: 10001;
-    transition: width 0.1s;
-}
-
-.navbar {
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-    background: rgba(255,255,255,0.9);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--border);
-    padding: 14px 0;
-}
-
-.navbar .container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 24px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.navbar-logo-img {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 2px solid var(--pink);
-    object-fit: cover;
-}
-
-.navbar-logo-text {
-    font-weight: 700;
-    font-size: 1.05em;
-    color: var(--text);
-}
-
-.container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
-
-.hero {
-    padding: 50px 0 36px;
-    text-align: center;
-}
-
-.hero-img {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    border: 3px solid var(--pink);
-    object-fit: cover;
-    box-shadow: 0 0 0 6px rgba(255,0,80,0.08), 0 6px 24px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-}
-
-.hero-name {
-    font-size: 2.4em;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    margin-bottom: 4px;
-}
-
-.hero-bio {
-    font-size: 1.05em;
-    color: var(--text-secondary);
-    margin-bottom: 18px;
-}
-
-.hero-badges {
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-}
-
-.badge {
-    padding: 7px 18px;
-    border-radius: 22px;
-    font-size: 0.82em;
-    font-weight: 600;
-    letter-spacing: 0.2px;
-}
-
-.badge-verified {
-    background: linear-gradient(135deg, var(--green-500), var(--green-600));
-    color: white;
-    animation: pulse-green 2.5s infinite;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.badge-fun {
-    background: linear-gradient(135deg, var(--pink), #ff6b00);
-    color: white;
-}
-
-.hero-social {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-
-.social-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 10px 24px;
-    border-radius: 28px;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 0.88em;
-    transition: all 0.25s;
-    border: 2px solid transparent;
-}
-
-.social-btn.tiktok { background: #000; color: #fff; }
-.social-btn.tiktok:hover { background: #fff; color: #000; border-color: #000; transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-.social-btn.facebook { background: var(--fb); color: #fff; }
-.social-btn.facebook:hover { background: #fff; color: var(--fb); border-color: var(--fb); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-
-.section { padding: 36px 0; }
-
-.section-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 24px;
-}
-
-.section-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.verified-icon-bg { background: linear-gradient(135deg, var(--green-500), var(--green-600)); }
-.danger-icon-bg { background: linear-gradient(135deg, var(--red-500), var(--red-600)); }
-.compare-icon-bg { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
-.warning-icon-bg { background: linear-gradient(135deg, #f59e0b, var(--amber-600)); }
-.update-icon-bg { background: linear-gradient(135deg, #3b82f6, var(--blue-600)); }
-.spotify-icon-bg { background: linear-gradient(135deg, var(--spotify), #169c46); }
-.gallery-icon-bg { background: linear-gradient(135deg, #6366f1, #a855f7); }
-
-.section-heading {
-    font-size: 1.35em;
-    font-weight: 700;
-    letter-spacing: -0.2px;
-}
-
-.official-card {
-    background: linear-gradient(135deg, #f0fdf4 0%, #fff 50%, #dcfce7 100%);
-    border: 2px solid #bbf7d0;
-    border-radius: var(--radius-2xl);
-    padding: 32px;
-    position: relative;
-    box-shadow: var(--shadow-xl);
-}
-
-.official-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, var(--green-500), var(--green-600));
-    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
-}
-
-.official-card-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-}
-
-.official-verify-icon {
-    width: 44px;
-    height: 44px;
-    background: linear-gradient(135deg, var(--green-500), var(--green-600));
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: pulse-green 2.5s infinite;
-    flex-shrink: 0;
-}
-
-.official-card-title h2 {
-    font-size: 1.3em;
-    font-weight: 700;
-    color: #15803d;
-}
-
-.official-card-title span {
-    font-size: 0.85em;
-    color: var(--green-600);
-    font-weight: 600;
-}
-
-.official-card-body {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-}
-
-@media (max-width: 700px) { .official-card-body { grid-template-columns: 1fr; } }
-
-.official-info-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.official-info-item {
-    background: #fff;
-    border-radius: 10px;
-    padding: 12px 16px;
-    border: 1px solid #dcfce7;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.official-info-label {
-    font-size: 0.8em;
-    color: var(--text-muted);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
-
-.official-info-value {
-    font-weight: 700;
-    color: var(--text);
-}
-
-.official-preview {
-    background: #fff;
-    border-radius: var(--radius-xl);
-    padding: 24px;
-    border: 1px solid var(--border);
-    text-align: center;
-}
-
-.official-preview img {
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    border: 3px solid var(--green-500);
-    margin-bottom: 10px;
-}
-
-.official-preview .uname {
-    font-size: 1.05em;
-    font-weight: 700;
-}
-
-.official-preview .plat {
-    font-size: 0.8em;
-    color: var(--text-secondary);
-    margin: 4px 0 16px;
-}
-
-.btn-follow {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 12px 28px;
-    background: linear-gradient(135deg, var(--green-500), var(--green-600));
-    color: #fff;
-    border-radius: 28px;
-    text-decoration: none;
-    font-weight: 700;
-    font-size: 0.9em;
-    transition: all 0.25s;
-    box-shadow: 0 4px 15px rgba(34,197,94,0.25);
-}
-
-.btn-follow:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(34,197,94,0.35); }
-
-.fake-section {
-    background: var(--red-50);
-    border: 2px solid #fecaca;
-    border-radius: var(--radius-2xl);
-    padding: 28px;
-}
-
-.fake-alert {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: #fff;
-    padding: 14px 18px;
-    border-radius: var(--radius-lg);
-    border: 2px solid #fecaca;
-    margin-bottom: 20px;
-}
-
-.fake-alert-icon {
-    width: 44px;
-    height: 44px;
-    background: linear-gradient(135deg, var(--red-500), var(--red-600));
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.3em;
-    animation: pulse-red 2s infinite;
-    flex-shrink: 0;
-}
-
-.fake-alert-text h3 { font-size: 1.1em; font-weight: 700; color: var(--red-700); }
-.fake-alert-text p { font-size: 0.85em; color: var(--red-600); }
-
-.fake-carousel { position: relative; overflow: hidden; border-radius: var(--radius-xl); }
-
-.fake-carousel-track {
-    display: flex;
-    transition: transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-.fake-slide { min-width: 100%; padding: 0 2px; }
-
-.fake-card {
-    background: #fff;
-    border-radius: var(--radius-xl);
-    border: 2px solid #fecaca;
-    padding: 24px;
-    position: relative;
-}
-
-.fake-card::after {
-    content: 'FAKE';
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%) rotate(-25deg);
-    font-size: 5em;
-    font-weight: 900;
-    color: rgba(239,68,68,0.03);
-    pointer-events: none;
-    letter-spacing: 15px;
-}
-
-.fake-card-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.fake-card-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 1em;
-    font-weight: 700;
-    color: var(--red-700);
-}
-
-.fake-card-badge {
-    background: var(--red-500);
-    color: #fff;
-    padding: 3px 12px;
-    border-radius: 16px;
-    font-size: 0.65em;
-    font-weight: 700;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-}
-
-.fake-card-body {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-
-@media (max-width: 600px) { .fake-card-body { grid-template-columns: 1fr; } }
-
-.fake-screenshot {
-    position: relative;
-    border-radius: var(--radius);
-    overflow: hidden;
-    border: 3px solid #fecaca;
-}
-
-.fake-screenshot img {
-    width: 100%;
-    display: block;
-}
-
-.fake-watermark {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-    gap: 6px;
-}
-
-.fake-watermark span {
-    background: rgba(239,68,68,0.85);
-    color: #fff;
-    padding: 5px 14px;
-    border-radius: 14px;
-    font-weight: 800;
-    font-size: 0.8em;
-    letter-spacing: 1.5px;
-}
-
-.fake-details {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.fake-detail-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 12px;
-    background: var(--red-50);
-    border-radius: 8px;
-    font-size: 0.82em;
-}
-
-.fake-detail-label { color: var(--red-600); font-weight: 600; }
-.fake-detail-value { color: var(--red-700); font-weight: 700; }
-
-.fake-reason {
-    background: #fff;
-    border: 2px solid #fee2e2;
-    border-radius: 10px;
-    padding: 12px;
-    margin-top: 6px;
-    font-size: 0.82em;
-    color: var(--red-700);
-    line-height: 1.5;
-}
-
-.fake-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 14px;
-    flex-wrap: wrap;
-}
-
-.btn-report {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 10px 20px;
-    background: linear-gradient(135deg, var(--red-500), var(--red-600));
-    color: #fff;
-    border-radius: 22px;
-    text-decoration: none;
-    font-weight: 700;
-    font-size: 0.82em;
-    transition: all 0.25s;
-    flex: 1;
-    justify-content: center;
-    min-width: 120px;
-}
-
-.btn-report:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(239,68,68,0.3); }
-
-.btn-copy {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 10px 20px;
-    background: #fff;
-    color: var(--red-600);
-    border: 2px solid #fecaca;
-    border-radius: 22px;
-    font-weight: 700;
-    font-size: 0.82em;
-    cursor: pointer;
-    transition: all 0.25s;
-    flex: 1;
-    justify-content: center;
-    min-width: 120px;
-}
-
-.btn-copy:hover { background: var(--red-50); border-color: var(--red-500); }
-.btn-copy.copied { background: var(--green-500) !important; color: #fff !important; border-color: var(--green-500) !important; }
-
-.carousel-nav {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 14px;
-    margin-top: 16px;
-}
-
-.carousel-dots { display: flex; gap: 6px; }
-
-.carousel-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: #fecaca;
-    border: none;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.carousel-dot.active { background: var(--red-500); width: 24px; border-radius: 4px; }
-
-.carousel-arrow {
-    width: 36px; height: 36px;
-    border-radius: 50%;
-    background: #fff;
-    border: 2px solid var(--border);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1em;
-    color: var(--text);
-    transition: all 0.25s;
-}
-
-.carousel-arrow:hover { background: var(--red-500); color: #fff; border-color: var(--red-500); }
-
-.comparison-table-wrap {
-    overflow-x: auto;
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--border);
-    background: #fff;
-    box-shadow: var(--shadow);
-}
-
-.comparison-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.88em;
-}
-
-.comparison-table th {
-    background: #f1f5f9;
-    padding: 14px 16px;
-    text-align: left;
-    font-weight: 700;
-    border-bottom: 2px solid var(--border);
-}
-
-.comparison-table td {
-    padding: 12px 16px;
-    border-bottom: 1px solid #f1f5f9;
-}
-
-.comparison-table .col-official { background: #f0fdf4; border-left: 3px solid var(--green-500); }
-.comparison-table .col-fake { background: #fef2f2; border-left: 3px solid var(--red-500); }
-
-.check { color: var(--green-500); font-weight: 700; }
-.cross { color: var(--red-500); font-weight: 700; }
-
-/* Removed .warning-section and related styles */
-
-.updates-section {
-    background: #eff6ff;
-    border: 2px solid #bfdbfe;
-    border-radius: var(--radius-2xl);
-    padding: 28px;
-    text-align: center;
-}
-
-.updates-section h3 { font-size: 1.1em; font-weight: 700; color: var(--blue-700); margin-bottom: 6px; }
-.updates-section p { color: var(--blue-600); font-size: 0.85em; margin-bottom: 14px; }
-
-.update-tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-
-.update-tag {
-    background: #fff;
-    color: var(--blue-700);
-    padding: 6px 14px;
-    border-radius: 18px;
-    font-size: 0.78em;
-    font-weight: 600;
-    border: 1px solid #bfdbfe;
-}
-
-.spotify-player {
-    background: var(--spotify-black);
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    box-shadow: var(--shadow-xl);
-}
-
-.spotify-now-playing {
-    display: flex;
-    gap: 20px;
-    padding: 24px;
-    background: linear-gradient(135deg, #282828, #191414);
-}
-
-@media (max-width: 680px) { .spotify-now-playing { flex-direction: column; align-items: center; text-align: center; } }
-
-.spotify-album-art {
-    width: 150px; height: 150px;
-    border-radius: 10px;
-    overflow: hidden;
-    flex-shrink: 0;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.4);
-}
-
-.spotify-album-art img { width: 100%; height: 100%; object-fit: cover; }
-
-.spotify-default-art {
-    width: 100%; height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, var(--spotify), #169c46);
-}
-
-.spotify-track-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-width: 180px;
-}
-
-.spotify-track-name {
-    font-size: 1.3em;
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 3px;
-}
-
-.spotify-track-artist {
-    font-size: 0.85em;
-    color: #b3b3b3;
-    margin-bottom: 16px;
-}
-
-.spotify-progress { margin-bottom: 14px; }
-
-.spotify-progress-bar {
-    width: 100%;
-    height: 4px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 2px;
-    cursor: pointer;
-    margin-bottom: 5px;
-}
-
-.spotify-progress-fill {
-    height: 100%;
-    background: var(--spotify);
-    border-radius: 2px;
-    width: 0%;
-    transition: width 0.1s linear;
-}
-
-.spotify-time {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.68em;
-    color: #b3b3b3;
-}
-
-.spotify-controls {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin-bottom: 14px;
-}
-
-.spotify-btn {
-    background: none;
-    border: none;
-    color: #b3b3b3;
-    cursor: pointer;
-    padding: 5px;
-    border-radius: 50%;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.spotify-btn:hover { color: #fff; transform: scale(1.1); }
-
-.spotify-play-btn {
-    background: #fff;
-    color: #191414;
-    width: 44px; height: 44px;
-    border-radius: 50%;
-}
-
-.spotify-play-btn:hover { transform: scale(1.08); }
-
-.spotify-volume {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #b3b3b3;
-}
-
-.spotify-volume-slider {
-    width: 90px; height: 3px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: rgba(255,255,255,0.2);
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-}
-
-.spotify-volume-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 12px; height: 12px;
-    border-radius: 50%;
-    background: #fff;
-    cursor: pointer;
-}
-
-.spotify-playlist-container { max-height: 360px; overflow-y: auto; }
-
-.spotify-playlist-header {
-    padding: 12px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    position: sticky;
-    top: 0;
-    background: #191414;
-    z-index: 1;
-}
-
-.spotify-playlist-header h3 { font-size: 0.95em; font-weight: 700; color: #fff; }
-.spotify-song-count { font-size: 0.75em; color: #b3b3b3; }
-
-.spotify-playlist-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 20px;
-    cursor: pointer;
-    transition: all 0.2s;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
-}
-
-.spotify-playlist-item:hover { background: rgba(255,255,255,0.05); }
-.spotify-playlist-item.active { background: rgba(29,185,84,0.1); }
-
-.spotify-track-number {
-    font-size: 0.8em;
-    color: #b3b3b3;
-    width: 24px;
-    text-align: center;
-    font-weight: 600;
-}
-
-.spotify-track-cover-small {
-    width: 38px; height: 38px;
-    border-radius: 5px;
-    overflow: hidden;
-    flex-shrink: 0;
-    background: #282828;
-}
-
-.spotify-track-cover-small img { width: 100%; height: 100%; object-fit: cover; }
-
-.spotify-default-art-small {
-    width: 100%; height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, var(--spotify), #169c46);
-}
-
-.spotify-track-details { flex: 1; min-width: 0; }
-
-.spotify-track-title {
-    font-weight: 600;
-    font-size: 0.84em;
-    color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.spotify-track-artist-small { font-size: 0.72em; color: #b3b3b3; }
-
-.spotify-equalizer { display: none; gap: 2px; align-items: flex-end; height: 16px; }
-
-.spotify-playlist-item.active .spotify-equalizer { display: flex; }
-
-.eq-bar {
-    width: 3px;
-    background: var(--spotify);
-    border-radius: 1px;
-    animation: equalizer 0.8s infinite;
-}
-
-.eq-bar:nth-child(1) { animation-delay: 0s; }
-.eq-bar:nth-child(2) { animation-delay: 0.2s; }
-.eq-bar:nth-child(3) { animation-delay: 0.4s; }
-.eq-bar:nth-child(4) { animation-delay: 0.6s; }
-
-.gallery-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 16px;
-}
-
-.gallery-card {
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    cursor: pointer;
-    transition: all 0.3s;
-    background: #fff;
-    box-shadow: var(--shadow);
-}
-
-.gallery-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
-
-.gallery-card-inner { position: relative; overflow: hidden; }
-
-.gallery-image {
-    width: 100%;
-    display: block;
-    transition: transform 0.4s;
-}
-
-.gallery-card:hover .gallery-image { transform: scale(1.04); }
-
-.gallery-card-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-.gallery-card:hover .gallery-card-overlay { opacity: 1; }
-
-.gallery-caption {
-    padding: 10px 14px;
-    font-size: 0.82em;
-    color: var(--text-secondary);
-    text-align: center;
-}
-
-.lightbox {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.95);
-    z-index: 10000;
-    display: none;
-    align-items: center;
-    justify-content: center;
-}
-
-.lightbox.active { display: flex; }
-
-.lightbox-close {
-    position: absolute;
-    top: 16px; right: 16px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    z-index: 10001;
-}
-
-.lightbox-image {
-    max-width: 90vw;
-    max-height: 85vh;
-    object-fit: contain;
-    border-radius: 8px;
-}
-
-.lightbox-nav {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: rgba(255,255,255,0.12);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 50%;
-    width: 44px; height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.25s;
-}
-
-.lightbox-nav:hover { background: rgba(255,255,255,0.25); }
-.lightbox-prev { left: 16px; }
-.lightbox-next { right: 16px; }
-
-.footer {
-    text-align: center;
-    padding: 36px 20px;
-    color: var(--text-muted);
-    font-size: 0.85em;
-    border-top: 1px solid var(--border);
-    margin-top: 36px;
-    background: var(--bg-secondary);
-}
-
-@media (max-width: 768px) {
-    .hero-name { font-size: 1.8em; }
-    .hero-img { width: 100px; height: 100px; }
-    .section-heading { font-size: 1.2em; }
-    .official-card { padding: 22px; }
-    .spotify-album-art { width: 120px; height: 120px; }
-    .lightbox-nav { width: 36px; height: 36px; }
-    .lightbox-prev { left: 8px; }
-    .lightbox-next { right: 8px; }
-}
+    --bg: #fff; --bg2: #f8fafc; --text: #0f172a; --text2: #475569; --text3: #94a3b8;
+    --border: #e2e8f0; --shadow: 0 1px 3px rgba(0,0,0,.05); --shadow-lg: 0 10px 30px rgba(0,0,0,.08);
+    --green: #22c55e; --green-dark: #16a34a; --red: #ef4444; --red-dark: #dc2626;
+    --pink: #ff0050; --cyan: #00f2ea; --fb: #1877f2; --spotify: #1db954; --spotify-dark: #191414;
+    --r: 12px; --r-lg: 16px; --r-xl: 20px; --r-2xl: 24px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}
+@keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulseGreen{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 14px rgba(34,197,94,0)}}
+@keyframes pulseRed{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 14px rgba(239,68,68,0)}}
+@keyframes eq{0%,100%{height:4px}50%{height:14px}}
+
+.anim{opacity:0}.anim.show{animation:fadeUp .7s ease forwards}
+.scroll-bar{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--pink),var(--cyan),var(--green));z-index:9999}
+
+.nav{position:sticky;top:0;z-index:999;background:rgba(255,255,255,.9);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:12px 0}
+.nav-inner{max-width:1100px;margin:0 auto;padding:0 20px;display:flex;align-items:center;gap:10px}
+.nav-avatar{width:30px;height:30px;border-radius:50%;border:2px solid var(--pink);object-fit:cover}
+.nav-title{font-weight:700;font-size:1em;color:var(--text)}
+.container{max-width:1100px;margin:0 auto;padding:0 20px}
+
+.hero{padding:45px 0 30px;text-align:center}
+.hero-avatar{width:110px;height:110px;border-radius:50%;border:3px solid var(--pink);object-fit:cover;box-shadow:0 0 0 5px rgba(255,0,80,.06),0 5px 20px rgba(0,0,0,.08);margin-bottom:18px}
+.hero-name{font-size:2.2em;font-weight:800;letter-spacing:-.4px}
+.hero-bio{font-size:1em;color:var(--text2);margin:4px 0 14px}
+.hero-badges{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-bottom:18px}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:6px 16px;border-radius:20px;font-size:.8em;font-weight:600}
+.badge-ok{background:linear-gradient(135deg,var(--green),var(--green-dark));color:#fff;animation:pulseGreen 2.5s infinite}
+.badge-fun{background:linear-gradient(135deg,var(--pink),#ff6b00);color:#fff}
+.hero-links{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btn-social{display:inline-flex;align-items:center;gap:6px;padding:10px 22px;border-radius:25px;text-decoration:none;font-weight:600;font-size:.85em;transition:all .25s;border:2px solid transparent}
+.btn-tiktok{background:#000;color:#fff}.btn-tiktok:hover{background:#fff;color:#000;border-color:#000;transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.btn-fb{background:var(--fb);color:#fff}.btn-fb:hover{background:#fff;color:var(--fb);border-color:var(--fb);transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+
+.sec{padding:32px 0}
+.sec-head{display:flex;align-items:center;gap:10px;margin-bottom:20px}
+.sec-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.1em}
+.sec-icon.green-bg{background:linear-gradient(135deg,var(--green),var(--green-dark));color:#fff}
+.sec-icon.red-bg{background:linear-gradient(135deg,var(--red),var(--red-dark));color:#fff}
+.sec-icon.purple-bg{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff}
+.sec-icon.amber-bg{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff}
+.sec-icon.blue-bg{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff}
+.sec-icon.spotify-bg{background:linear-gradient(135deg,var(--spotify),#169c46);color:#fff}
+.sec-title{font-size:1.3em;font-weight:700;letter-spacing:-.2px}
+
+.card-official{background:linear-gradient(135deg,#f0fdf4,#fff,#dcfce7);border:2px solid #bbf7d0;border-radius:var(--r-2xl);padding:28px;position:relative;box-shadow:var(--shadow-lg)}
+.card-official::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--green),var(--green-dark));border-radius:var(--r-2xl) var(--r-2xl) 0 0}
+.card-official-top{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.verify-icon{width:40px;height:40px;background:linear-gradient(135deg,var(--green),var(--green-dark));border-radius:50%;display:flex;align-items:center;justify-content:center;animation:pulseGreen 2.5s infinite;flex-shrink:0;color:#fff;font-size:1.2em}
+.card-official-top h3{font-size:1.15em;font-weight:700;color:#15803d}
+.card-official-top span{font-size:.8em;color:var(--green-dark);font-weight:600}
+.card-official-body{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:650px){.card-official-body{grid-template-columns:1fr}}
+.official-info{display:flex;flex-direction:column;gap:8px}
+.official-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#fff;border-radius:10px;border:1px solid #dcfce7}
+.official-row .lbl{font-size:.75em;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.official-row .val{font-weight:700;color:var(--text)}
+.official-preview{background:#fff;border-radius:var(--r-xl);padding:22px;border:1px solid var(--border);text-align:center}
+.official-preview img{width:65px;height:65px;border-radius:50%;border:3px solid var(--green);margin-bottom:8px}
+.official-preview .uname{font-size:1em;font-weight:700}
+.official-preview .plat{font-size:.78em;color:var(--text2);margin:3px 0 14px}
+.btn-follow{display:inline-flex;align-items:center;gap:5px;padding:11px 26px;background:linear-gradient(135deg,var(--green),var(--green-dark));color:#fff;border-radius:25px;text-decoration:none;font-weight:700;font-size:.85em;transition:all .25s;box-shadow:0 4px 14px rgba(34,197,94,.2)}
+.btn-follow:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(34,197,94,.3)}
+
+.fake-section{background:#fef2f2;border:2px solid #fecaca;border-radius:var(--r-2xl);padding:24px}
+.fake-alert{display:flex;align-items:center;gap:10px;background:#fff;padding:12px 16px;border-radius:var(--r-lg);border:2px solid #fecaca;margin-bottom:18px}
+.fake-alert-icon{width:40px;height:40px;background:linear-gradient(135deg,var(--red),var(--red-dark));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2em;animation:pulseRed 2s infinite;flex-shrink:0;color:#fff}
+.fake-alert-txt h4{font-size:1em;font-weight:700;color:#b91c1c}
+.fake-alert-txt p{font-size:.8em;color:var(--red-dark)}
+.fake-carousel{position:relative;overflow:hidden;border-radius:var(--r-xl)}
+.fake-track{display:flex;transition:transform .45s ease}
+.fake-slide{min-width:100%;padding:0 2px}
+.fake-card{background:#fff;border-radius:var(--r-xl);border:2px solid #fecaca;padding:22px;position:relative;overflow:hidden}
+.fake-card::after{content:'FAKE';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-22deg);font-size:4.5em;font-weight:900;color:rgba(239,68,68,.025);pointer-events:none;letter-spacing:12px}
+.fake-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:6px}
+.fake-card-top .ttl{display:flex;align-items:center;gap:6px;font-size:.95em;font-weight:700;color:#b91c1c}
+.fake-card-badge{background:var(--red);color:#fff;padding:3px 10px;border-radius:14px;font-size:.62em;font-weight:700;letter-spacing:.8px;text-transform:uppercase}
+.fake-card-body{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:550px){.fake-card-body{grid-template-columns:1fr}}
+.fake-ss{position:relative;border-radius:var(--r);overflow:hidden;border:3px solid #fecaca}
+.fake-ss img{width:100%;display:block;max-width:100%;height:auto}
+.fake-wm{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;gap:4px}
+.fake-wm span{background:rgba(239,68,68,.85);color:#fff;padding:4px 12px;border-radius:12px;font-weight:800;font-size:.72em;letter-spacing:1.2px}
+.fake-info{display:flex;flex-direction:column;gap:6px}
+.fake-row{display:flex;justify-content:space-between;padding:7px 10px;background:#fef2f2;border-radius:7px;font-size:.78em}
+.fake-row .lbl{color:var(--red-dark);font-weight:600}
+.fake-row .val{color:#b91c1c;font-weight:700}
+.fake-reason{background:#fff;border:2px solid #fee2e2;border-radius:9px;padding:10px;margin-top:4px;font-size:.78em;color:#b91c1c;line-height:1.5}
+.fake-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.btn-report{display:inline-flex;align-items:center;gap:4px;padding:9px 18px;background:linear-gradient(135deg,var(--red),var(--red-dark));color:#fff;border-radius:20px;text-decoration:none;font-weight:700;font-size:.78em;transition:all .25s;flex:1;justify-content:center;min-width:100px}
+.btn-report:hover{transform:translateY(-2px);box-shadow:0 5px 18px rgba(239,68,68,.25)}
+.btn-copy{display:inline-flex;align-items:center;gap:4px;padding:9px 18px;background:#fff;color:var(--red-dark);border:2px solid #fecaca;border-radius:20px;font-weight:700;font-size:.78em;cursor:pointer;transition:all .25s;flex:1;justify-content:center;min-width:100px}
+.btn-copy:hover{background:#fef2f2;border-color:var(--red)}.btn-copy.done{background:var(--green)!important;color:#fff!important;border-color:var(--green)!important}
+
+.carousel-nav{display:flex;justify-content:center;align-items:center;gap:12px;margin-top:14px}
+.carousel-dots{display:flex;gap:5px}
+.carousel-dot{width:7px;height:7px;border-radius:50%;background:#fecaca;border:none;cursor:pointer;transition:all .3s}
+.carousel-dot.on{background:var(--red);width:20px;border-radius:4px}
+.carousel-arr{width:34px;height:34px;border-radius:50%;background:#fff;border:2px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.9em;color:var(--text);transition:all .25s}
+.carousel-arr:hover{background:var(--red);color:#fff;border-color:var(--red)}
+
+.compare-wrap{overflow-x:auto;border-radius:var(--r-xl);border:1px solid var(--border);background:#fff;box-shadow:var(--shadow)}
+.compare-table{width:100%;border-collapse:collapse;font-size:.85em}
+.compare-table th{background:#f1f5f9;padding:12px 14px;text-align:left;font-weight:700;border-bottom:2px solid var(--border)}
+.compare-table td{padding:10px 14px;border-bottom:1px solid #f1f5f9}
+.compare-table .ok{background:#f0fdf4;border-left:3px solid var(--green)}.compare-table .no{background:#fef2f2;border-left:3px solid var(--red)}
+.chk{color:var(--green);font-weight:700}.crs{color:var(--red);font-weight:700}
+
+.warn-section{background:#fffbeb;border:2px solid #fde68a;border-radius:var(--r-2xl);padding:24px}
+.warn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:14px}
+.warn-card{background:#fff;border-radius:var(--r-lg);padding:18px;border:1px solid #fde68a;transition:all .25s}
+.warn-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
+.warn-card .icon{font-size:1.6em;margin-bottom:7px}
+.warn-card h4{font-size:.9em;font-weight:700;margin-bottom:3px}
+.warn-card p{font-size:.78em;color:var(--text2);line-height:1.5}
+
+.upd-section{background:#eff6ff;border:2px solid #bfdbfe;border-radius:var(--r-2xl);padding:24px;text-align:center}
+.upd-section h3{font-size:1.05em;font-weight:700;color:#1d4ed8;margin-bottom:5px}
+.upd-section p{color:#2563eb;font-size:.82em;margin-bottom:12px}
+.upd-tags{display:flex;flex-wrap:wrap;gap:7px;justify-content:center}
+.upd-tag{background:#fff;color:#1d4ed8;padding:5px 12px;border-radius:16px;font-size:.74em;font-weight:600;border:1px solid #bfdbfe}
+
+.spotify-player{background:var(--spotify-dark);border-radius:var(--r-xl);overflow:hidden;box-shadow:var(--shadow-lg)}
+.spotify-now{display:flex;gap:18px;padding:22px;background:linear-gradient(135deg,#282828,#191414)}
+@media(max-width:600px){.spotify-now{flex-direction:column;align-items:center;text-align:center}}
+.spotify-art{width:140px;height:140px;border-radius:10px;overflow:hidden;flex-shrink:0;box-shadow:0 5px 20px rgba(0,0,0,.4)}
+.spotify-art img{width:100%;height:100%;object-fit:cover;max-width:100%}
+.spotify-def-art{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--spotify),#169c46);color:#fff}
+.spotify-info{flex:1;display:flex;flex-direction:column;justify-content:center;min-width:160px}
+.spotify-name{font-size:1.2em;font-weight:700;color:#fff;margin-bottom:2px}
+.spotify-artist{font-size:.8em;color:#b3b3b3;margin-bottom:14px}
+.spotify-progress{margin-bottom:12px}
+.spotify-bar{width:100%;height:4px;background:rgba(255,255,255,.2);border-radius:2px;cursor:pointer;margin-bottom:4px}
+.spotify-fill{height:100%;background:var(--spotify);border-radius:2px;width:0%;transition:width .1s}
+.spotify-time{display:flex;justify-content:space-between;font-size:.65em;color:#b3b3b3}
+.spotify-ctrls{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.spotify-btn{background:none;border:none;color:#b3b3b3;cursor:pointer;padding:4px;border-radius:50%;transition:all .2s;display:flex}
+.spotify-btn:hover{color:#fff;transform:scale(1.1)}
+.spotify-play{background:#fff;color:#191414;width:42px;height:42px;border-radius:50%}.spotify-play:hover{transform:scale(1.08)}
+.spotify-vol{display:flex;align-items:center;gap:7px;color:#b3b3b3}
+.spotify-vol input{width:80px;height:3px;-webkit-appearance:none;appearance:none;background:rgba(255,255,255,.2);border-radius:2px;outline:none;cursor:pointer}
+.spotify-vol input::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:#fff;cursor:pointer}
+.spotify-list-cont{max-height:320px;overflow-y:auto}
+.spotify-list-head{padding:10px 18px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#191414;z-index:1}
+.spotify-list-head h4{font-size:.9em;font-weight:700;color:#fff}.spotify-list-head span{font-size:.7em;color:#b3b3b3}
+.spotify-item{display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;transition:all .2s;border-bottom:1px solid rgba(255,255,255,.02)}
+.spotify-item:hover{background:rgba(255,255,255,.04)}.spotify-item.on{background:rgba(29,185,84,.08)}
+.spotify-num{font-size:.75em;color:#b3b3b3;width:22px;text-align:center;font-weight:600}
+.spotify-thumb{width:34px;height:34px;border-radius:5px;overflow:hidden;flex-shrink:0;background:#282828}
+.spotify-thumb img{width:100%;height:100%;object-fit:cover;max-width:100%}
+.spotify-def-thumb{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--spotify),#169c46);color:#fff}
+.spotify-meta{flex:1;min-width:0}.spotify-meta .t{font-weight:600;font-size:.8em;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spotify-meta .a{font-size:.68em;color:#b3b3b3}
+.spotify-eq{display:none;gap:2px;align-items:flex-end;height:14px}.spotify-item.on .spotify-eq{display:flex}
+.eq-bar{width:3px;background:var(--spotify);border-radius:1px;animation:eq .8s infinite}
+.eq-bar:nth-child(1){animation-delay:0s}.eq-bar:nth-child(2){animation-delay:.2s}.eq-bar:nth-child(3){animation-delay:.4s}.eq-bar:nth-child(4){animation-delay:.6s}
+
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.gallery-card{border-radius:var(--r-xl);overflow:hidden;cursor:pointer;transition:all .3s;background:#fff;box-shadow:var(--shadow)}
+.gallery-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+.gallery-card-inner{position:relative;overflow:hidden}
+.gallery-card img{width:100%;display:block;transition:transform .4s;max-width:100%;height:auto}
+.gallery-card:hover img{transform:scale(1.04)}
+.gallery-overlay{position:absolute;inset:0;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .3s;color:#fff;font-size:1.5em}
+.gallery-card:hover .gallery-overlay{opacity:1}
+.gallery-cap{padding:9px 12px;font-size:.78em;color:var(--text2);text-align:center}
+
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:9999;display:none;align-items:center;justify-content:center}
+.lightbox.on{display:flex}
+.lightbox-close{position:absolute;top:14px;right:14px;background:none;border:none;cursor:pointer;font-size:1.5em;color:#fff;z-index:1}
+.lightbox-img{max-width:90vw;max-height:85vh;object-fit:contain;border-radius:8px}
+.lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.1);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.15);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .25s;color:#fff;font-size:1.1em}
+.lightbox-nav:hover{background:rgba(255,255,255,.2)}.lb-prev{left:12px}.lb-next{right:12px}
+
+.footer{text-align:center;padding:30px 20px;color:var(--text3);font-size:.8em;border-top:1px solid var(--border);margin-top:30px;background:var(--bg2)}
+
+.proof-img{max-width:100%;height:auto}
 </style>
 </head>
 <body>
-
-<div class="scroll-progress" id="scrollProgress"></div>
-
-<nav class="navbar">
-    <div class="container">
-        <img src="${DATA.celebrity.photo}" alt="" class="navbar-logo-img" onerror="this.style.display='none'">
-        <span class="navbar-logo-text">Verification Hub</span>
-    </div>
+<div class="scroll-bar" id="scrollBar"></div>
+<nav class="nav">
+<div class="nav-inner">
+<img src="${DATA.celebrity.photo}" alt="" class="nav-avatar" onerror="this.style.display='none'">
+<span class="nav-title">Verification Hub</span>
+</div>
 </nav>
 
-<header class="hero" data-animate>
-    <div class="container">
-        <img src="${DATA.celebrity.photo}" alt="${DATA.celebrity.name}" class="hero-img" onerror="this.style.display='none'">
-        <h1 class="hero-name">${DATA.celebrity.fullName}</h1>
-        <p class="hero-bio">${DATA.celebrity.bio}</p>
-        <div class="hero-badges">
-            <span class="badge badge-verified">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-                VERIFIED OFFICIAL
-            </span>
-            <span class="badge badge-fun">✦ ENTERTAINMENT</span>
-        </div>
-        <div class="hero-social">
-            <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="social-btn tiktok">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.89a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
-                TikTok
-            </a>
-            <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" rel="noopener" class="social-btn facebook">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                Facebook
-            </a>
-        </div>
-    </div>
+<header class="hero anim">
+<div class="container">
+<img src="${DATA.celebrity.photo}" alt="${DATA.celebrity.name}" class="hero-avatar" onerror="this.style.display='none'">
+<h1 class="hero-name">${DATA.celebrity.fullName}</h1>
+<p class="hero-bio">${DATA.celebrity.bio}</p>
+<div class="hero-badges">
+<span class="badge badge-ok">✅ VERIFIED OFFICIAL</span>
+<span class="badge badge-fun">🎭 ENTERTAINMENT</span>
+</div>
+<div class="hero-links">
+<a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="btn-social btn-tiktok">🎵 TikTok</a>
+<a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" rel="noopener" class="btn-social btn-fb">📘 Facebook</a>
+</div>
+</div>
 </header>
 
 <main class="container">
 
-<section class="section" data-animate>
-    <div class="section-header">
-        <div class="section-icon verified-icon-bg">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-        </div>
-        <h2 class="section-heading">Official Verified Account</h2>
-    </div>
-
-    <div class="official-card">
-        <div class="official-card-header">
-            <div class="official-verify-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-            </div>
-            <div class="official-card-title">
-                <h2>The Only Authentic Account</h2>
-                <span>✓ Identity Verified</span>
-            </div>
-        </div>
-        <div class="official-card-body">
-            <div class="official-info-list">
-                <div class="official-info-item">
-                    <span class="official-info-label">Username</span>
-                    <span class="official-info-value">@baiillamaach_official</span>
-                </div>
-                <div class="official-info-item">
-                    <span class="official-info-label">Platforms</span>
-                    <span class="official-info-value">TikTok • Facebook</span>
-                </div>
-                <div class="official-info-item">
-                    <span class="official-info-label">Status</span>
-                    <span class="official-info-value" style="color:var(--green-600)">● Active & Verified</span>
-                </div>
-                <div class="official-info-item">
-                    <span class="official-info-label">Security</span>
-                    <span class="official-info-value" style="color:var(--green-600)">Safe</span>
-                </div>
-            </div>
-            <div class="official-preview">
-                <img src="${DATA.celebrity.photo}" alt="" onerror="this.style.display='none'">
-                <div class="uname">@baiillamaach_official</div>
-                <div class="plat">TikTok • Facebook</div>
-                <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="btn-follow">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                    Follow Official Account
-                </a>
-            </div>
-        </div>
-    </div>
+<section class="sec anim">
+<div class="sec-head"><div class="sec-icon green-bg">✅</div><h2 class="sec-title">Official Verified Account</h2></div>
+<div class="card-official">
+<div class="card-official-top">
+<div class="verify-icon">✓</div>
+<div><h3>The Only Authentic Account</h3><span>Identity Verified</span></div>
+</div>
+<div class="card-official-body">
+<div class="official-info">
+<div class="official-row"><span class="lbl">Username</span><span class="val">@baiillamaach_official</span></div>
+<div class="official-row"><span class="lbl">Platforms</span><span class="val">TikTok • Facebook</span></div>
+<div class="official-row"><span class="lbl">Status</span><span class="val" style="color:var(--green-dark)">● Active & Verified</span></div>
+<div class="official-row"><span class="lbl">Security</span><span class="val" style="color:var(--green-dark)">✅ Safe</span></div>
+</div>
+<div class="official-preview">
+<img src="${DATA.celebrity.photo}" alt="" onerror="this.style.display='none'">
+<div class="uname">@baiillamaach_official</div>
+<div class="plat">TikTok • Facebook</div>
+<a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="btn-follow">✅ Follow Official Account</a>
+</div>
+</div>
+</div>
 </section>
 
-<section class="fake-section" data-animate>
-    <div class="section-header">
-        <div class="section-icon danger-icon-bg">
-            <span style="font-size:1.3em">⚠</span>
-        </div>
-        <h2 class="section-heading">Fake Accounts Detected</h2>
-    </div>
-
-    <div class="fake-alert">
-        <div class="fake-alert-icon">🚨</div>
-        <div class="fake-alert-text">
-            <h3>${totalFake} Fake Account${totalFake > 1 ? 's' : ''} Found</h3>
-            <p>These are NOT affiliated with Baiilla Maach. Report them immediately.</p>
-        </div>
-    </div>
-
-    <div class="fake-carousel" id="fakeCarousel">
-        <div class="fake-carousel-track" id="fakeCarouselTrack">
-            ${DATA.fakeAccounts.map((a, i) => `
-            <div class="fake-slide">
-                <div class="fake-card">
-                    <div class="fake-card-top">
-                        <div class="fake-card-title">
-                            <span>⚠️</span> Fake Account #${i+1}
-                        </div>
-                        <span class="fake-card-badge">Dangerous</span>
-                    </div>
-                    <div class="fake-card-body">
-                        <div class="fake-screenshot">
-                            ${a.screenshot ? `<img src="${a.screenshot}" alt="" loading="lazy">` : ''}
-                            <div class="fake-watermark">
-                                <span>⚠️ FAKE</span>
-                                <span style="font-size:0.65em">DO NOT TRUST</span>
-                            </div>
-                        </div>
-                        <div class="fake-details">
-                            <div class="fake-detail-row">
-                                <span class="fake-detail-label">Platform</span>
-                                <span class="fake-detail-value">${a.platform}</span>
-                            </div>
-                            <div class="fake-detail-row">
-                                <span class="fake-detail-label">Username</span>
-                                <span class="fake-detail-value">${a.username}</span>
-                            </div>
-                            <div class="fake-detail-row">
-                                <span class="fake-detail-label">Status</span>
-                                <span class="fake-detail-value">Active Threat</span>
-                            </div>
-                            <div class="fake-reason">
-                                <span>⚠️ ${a.reason}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="fake-actions">
-                        <a href="${a.profileUrl}" target="_blank" rel="noopener" class="btn-report">🚨 Report</a>
-                        <button class="btn-copy copy-btn" data-username="${a.username}">📋 Copy Username</button>
-                    </div>
-                </div>
-            </div>`).join('')}
-        </div>
-    </div>
-
-    <div class="carousel-nav">
-        <button class="carousel-arrow" onclick="moveCarousel(-1)">◀</button>
-        <div class="carousel-dots" id="carouselDots">
-            ${DATA.fakeAccounts.map((_, i) => `<button class="carousel-dot${i===0?' active':''}" onclick="goToSlide(${i})"></button>`).join('')}
-        </div>
-        <button class="carousel-arrow" onclick="moveCarousel(1)">▶</button>
-    </div>
+<section class="sec anim">
+<div class="sec-head"><div class="sec-icon red-bg">⚠️</div><h2 class="sec-title">Fake Accounts Detected</h2></div>
+<div class="fake-section">
+<div class="fake-alert">
+<div class="fake-alert-icon">🚨</div>
+<div class="fake-alert-txt"><h4>${totalFake} Fake Account${totalFake > 1 ? 's' : ''} Found</h4><p>Not affiliated with Baiilla Maach. Report immediately.</p></div>
+</div>
+<div class="fake-carousel" id="fakeCarousel">
+<div class="fake-track" id="fakeTrack">
+${DATA.fakeAccounts.map((a, i) => `
+<div class="fake-slide"><div class="fake-card">
+<div class="fake-card-top"><div class="ttl">⚠️ Fake Account #${i+1}</div><span class="fake-card-badge">Dangerous</span></div>
+<div class="fake-card-body">
+<div class="fake-ss">${a.screenshot ? `<img src="${a.screenshot}" alt="" loading="lazy">` : ''}<div class="fake-wm"><span>⚠️ FAKE</span><span style="font-size:.6em">DO NOT TRUST</span></div></div>
+<div class="fake-info">
+<div class="fake-row"><span class="lbl">Platform</span><span class="val">${a.platform}</span></div>
+<div class="fake-row"><span class="lbl">Username</span><span class="val">${a.username}</span></div>
+<div class="fake-row"><span class="lbl">Status</span><span class="val">Active Threat</span></div>
+<div class="fake-reason">⚠️ ${a.reason}</div>
+</div>
+</div>
+<div class="fake-actions">
+<a href="${a.profileUrl}" target="_blank" rel="noopener" class="btn-report">🚨 Report</a>
+<button class="btn-copy copy-btn" data-username="${a.username}">📋 Copy Username</button>
+</div>
+</div></div>`).join('')}
+</div>
+</div>
+<div class="carousel-nav">
+<button class="carousel-arr" onclick="moveCarousel(-1)">◀</button>
+<div class="carousel-dots" id="carouselDots">${DATA.fakeAccounts.map((_, i) => `<button class="carousel-dot${i===0?' on':''}" onclick="goSlide(${i})"></button>`).join('')}</div>
+<button class="carousel-arr" onclick="moveCarousel(1)">▶</button>
+</div>
+</div>
 </section>
 
-<section class="section" data-animate>
-    <div class="section-header">
-        <div class="section-icon compare-icon-bg">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M3 5v14h18V5H3zm16 2v2H5V7h14zm0 4v2H5v-2h14zm0 4v2H5v-2h14z"/></svg>
-        </div>
-        <h2 class="section-heading">Account Comparison</h2>
-    </div>
-    <div class="comparison-table-wrap">
-        <table class="comparison-table">
-            <thead>
-                <tr>
-                    <th>Feature</th>
-                    <th>✅ Official</th>
-                    <th>❌ Fake</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>Verification</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Verified</td>
-                    <td class="col-fake"><span class="cross">✗</span> Not Verified</td>
-                </tr>
-                <tr>
-                    <td><strong>Username</strong></td>
-                    <td class="col-official"><span class="check">✓</span> @baiillamaach_official</td>
-                    <td class="col-fake"><span class="cross">✗</span> Similar names</td>
-                </tr>
-                <tr>
-                    <td><strong>Content</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Original</td>
-                    <td class="col-fake"><span class="cross">✗</span> Stolen</td>
-                </tr>
-                <tr>
-                    <td><strong>Trust</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Safe</td>
-                    <td class="col-fake"><span class="cross">✗</span> Dangerous</td>
-                </tr>
-                <tr>
-                    <td><strong>Reports</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Clean</td>
-                    <td class="col-fake"><span class="cross">✗</span> Multiple Reports</td>
-                </tr>
-                <tr>
-                    <td><strong>Owner</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Official</td>
-                    <td class="col-fake"><span class="cross">✗</span> Impersonator</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
+<section class="sec anim">
+<div class="sec-head"><div class="sec-icon purple-bg">📊</div><h2 class="sec-title">Account Comparison</h2></div>
+<div class="compare-wrap">
+<table class="compare-table">
+<thead><tr><th>Feature</th><th>✅ Official</th><th>❌ Fake</th></tr></thead>
+<tbody>
+<tr><td><strong>Verification</strong></td><td class="ok"><span class="chk">✓</span> Verified</td><td class="no"><span class="crs">✗</span> Not Verified</td></tr>
+<tr><td><strong>Username</strong></td><td class="ok"><span class="chk">✓</span> @baiillamaach_official</td><td class="no"><span class="crs">✗</span> Similar names</td></tr>
+<tr><td><strong>Content</strong></td><td class="ok"><span class="chk">✓</span> Original</td><td class="no"><span class="crs">✗</span> Stolen</td></tr>
+<tr><td><strong>Trust</strong></td><td class="ok"><span class="chk">✓</span> Safe</td><td class="no"><span class="crs">✗</span> Dangerous</td></tr>
+<tr><td><strong>Reports</strong></td><td class="ok"><span class="chk">✓</span> Clean</td><td class="no"><span class="crs">✗</span> Multiple Reports</td></tr>
+<tr><td><strong>Owner</strong></td><td class="ok"><span class="chk">✓</span> Official</td><td class="no"><span class="crs">✗</span> Impersonator</td></tr>
+</tbody>
+</table>
+</div>
 </section>
 
-<!-- "How to Stay Safe" section is removed -->
-
-<div class="updates-section" data-animate>
-    <h3>🔄 Latest Updates</h3>
-    <p>Stay informed about impersonation attempts and security.</p>
-    <div class="update-tags">
-        <span class="update-tag">📌 New fakes detected weekly</span>
-        <span class="update-tag">🔒 Verification active</span>
-        <span class="update-tag">🛡️ Community reporting</span>
-        <span class="update-tag">📢 Awareness ongoing</span>
-    </div>
+<div class="warn-section sec anim">
+<div class="sec-head"><div class="sec-icon amber-bg">🛡️</div><h2 class="sec-title">How to Stay Safe</h2></div>
+<div class="warn-grid">
+<div class="warn-card"><div class="icon">🔍</div><h4>Verify First</h4><p>Check username carefully. Official: @baiillamaach_official</p></div>
+<div class="warn-card"><div class="icon">🚫</div><h4>Never Share Info</h4><p>Fake accounts ask for passwords or money.</p></div>
+<div class="warn-card"><div class="icon">📢</div><h4>Report Fast</h4><p>Use platform report feature when you spot a fake.</p></div>
+<div class="warn-card"><div class="icon">🔗</div><h4>Use Official Links</h4><p>Only use links on this page to access real account.</p></div>
+</div>
 </div>
 
-${coverSongsHTML}
+<div class="upd-section sec anim">
+<h3>🔄 Latest Updates</h3><p>Stay informed about impersonation attempts and security.</p>
+<div class="upd-tags"><span class="upd-tag">📌 New fakes detected weekly</span><span class="upd-tag">🔒 Verification active</span><span class="upd-tag">🛡️ Community reporting</span><span class="upd-tag">📢 Awareness ongoing</span></div>
+</div>
 
-${galleryHTML}
+${coverSongs.length > 0 ? `
+<section class="sec anim">
+<div class="sec-head"><div class="sec-icon spotify-bg">🎵</div><h2 class="sec-title">Cover Music</h2></div>
+<div class="spotify-player">
+<div class="spotify-now">
+<div class="spotify-art" id="npCover"><div class="spotify-def-art"><span style="font-size:2.5em">🎵</span></div></div>
+<div class="spotify-info">
+<div class="spotify-name" id="npTitle">Select a song</div><div class="spotify-artist" id="npArtist">Cover Songs Collection</div>
+<div class="spotify-progress"><div class="spotify-bar" id="progressBar"><div class="spotify-fill" id="progressFill"></div></div><div class="spotify-time"><span id="curTime">0:00</span><span id="totTime">0:00</span></div></div>
+<div class="spotify-ctrls"><button class="spotify-btn" onclick="prevSong()">⏮</button><button class="spotify-btn spotify-play" id="ppBtn" onclick="togglePlay()"><span id="ppIcon">▶</span></button><button class="spotify-btn" onclick="nextSong()">⏭</button></div>
+<div class="spotify-vol"><span>🔊</span><input type="range" id="volSlider" min="0" max="100" value="70" onchange="setVol(this.value)"></div>
+</div>
+</div>
+<div class="spotify-list-cont"><div class="spotify-list-head"><h4>📋 Playlist</h4><span>${coverSongs.length} songs</span></div>
+<div class="spotify-playlist" id="playlist">${coverSongs.map((s, i) => `
+<div class="spotify-item" data-index="${i}" data-audio="${s.audioUrl}" data-cover="${s.coverUrl || ''}" onclick="playSong(${i})">
+<div class="spotify-num">${(i+1).toString().padStart(2,'0')}</div>
+<div class="spotify-thumb">${s.coverUrl ? `<img src="${s.coverUrl}" alt="" loading="lazy">` : '<div class="spotify-def-thumb"><span style="font-size:.9em">🎵</span></div>'}</div>
+<div class="spotify-meta"><div class="t">${s.title}</div><div class="a">Cover Song</div></div>
+<div class="spotify-eq"><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span></div>
+</div>`).join('')}</div></div>
+</div>
+</section>` : ''}
+
+${galleryPhotos.length > 0 ? `
+<section class="sec anim">
+<div class="sec-head"><div class="sec-icon purple-bg">🖼️</div><h2 class="sec-title">Official Gallery</h2></div>
+<div class="gallery-grid">${galleryPhotos.map((p, i) => `
+<div class="gallery-card" onclick="openLightbox(${i})"><div class="gallery-card-inner"><img src="${p.path}" alt="${p.caption || 'Gallery'}" loading="lazy"><div class="gallery-overlay">🔍</div></div>${p.caption ? `<div class="gallery-cap">${p.caption}</div>` : ''}</div>`).join('')}</div>
+</section>
+<div class="lightbox" id="lightbox"><button class="lightbox-close" onclick="closeLightbox()">✕</button><button class="lightbox-nav lb-prev" onclick="navLightbox(-1)">◀</button><img class="lightbox-img" id="lightboxImg" src="" alt=""><button class="lightbox-nav lb-next" onclick="navLightbox(1)">▶</button></div>` : ''}
 
 </main>
+<footer class="footer"><p>© ${DATA.celebrity.fullName} • Official Verification Hub</p></footer>
 
-<footer class="footer">
-    <p>© ${DATA.celebrity.fullName} • Official Verification Hub</p>
-</footer>
-
-<audio id="audioPlayer" preload="auto"></audio>
-
+<audio id="audioPlayer"></audio>
 <script>
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) entry.target.classList.add('animated');
-    });
-}, { threshold: 0.1 });
+const obs=new IntersectionObserver((e)=>{e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('show')})},{threshold:.1});
+document.querySelectorAll('.anim').forEach(el=>obs.observe(el));
+window.addEventListener('scroll',()=>{const p=(window.scrollY/(document.documentElement.scrollHeight-window.innerHeight))*100;document.getElementById('scrollBar').style.width=p+'%'});
 
-document.querySelectorAll('[data-animate]').forEach(el => observer.observe(el));
+let curSlide=0,totalSlides=${totalFake},track=document.getElementById('fakeTrack'),dots=document.querySelectorAll('.carousel-dot'),auto;
+function updCarousel(){track.style.transform='translateX(-'+(curSlide*100)+'%)';dots.forEach((d,i)=>d.classList.toggle('on',i===curSlide))}
+function moveCarousel(d){curSlide=(curSlide+d+totalSlides)%totalSlides;updCarousel();clearInterval(auto);auto=setInterval(()=>moveCarousel(1),5000)}
+function goSlide(i){curSlide=i;updCarousel();clearInterval(auto);auto=setInterval(()=>moveCarousel(1),5000)}
+auto=setInterval(()=>moveCarousel(1),5000);
+let tx=0;track.parentElement.addEventListener('touchstart',e=>{tx=e.changedTouches[0].screenX});
+track.parentElement.addEventListener('touchend',e=>{const d=tx-e.changedTouches[0].screenX;if(Math.abs(d)>35)moveCarousel(d>0?1:-1)});
 
-window.addEventListener('scroll', () => {
-    const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
-    document.getElementById('scrollProgress').style.width = pct + '%';
-});
+document.querySelectorAll('.copy-btn').forEach(b=>b.addEventListener('click',function(){navigator.clipboard.writeText(this.dataset.username).then(()=>{this.textContent='✓ Copied!';this.classList.add('done');setTimeout(()=>{this.textContent='📋 Copy Username';this.classList.remove('done')},2000)})}));
 
-let currentSlide = 0;
-const totalSlides = ${totalFake};
-const track = document.getElementById('fakeCarouselTrack');
-const dots = document.querySelectorAll('.carousel-dot');
-let autoSlide;
-
-function updateCarousel() {
-    track.style.transform = 'translateX(-' + (currentSlide * 100) + '%)';
-    dots.forEach((d, i) => d.classList.toggle('active', i === currentSlide));
+let cur=-1,pl=false,ap=document.getElementById('audioPlayer'),items=document.querySelectorAll('.spotify-item');
+function loadSong(i){
+if(!items.length||i<0||i>=items.length)return;
+if(cur===i)return;
+cur=i;
+const it=items[i];
+ap.src=it.dataset.audio;
+ap.load();
+document.getElementById('npTitle').textContent=it.querySelector('.t').textContent;
+document.getElementById('npArtist').textContent=it.querySelector('.a').textContent;
+const cc=document.getElementById('npCover');
+if(it.dataset.cover){cc.innerHTML='<img src="'+it.dataset.cover+'" alt="">'}else{cc.innerHTML='<div class="spotify-def-art"><span style="font-size:2.5em">🎵</span></div>'}
+document.querySelectorAll('.spotify-item').forEach(el=>el.classList.remove('on'));it.classList.add('on');
+document.getElementById('progressFill').style.width='0%';document.getElementById('curTime').textContent='0:00';document.getElementById('totTime').textContent='0:00';
+ap.play().then(()=>{pl=true;updPP()}).catch(e=>{console.error('Playback failed:',e);alert('Cannot play this audio file.');pl=false;updPP()});
 }
+function playSong(i){if(i===cur)togglePlay();else loadSong(i)}
+function togglePlay(){if(!ap.src&&items.length>0){loadSong(0);return}if(pl){ap.pause();pl=false}else{ap.play().then(()=>{pl=true}).catch(()=>{alert('Playback failed')});pl=!pl}updPP()}
+function updPP(){document.getElementById('ppIcon').textContent=pl?'⏸':'▶'}
+function nextSong(){if(items.length)loadSong((cur+1)%items.length)}
+function prevSong(){if(items.length)loadSong(cur<=0?items.length-1:cur-1)}
+function setVol(v){ap.volume=v/100}
+ap.addEventListener('timeupdate',()=>{if(ap.duration){document.getElementById('progressFill').style.width=(ap.currentTime/ap.duration)*100+'%';const m=Math.floor(ap.currentTime/60),s=Math.floor(ap.currentTime%60);document.getElementById('curTime').textContent=m+':'+s.toString().padStart(2,'0')}});
+ap.addEventListener('loadedmetadata',()=>{const m=Math.floor(ap.duration/60),s=Math.floor(ap.duration%60);document.getElementById('totTime').textContent=m+':'+s.toString().padStart(2,'0')});
+ap.addEventListener('ended',()=>{pl=false;updPP();nextSong()});
+ap.addEventListener('error',()=>{alert('Audio file cannot be played.');pl=false;updPP()});
+document.getElementById('progressBar').addEventListener('click',e=>{const r=e.target.getBoundingClientRect();ap.currentTime=((e.clientX-r.left)/r.width)*ap.duration});
+ap.volume=.7;
 
-function moveCarousel(dir) {
-    currentSlide = (currentSlide + dir + totalSlides) % totalSlides;
-    updateCarousel();
-    clearInterval(autoSlide);
-    autoSlide = setInterval(() => moveCarousel(1), 5000);
-}
-
-function goToSlide(i) {
-    currentSlide = i;
-    updateCarousel();
-    clearInterval(autoSlide);
-    autoSlide = setInterval(() => moveCarousel(1), 5000);
-}
-
-autoSlide = setInterval(() => moveCarousel(1), 5000);
-
-const carousel = document.getElementById('fakeCarousel');
-let touchX = 0;
-carousel.addEventListener('touchstart', e => { touchX = e.changedTouches[0].screenX; });
-carousel.addEventListener('touchend', e => {
-    const diff = touchX - e.changedTouches[0].screenX;
-    if (Math.abs(diff) > 40) moveCarousel(diff > 0 ? 1 : -1);
-});
-
-document.querySelectorAll('.copy-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        navigator.clipboard.writeText(this.dataset.username).then(() => {
-            this.innerHTML = '✓ Copied!';
-            this.classList.add('copied');
-            setTimeout(() => { this.innerHTML = '📋 Copy Username'; this.classList.remove('copied'); }, 2000);
-        });
-    });
-});
-
-let cur = -1, playing = false, ap = document.getElementById('audioPlayer'), items = document.querySelectorAll('.spotify-playlist-item');
-
-function loadSong(i) {
-    if (!items.length || i < 0 || i >= items.length) return;
-    cur = i; const it = items[i];
-    ap.src = it.dataset.audio;
-    document.getElementById('nowPlayingTitle').textContent = it.querySelector('.spotify-track-title').textContent;
-    document.getElementById('nowPlayingArtist').textContent = it.querySelector('.spotify-track-artist-small').textContent;
-    const cc = document.getElementById('nowPlayingCover');
-    if (it.dataset.cover) {
-        cc.innerHTML = '<img src="' + it.dataset.cover + '" alt="">';
-    } else {
-        cc.innerHTML = '<div class="spotify-default-art"><svg viewBox="0 0 24 24" width="56" height="56"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>';
-    }
-    document.querySelectorAll('.spotify-playlist-item').forEach(el => el.classList.remove('active'));
-    it.classList.add('active');
-    document.getElementById('progressFill').style.width = '0%';
-    document.getElementById('currentTime').textContent = '0:00';
-    document.getElementById('totalTime').textContent = '0:00';
-    ap.play().then(() => { playing = true; upPlayBtn(); }).catch(() => {});
-}
-
-function playSong(i) { if (i === cur) togglePlay(); else loadSong(i); }
-
-function togglePlay() {
-    if (!ap.src && items.length > 0) { loadSong(0); return; }
-    if (playing) ap.pause(); else ap.play();
-    playing = !playing; upPlayBtn();
-}
-
-function upPlayBtn() {
-    document.getElementById('playIcon').style.display = playing ? 'none' : 'block';
-    document.getElementById('pauseIcon').style.display = playing ? 'block' : 'none';
-}
-
-function nextSong() { if (items.length) loadSong((cur + 1) % items.length); }
-function prevSong() { if (items.length) loadSong(cur <= 0 ? items.length - 1 : cur - 1); }
-function setVol(v) { ap.volume = v / 100; }
-
-ap.addEventListener('timeupdate', () => {
-    if (ap.duration) {
-        document.getElementById('progressFill').style.width = (ap.currentTime / ap.duration) * 100 + '%';
-        const m = Math.floor(ap.currentTime / 60), s = Math.floor(ap.currentTime % 60);
-        document.getElementById('currentTime').textContent = m + ':' + s.toString().padStart(2, '0');
-    }
-});
-
-ap.addEventListener('loadedmetadata', () => {
-    const m = Math.floor(ap.duration / 60), s = Math.floor(ap.duration % 60);
-    document.getElementById('totalTime').textContent = m + ':' + s.toString().padStart(2, '0');
-});
-
-ap.addEventListener('ended', nextSong);
-
-document.getElementById('progressBar').addEventListener('click', e => {
-    const r = e.target.getBoundingClientRect();
-    ap.currentTime = ((e.clientX - r.left) / r.width) * ap.duration;
-});
-
-ap.volume = 0.7;
-
-let galleryIdx = 0;
-const galleryImgs = document.querySelectorAll('.gallery-image');
-const lightbox = document.getElementById('galleryLightbox');
-const lightboxImg = document.getElementById('lightboxImage');
-
-function openGalleryLightbox(i) {
-    galleryIdx = i;
-    lightboxImg.src = galleryImgs[i].src;
-    lightbox.classList.add('active');
-    document.body.style.overflow = 'hidden';
-}
-
-function closeGalleryLightbox() {
-    lightbox.classList.remove('active');
-    document.body.style.overflow = '';
-}
-
-function navigateGallery(dir) {
-    galleryIdx = (galleryIdx + dir + galleryImgs.length) % galleryImgs.length;
-    lightboxImg.src = galleryImgs[galleryIdx].src;
-}
-
-lightbox.addEventListener('click', e => { if (e.target === lightbox) closeGalleryLightbox(); });
-
-document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeGalleryLightbox();
-    if (e.key === 'ArrowLeft' && lightbox.classList.contains('active')) navigateGallery(-1);
-    if (e.key === 'ArrowRight' && lightbox.classList.contains('active')) navigateGallery(1);
-});
+let gIdx=0,gImgs=document.querySelectorAll('.gallery-card img'),lb=document.getElementById('lightbox'),lbImg=document.getElementById('lightboxImg');
+function openLightbox(i){gIdx=i;lbImg.src=gImgs[i].src;lb.classList.add('on');document.body.style.overflow='hidden'}
+function closeLightbox(){lb.classList.remove('on');document.body.style.overflow=''}
+function navLightbox(d){gIdx=(gIdx+d+gImgs.length)%gImgs.length;lbImg.src=gImgs[gIdx].src}
+lb.addEventListener('click',e=>{if(e.target===lb)closeLightbox()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLightbox();if(e.key==='ArrowLeft'&&lb.classList.contains('on'))navLightbox(-1);if(e.key==='ArrowRight'&&lb.classList.contains('on'))navLightbox(1)});
 </script>
 </body>
 </html>`;
@@ -1726,7 +597,7 @@ const server = http.createServer(async (req, res) => {
 
 async function start() {
     await connectDB();
-    server.listen(PORT, () => console.log(`Server running: http://localhost:${PORT}`));
+    server.listen(PORT, () => console.log(`Server: http://localhost:${PORT}`));
 }
 
 start();
