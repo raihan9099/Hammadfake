@@ -1,12 +1,16 @@
 {
-  "name": "whatsapp-chat",
+  "name": "verification-hub",
   "version": "1.0.0",
+  "description": "Celebrity Verification Hub with Admin Panel",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
     "mongodb": "^6.3.0",
     "ws": "^8.14.2"
+    "formidable": "^3.5.1",
+    "bcryptjs": "^2.4.3"
   }
 }
