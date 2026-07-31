@@ -1,19 +1,23 @@
 {
-  "name": "verification-hub",
+  "name": "chatapp",
   "version": "1.0.0",
-  "description": "Baiilla Maach Official Verification Hub - Premium dark theme with music player and chat system",
+  "description": "Real-time Chat Application with voice messages, image sharing, and modern UI",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "nodemon server.js"
   },
-  "keywords": ["verification", "celebrity", "tiktok", "facebook", "music", "chat"],
+  "keywords": ["chat", "messaging", "real-time", "websocket", "voice-messages"],
   "author": "Hammad Bin Amir",
   "license": "MIT",
   "dependencies": {
-    "bcryptjs": "^2.4.3",
+    "mongodb": "^5.9.0",
+    "ws": "^8.14.2",
     "formidable": "^2.1.2",
-    "mongodb": "^5.9.0"
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   },
   "engines": {
     "node": ">=16.0.0"
