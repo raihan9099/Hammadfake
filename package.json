@@ -1,18 +1,21 @@
 {
-  "name": "whatsapp-chat-app",
+  "name": "verification-hub",
   "version": "1.0.0",
-  "description": "WhatsApp-style chat application",
+  "description": "Baiilla Maach Official Verification Hub - Premium dark theme with music player and chat system",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"
   },
+  "keywords": ["verification", "celebrity", "tiktok", "facebook", "music", "chat"],
+  "author": "Hammad Bin Amir",
+  "license": "MIT",
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "formidable": "^2.1.2",
-    "mongodb": "^5.7.0",
-    "ws": "^8.13.0"
+    "mongodb": "^5.9.0"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=16.0.0"
   }
 }
