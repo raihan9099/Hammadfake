@@ -70,7 +70,7 @@ async function connectDB() {
         const names = existing.map(c => c.name);
         for (const col of collections) { if (!names.includes(col)) await db.createCollection(col); }
         await db.collection('chat_messages').createIndex({ chatId: 1, createdAt: -1 });
-        await db.collection('chat_users').createIndex({ chatId: 1 }, { unique: true });
+        await db.collection('chat_users').createIndex({ phoneEmail: 1 }, { unique: true, sparse: true });
         await db.collection('chat_sessions').createIndex({ chatId: 1 });
         const admins = db.collection('admin_users');
         if (!await admins.findOne({ username: 'admin' })) {
@@ -85,68 +85,187 @@ async function savePhoto(d) { if (!db) return null; return await db.collection('
 async function deletePhoto(id) { if (!db) return null; return await db.collection('gallery_photos').deleteOne({ _id: new ObjectId(id) }); }
 async function verifyAdmin(u, p) { if (!db) return u === 'admin' && p === 'admin123'; const a = await db.collection('admin_users').findOne({ username: u }); if (!a) return false; return await bcrypt.compare(p, a.password); }
 
-async function createOrGetChatUser(name, phone, email) {
+// Chat System Functions
+async function createOrGetChatUser(name, phoneEmail) {
+    const existing = await db.collection('chat_users').findOne({ phoneEmail });
+    if (existing) {
+        // Update name if changed and update last seen
+        await db.collection('chat_users').updateOne(
+            { phoneEmail },
+            { $set: { name, lastSeen: new Date(), status: 'active' } }
+        );
+        return existing;
+    }
+    
     const chatId = 'CHAT-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-    const existing = await db.collection('chat_users').findOne({ $or: [{ phone: phone || '' }, { email: email || '' }] });
-    if (existing && (existing.phone || existing.email)) return existing;
-    const user = { chatId, name, phone: phone || '', email: email || '', createdAt: new Date(), status: 'active', lastSeen: new Date() };
+    const user = {
+        chatId,
+        name,
+        phoneEmail,
+        createdAt: new Date(),
+        status: 'active',
+        lastSeen: new Date()
+    };
     await db.collection('chat_users').insertOne(user);
     return user;
 }
 
 async function createChatSession(chatId) {
     const sessionToken = crypto.randomBytes(32).toString('hex');
-    await db.collection('chat_sessions').insertOne({ chatId, sessionToken, createdAt: new Date(), expiresAt: new Date(Date.now() + 86400000) });
+    await db.collection('chat_sessions').insertOne({
+        chatId,
+        sessionToken,
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 86400000) // 24 hours
+    });
     return sessionToken;
 }
 
 async function getChatUserByToken(sessionToken) {
-    const session = await db.collection('chat_sessions').findOne({ sessionToken, expiresAt: { $gt: new Date() } });
+    const session = await db.collection('chat_sessions').findOne({
+        sessionToken,
+        expiresAt: { $gt: new Date() }
+    });
     if (!session) return null;
     return await db.collection('chat_users').findOne({ chatId: session.chatId });
 }
 
 async function getChatMessages(chatId) {
-    return await db.collection('chat_messages').find({ chatId }).sort({ createdAt: 1 }).limit(100).toArray();
+    return await db.collection('chat_messages')
+        .find({ chatId })
+        .sort({ createdAt: 1 })
+        .limit(100)
+        .toArray();
 }
 
 async function saveChatMessage(chatId, sender, message) {
-    const msg = { chatId, sender, message, createdAt: new Date(), read: false };
+    const msg = {
+        chatId,
+        sender,
+        message,
+        createdAt: new Date(),
+        read: false
+    };
     await db.collection('chat_messages').insertOne(msg);
+    
+    // Update user's last seen
+    await db.collection('chat_users').updateOne(
+        { chatId },
+        { $set: { lastSeen: new Date() } }
+    );
+    
     return msg;
 }
 
 async function getAdminChatList() {
-    const users = await db.collection('chat_users').find({ status: 'active' }).sort({ lastSeen: -1 }).toArray();
+    const users = await db.collection('chat_users')
+        .find({ status: 'active' })
+        .sort({ lastSeen: -1 })
+        .toArray();
+    
     const list = [];
     for (const u of users) {
-        const lastMsg = await db.collection('chat_messages').findOne({ chatId: u.chatId }, { sort: { createdAt: -1 } });
-        const unread = await db.collection('chat_messages').countDocuments({ chatId: u.chatId, sender: 'user', read: false });
-        list.push({ chatId: u.chatId, name: u.name, phone: u.phone, email: u.email, lastSeen: u.lastSeen, lastMessage: lastMsg, unread });
+        const lastMsg = await db.collection('chat_messages')
+            .findOne({ chatId: u.chatId }, { sort: { createdAt: -1 } });
+        const unread = await db.collection('chat_messages')
+            .countDocuments({ chatId: u.chatId, sender: 'user', read: false });
+        
+        list.push({
+            chatId: u.chatId,
+            name: u.name,
+            phoneEmail: u.phoneEmail,
+            lastSeen: u.lastSeen,
+            lastMessage: lastMsg,
+            unread
+        });
     }
     return list;
 }
 
 async function markMessagesRead(chatId) {
-    await db.collection('chat_messages').updateMany({ chatId, sender: 'user', read: false }, { $set: { read: true } });
+    await db.collection('chat_messages').updateMany(
+        { chatId, sender: 'user', read: false },
+        { $set: { read: true } }
+    );
 }
 
 const DATA = {
-    celebrity: { name: "Baiilla Maach", fullName: "Baiilla Maach Official", photo: IMAGES.profile, bio: "Official Entertainment Profile | Bangladesh", tiktokFollowers: "5,000", tiktokFollowing: "0", tiktokLikes: "50K", location: "Dhaka, Bangladesh" },
+    celebrity: {
+        name: "Baiilla Maach",
+        fullName: "Baiilla Maach Official",
+        photo: IMAGES.profile,
+        bio: "Official Entertainment Profile | Bangladesh",
+        tiktokFollowers: "5,000",
+        tiktokFollowing: "0",
+        tiktokLikes: "50K",
+        location: "Dhaka, Bangladesh"
+    },
     realAccounts: [
-        { platform: "TikTok", username: "@baiillamaach_official", url: "https://tiktok.com/@baiillamaach_official", screenshot: IMAGES.official, verified: true, followers: "5,000", following: "0", likes: "50K" },
-        { platform: "Facebook", username: "Baiilla Maach Official", url: "https://www.facebook.com/profile.php?id=61575202118828", screenshot: null, verified: true, followers: "Growing" }
+        {
+            platform: "TikTok",
+            username: "@baiillamaach_official",
+            url: "https://tiktok.com/@baiillamaach_official",
+            screenshot: IMAGES.official,
+            verified: true,
+            followers: "5,000",
+            following: "0",
+            likes: "50K"
+        },
+        {
+            platform: "Facebook",
+            username: "Baiilla Maach Official",
+            url: "https://www.facebook.com/profile.php?id=61575202118828",
+            screenshot: null,
+            verified: true,
+            followers: "Growing"
+        }
     ],
     fakeAccounts: [
-        { platform: "TikTok", username: "@baiilla_mach", profileUrl: "https://tiktok.com/@baiilla_mach", screenshot: IMAGES.danger, reason: "Copies official content and logo to deceive followers.", threatLevel: "Critical", reportedCount: 156 },
-        { platform: "TikTok", username: "@hammad_fams0", profileUrl: "https://tiktok.com/@hammad_fams0", screenshot: IMAGES.fraud, reason: "Uses official name and photo to mislead followers.", threatLevel: "High", reportedCount: 89 }
+        {
+            platform: "TikTok",
+            username: "@baiilla_mach",
+            profileUrl: "https://tiktok.com/@baiilla_mach",
+            screenshot: IMAGES.danger,
+            reason: "Impersonating official account by copying content and profile picture to deceive followers.",
+            threatLevel: "Critical",
+            reportedCount: 156
+        },
+        {
+            platform: "TikTok",
+            username: "@hammad_fams0",
+            profileUrl: "https://tiktok.com/@hammad_fams0",
+            screenshot: IMAGES.fraud,
+            reason: "Using official name and photos without authorization to mislead followers.",
+            threatLevel: "High",
+            reportedCount: 89
+        }
     ]
 };
 
 const sessions = new Map();
-function createSession(u) { const id = crypto.randomBytes(32).toString('hex'); sessions.set(id, { username: u, createdAt: Date.now() }); setTimeout(() => sessions.delete(id), 7200000); return id; }
-function getSession(id) { const s = sessions.get(id); if (!s) return null; if (Date.now() - s.createdAt > 7200000) { sessions.delete(id); return null; } return s; }
-function parseCookies(h) { const c = {}; if (h) h.split(';').forEach(x => { const p = x.split('='); c[p[0].trim()] = p[1] ? p[1].trim() : ''; }); return c; }
+function createSession(u) {
+    const id = crypto.randomBytes(32).toString('hex');
+    sessions.set(id, { username: u, createdAt: Date.now() });
+    setTimeout(() => sessions.delete(id), 7200000);
+    return id;
+}
+function getSession(id) {
+    const s = sessions.get(id);
+    if (!s) return null;
+    if (Date.now() - s.createdAt > 7200000) {
+        sessions.delete(id);
+        return null;
+    }
+    return s;
+}
+function parseCookies(h) {
+    const c = {};
+    if (h) h.split(';').forEach(x => {
+        const p = x.split('=');
+        c[p[0].trim()] = p[1] ? p[1].trim() : '';
+    });
+    return c;
+}
 
 function getMainHTML(galleryPhotos = []) {
     const coverSongs = getCoverSongs();
@@ -204,7 +323,7 @@ body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#09090b 0%
 </div>
 <nav class="flex items-center gap-1">
 <a href="#official" class="px-2 py-1 text-xs text-gray-400 hover:text-white rounded transition">Official</a>
-<a href="#fake" class="px-2 py-1 text-xs text-gray-400 hover:text-red-400 rounded transition">Fakes</a>
+<a href="#fake" class="px-2 py-1 text-xs text-gray-400 hover:text-red-400 rounded transition">Fake Accounts</a>
 <a href="#music" class="px-2 py-1 text-xs text-gray-400 hover:text-green-400 rounded transition">Music</a>
 <a href="#chat" class="px-2 py-1 text-xs text-gray-400 hover:text-accent-purple rounded transition">Chat</a>
 </nav>
@@ -230,13 +349,13 @@ body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#09090b 0%
 <div class="glass rounded-xl px-4 py-2"><div class="text-lg font-bold text-white">${DATA.celebrity.tiktokLikes}</div><div class="text-xs text-gray-500 uppercase">Likes</div></div>
 </div>
 <div class="flex justify-center gap-2 flex-wrap mb-3">
-<span class="inline-flex items-center gap-1 px-3 py-1.5 bg-accent-green/10 text-accent-green border border-accent-green/25 rounded-full text-xs font-semibold verified-glow">Verified Official</span>
-<span class="inline-flex items-center gap-1 px-3 py-1.5 bg-accent-purple/10 text-accent-purple border border-accent-purple/25 rounded-full text-xs font-semibold">Creator</span>
-<span class="inline-flex items-center gap-1 px-3 py-1.5 bg-dark-700/40 text-gray-300 border border-dark-600 rounded-full text-xs">${DATA.celebrity.location}</span>
+<span class="inline-flex items-center gap-1 px-3 py-1.5 bg-accent-green/10 text-accent-green border border-accent-green/25 rounded-full text-xs font-semibold verified-glow">✓ Verified Official Account</span>
+<span class="inline-flex items-center gap-1 px-3 py-1.5 bg-accent-purple/10 text-accent-purple border border-accent-purple/25 rounded-full text-xs font-semibold">Content Creator</span>
+<span class="inline-flex items-center gap-1 px-3 py-1.5 bg-dark-700/40 text-gray-300 border border-dark-600 rounded-full text-xs">📍 ${DATA.celebrity.location}</span>
 </div>
 <div class="flex justify-center gap-2">
-<a href="${realAcc[0].url}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-4 py-2 glass rounded-full text-xs font-semibold hover:border-white/20 transition">TikTok</a>
-<a href="${realAcc[1].url}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-4 py-2 glass rounded-full text-xs font-semibold hover:border-white/20 transition">Facebook</a>
+<a href="${realAcc[0].url}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-4 py-2 glass rounded-full text-xs font-semibold hover:border-white/20 transition">🎵 TikTok</a>
+<a href="${realAcc[1].url}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 px-4 py-2 glass rounded-full text-xs font-semibold hover:border-white/20 transition">📘 Facebook</a>
 </div>
 </section>
 
@@ -245,23 +364,23 @@ body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#09090b 0%
 <div class="w-7 h-7 rounded-lg bg-accent-green/15 flex items-center justify-center verified-glow">
 <svg class="w-3.5 h-3.5 text-accent-green" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
 </div>
-<h2 class="text-base font-bold text-white">Official Verified Account</h2>
+<h2 class="text-base font-bold text-white">✓ Official Verified Accounts</h2>
 </div>
 <div class="glass-card p-4 hover-lift relative overflow-hidden">
 <div class="absolute top-3 right-3 z-10">
-<span class="inline-flex items-center gap-1 px-2.5 py-1 bg-accent-green/15 text-accent-green border border-accent-green/30 rounded-full text-xs font-bold verified-glow">VERIFIED</span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 bg-accent-green/15 text-accent-green border border-accent-green/30 rounded-full text-xs font-bold verified-glow">✓ VERIFIED AUTHENTIC</span>
 </div>
 <div class="flex items-center gap-3 mb-4 pt-1">
 <div class="w-10 h-10 rounded-full bg-gradient-to-br from-accent-green to-green-600 flex items-center justify-center verified-glow flex-shrink-0">
 <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
 </div>
-<div><h3 class="text-sm font-bold text-white">The Only Authentic Account</h3><p class="text-xs text-gray-400">This account has been verified as the one and only official profile</p></div>
+<div><h3 class="text-sm font-bold text-white">The Only Authentic Account</h3><p class="text-xs text-gray-400">These are the only official accounts verified as authentic. All others claiming to be Baiilla Maach are fake.</p></div>
 </div>
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
 <div class="space-y-2">
 ${realAcc.map(acc => `
 <div class="bg-dark-700/40 rounded-xl p-3 border border-dark-600/30">
-<div class="flex items-center justify-between mb-2"><span class="text-xs uppercase tracking-wider text-gray-500 font-semibold">${acc.platform}</span><span class="inline-flex items-center gap-1 px-2 py-0.5 bg-accent-green/10 text-accent-green text-xs rounded-full font-semibold">Verified</span></div>
+<div class="flex items-center justify-between mb-2"><span class="text-xs uppercase tracking-wider text-gray-500 font-semibold">${acc.platform}</span><span class="inline-flex items-center gap-1 px-2 py-0.5 bg-accent-green/10 text-accent-green text-xs rounded-full font-semibold">✓ Verified</span></div>
 <div class="flex items-center gap-2 mb-2">
 ${acc.screenshot ? `<img src="${acc.screenshot}" alt="" class="w-12 h-12 rounded-lg object-cover border border-dark-500" onerror="this.style.display='none'">` : `<div class="w-12 h-12 rounded-lg bg-dark-600 flex items-center justify-center text-lg font-bold">${acc.platform==='TikTok'?'T':'F'}</div>`}
 <div><div class="font-bold text-white text-sm">${acc.username}</div><div class="text-xs text-gray-400">${acc.platform}${acc.followers?' • '+acc.followers+' followers':''}</div></div>
@@ -278,8 +397,8 @@ ${acc.platform==='TikTok'?`
 <img src="${DATA.celebrity.photo}" alt="" class="w-14 h-14 rounded-full border-2 border-accent-green mb-2" onerror="this.style.display='none'">
 <div class="text-sm font-bold text-white">@baiillamaach_official</div>
 <div class="text-xs text-gray-400 mb-3">TikTok • Facebook</div>
-<a href="${realAcc[0].url}" target="_blank" rel="noopener" class="btn-green px-5 py-2.5 rounded-full text-white font-bold text-xs">Follow Official Account</a>
-<p class="text-xs text-gray-500 mt-3">This is the only authentic account. All others claiming to be Baiilla Maach are fake.</p>
+<a href="${realAcc[0].url}" target="_blank" rel="noopener" class="btn-green px-5 py-2.5 rounded-full text-white font-bold text-xs">✓ Follow Official Account</a>
+<p class="text-xs text-gray-500 mt-3">⚠️ Important: This is the only authentic account. All others claiming to be Baiilla Maach are fake and should be reported.</p>
 </div>
 </div>
 </div>
@@ -290,14 +409,14 @@ ${acc.platform==='TikTok'?`
 <div class="w-7 h-7 rounded-lg bg-accent-red/15 flex items-center justify-center danger-glow">
 <svg class="w-3.5 h-3.5 text-accent-red" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
 </div>
-<h2 class="text-base font-bold text-white">Fake Accounts Detected</h2>
+<h2 class="text-base font-bold text-white">⚠️ Fake Accounts Detected</h2>
 <span class="px-2 py-0.5 bg-red-500/15 text-red-400 text-xs rounded-full font-bold">${totalFake} Active</span>
 </div>
 
 <div class="glass-card border-red-500/20 p-3 mb-3">
 <div class="flex items-center gap-2 bg-red-500/5 rounded-xl px-3 py-2 border border-red-500/15">
-<div class="w-8 h-8 rounded-full bg-gradient-to-br from-accent-red to-red-600 flex items-center justify-center danger-glow flex-shrink-0">!</div>
-<div><p class="text-xs font-bold text-red-400">Warning: ${totalFake} Fake Account${totalFake>1?'s':''} Found</p><p class="text-xs text-gray-400">Not affiliated with Baiilla Maach. Report immediately.</p></div>
+<div class="w-8 h-8 rounded-full bg-gradient-to-br from-accent-red to-red-600 flex items-center justify-center danger-glow flex-shrink-0">⚠️</div>
+<div><p class="text-xs font-bold text-red-400">Warning: ${totalFake} Fake Account${totalFake>1?'s':''} Impersonating</p><p class="text-xs text-gray-400">These accounts are NOT affiliated with Baiilla Maach. Report them immediately to protect others.</p></div>
 </div>
 </div>
 
@@ -308,27 +427,27 @@ ${fakeAcc.map((a, i) => `
 <div class="glass-card border-red-500/20 p-3 relative overflow-hidden">
 <div class="watermark-fake">FAKE</div>
 <div class="relative z-10">
-<div class="flex items-center justify-between mb-2"><div class="flex items-center gap-1.5"><span class="text-red-400 font-bold text-sm">!</span><span class="font-bold text-red-300 text-xs">Fake Account #${i+1}</span></div><span class="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full font-bold uppercase">${a.threatLevel}</span></div>
+<div class="flex items-center justify-between mb-2"><div class="flex items-center gap-1.5"><span class="text-red-400 font-bold text-sm">⚠️</span><span class="font-bold text-red-300 text-xs">Fake Account #${i+1}</span></div><span class="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full font-bold uppercase">${a.threatLevel}</span></div>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
 <div class="relative rounded-xl overflow-hidden border-2 border-red-500/30 bg-dark-900">
 ${a.screenshot ? `<img src="${a.screenshot}" alt="" class="w-full h-auto object-cover opacity-90" loading="lazy">` : '<div class="w-full h-40 flex items-center justify-center text-3xl text-red-500/30">FAKE</div>'}
-<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-1"><span class="bg-red-500/85 text-white px-3 py-1 rounded-lg text-xs font-extrabold tracking-wider">FAKE ACCOUNT</span><span class="bg-red-500/85 text-white px-2 py-0.5 rounded-lg text-xs font-bold">DO NOT TRUST</span></div>
+<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-1"><span class="bg-red-500/85 text-white px-3 py-1 rounded-lg text-xs font-extrabold tracking-wider">⚠️ FAKE ACCOUNT</span><span class="bg-red-500/85 text-white px-2 py-0.5 rounded-lg text-xs font-bold">DO NOT TRUST</span></div>
 </div>
 <div class="space-y-1.5">
 <div class="flex justify-between bg-dark-700/40 rounded-lg px-3 py-1.5 text-xs"><span class="text-gray-400">Platform</span><span class="text-red-300 font-semibold">${a.platform}</span></div>
 <div class="flex justify-between bg-dark-700/40 rounded-lg px-3 py-1.5 text-xs"><span class="text-gray-400">Username</span><span class="text-red-300 font-semibold">${a.username}</span></div>
 <div class="flex justify-between bg-dark-700/40 rounded-lg px-3 py-1.5 text-xs"><span class="text-gray-400">Status</span><span class="text-red-300 font-semibold">Active Threat</span></div>
 <div class="flex justify-between bg-dark-700/40 rounded-lg px-3 py-1.5 text-xs"><span class="text-gray-400">Reports</span><span class="text-red-300 font-semibold">${a.reportedCount}+</span></div>
-<div class="bg-red-500/5 rounded-lg p-2 text-xs text-red-300 border border-red-500/15">${a.reason}</div>
+<div class="bg-red-500/5 rounded-lg p-2 text-xs text-red-300 border border-red-500/15">⚠️ ${a.reason}</div>
 </div>
 </div>
 <div class="flex gap-2 mt-3">
-<a href="${a.profileUrl}" target="_blank" rel="noopener" class="flex-1 text-center btn-red px-3 py-2 rounded-full text-white text-xs font-bold">Report</a>
+<a href="${a.profileUrl}" target="_blank" rel="noopener" class="flex-1 text-center btn-red px-3 py-2 rounded-full text-white text-xs font-bold">Report Now</a>
 <button class="flex-1 px-3 py-2 bg-dark-700 border border-red-500/25 text-red-300 rounded-full text-xs font-bold hover:bg-red-500/10 transition copy-btn" data-username="${a.username}">Copy Username</button>
 </div>
 <div class="glass-card p-2.5 mt-3 flex items-center gap-2 cursor-pointer hover:border-accent-purple/40 transition" onclick="toggleFakeVoice()">
 <div class="w-7 h-7 rounded-full bg-gradient-to-br from-accent-purple to-accent-pink flex items-center justify-center text-white flex-shrink-0"><svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217z" clip-rule="evenodd"/></svg></div>
-<div><p class="text-xs font-medium text-white">Verify Voice Alert</p><p class="text-xs text-gray-400">Click to hear warning</p></div>
+<div><p class="text-xs font-medium text-white">🔊 Voice Verification Alert</p><p class="text-xs text-gray-400">Click to hear official warning message</p></div>
 </div>
 </div>
 </div>
@@ -348,7 +467,7 @@ ${coverSongs.length > 0 ? `
 <section id="music" class="py-4 animate-slide-up">
 <div class="flex items-center gap-2 mb-3">
 <div class="w-7 h-7 rounded-lg bg-green-500/15 flex items-center justify-center"><svg class="w-3.5 h-3.5 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/></svg></div>
-<h2 class="text-base font-bold text-white">Cover Music</h2><span class="text-xs text-gray-400 ml-auto">${coverSongs.length} songs</span>
+<h2 class="text-base font-bold text-white">🎵 Cover Music</h2><span class="text-xs text-gray-400 ml-auto">${coverSongs.length} songs</span>
 </div>
 <div class="glass-card overflow-hidden">
 <div class="flex flex-col sm:flex-row gap-3 p-3 bg-gradient-to-r from-dark-800 to-dark-700">
@@ -379,15 +498,17 @@ ${coverSongs.map((s, i) => `
 <section id="chat" class="py-4 animate-slide-up">
 <div class="flex items-center gap-2 mb-3">
 <div class="w-7 h-7 rounded-lg bg-accent-purple/15 flex items-center justify-center"><svg class="w-3.5 h-3.5 text-accent-purple" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/></svg></div>
-<h2 class="text-base font-bold text-white">Chat with Hammad Bin Amir</h2>
+<h2 class="text-base font-bold text-white">💬 Chat with Hammad Bin Amir</h2>
 </div>
 
 <div class="glass-card p-4">
 <div id="chatRegisterForm" class="space-y-3">
-<p class="text-sm text-gray-300 mb-3">Enter your details to start chatting</p>
-<input type="text" id="chatName" placeholder="Your Name" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent-purple transition">
-<input type="text" id="chatPhone" placeholder="Phone Number (optional)" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent-purple transition">
-<input type="email" id="chatEmail" placeholder="Email Address (optional)" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent-purple transition">
+<p class="text-sm text-gray-300 mb-3">Enter your details to start a conversation</p>
+<input type="text" id="chatName" placeholder="Your Name *" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent-purple transition" required>
+<div class="relative">
+<input type="text" id="chatPhoneEmail" placeholder="Phone Number or Email *" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent-purple transition" required>
+<p class="text-xs text-gray-500 mt-1">Enter phone number or email to identify your account</p>
+</div>
 <button onclick="registerChat()" class="w-full py-3 bg-gradient-to-r from-accent-purple to-accent-pink text-white rounded-xl font-bold text-sm hover:shadow-glow transition">Start Chat</button>
 </div>
 
@@ -398,6 +519,9 @@ ${coverSongs.map((s, i) => `
 <div class="flex gap-2">
 <input type="text" id="chatInput" placeholder="Type your message..." class="flex-1 bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent-purple transition" onkeypress="if(event.key==='Enter')sendMessage()">
 <button onclick="sendMessage()" class="px-5 py-3 bg-gradient-to-r from-accent-purple to-accent-pink text-white rounded-xl font-bold text-sm hover:shadow-glow transition">Send</button>
+</div>
+<div class="text-center mt-2">
+<button onclick="logoutChat()" class="text-xs text-gray-500 hover:text-red-400 transition">Logout</button>
 </div>
 </div>
 </div>
@@ -410,11 +534,14 @@ ${coverSongs.map((s, i) => `
 <audio id="audioPlayer" preload="none"></audio>
 
 <script>
+// Voice welcome
 (function(){const wv=document.getElementById('welcomeVoice');if(!sessionStorage.getItem('wvPlayed')){setTimeout(()=>{wv.play().catch(()=>{});sessionStorage.setItem('wvPlayed','1')},2000)}})();
 
+// Header hide/show on scroll
 let ls=0,h=document.getElementById('mainHeader');
 window.addEventListener('scroll',()=>{const s=window.scrollY;if(s>ls&&s>60){h.classList.add('header-hide');h.classList.remove('header-show')}else if(s<ls){h.classList.remove('header-hide');h.classList.add('header-show')}ls=s});
 
+// Carousel
 let cs=0,tsl=${totalFake},track=document.getElementById('fakeTrack'),dots=document.querySelectorAll('#carouselDots button'),auto;
 function uc(){track.style.transform='translateX(-'+(cs*100)+'%)';dots.forEach((d,i)=>{if(i===cs){d.classList.add('bg-red-500','w-6');d.classList.remove('bg-dark-600')}else{d.classList.remove('bg-red-500','w-6');d.classList.add('bg-dark-600')}})}
 function mc(d){cs=(cs+d+tsl)%tsl;uc();clearInterval(auto);auto=setInterval(()=>mc(1),6000)}
@@ -423,10 +550,13 @@ auto=setInterval(()=>mc(1),6000);
 let tx=0;track.parentElement.addEventListener('touchstart',e=>{tx=e.changedTouches[0].screenX});
 track.parentElement.addEventListener('touchend',e=>{const d=tx-e.changedTouches[0].screenX;if(Math.abs(d)>40)mc(d>0?1:-1)});
 
+// Copy buttons
 document.querySelectorAll('.copy-btn').forEach(b=>b.addEventListener('click',function(){navigator.clipboard.writeText(this.dataset.username).then(()=>{const o=this.textContent;this.textContent='Copied!';this.classList.add('bg-green-500/20','text-green-400','border-green-500');setTimeout(()=>{this.textContent=o;this.classList.remove('bg-green-500/20','text-green-400','border-green-500')},2000)})}));
 
+// Fake voice
 function toggleFakeVoice(){const fv=document.getElementById('fakeVoicePlayer');if(fv.paused){fv.play().catch(()=>{})}else{fv.pause();fv.currentTime=0}}
 
+// Music player
 let cur=-1,pl=false,ap=document.getElementById('audioPlayer'),items=document.querySelectorAll('.spotify-item');
 function loadSong(i){if(!items.length||i<0||i>=items.length)return;if(cur===i)return;cur=i;const it=items[i];ap.src=it.dataset.audio;ap.load();document.getElementById('npTitle').textContent=it.querySelector('.text-xs').textContent;document.getElementById('npArtist').textContent='Cover Songs';const cc=document.getElementById('npCover');if(it.dataset.cover){cc.innerHTML='<img src="'+it.dataset.cover+'" alt="" class="w-full h-full object-cover">'}else{cc.innerHTML='<svg class="w-10 h-10 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/></svg>'}items.forEach(el=>el.classList.remove('bg-green-500/8'));it.classList.add('bg-green-500/8');document.querySelectorAll('.spotify-eq').forEach(el=>el.classList.add('hidden'));const eq=it.querySelector('.spotify-eq');if(eq)eq.classList.remove('hidden');document.getElementById('progressFill').style.width='0%';document.getElementById('curTime').textContent='0:00';document.getElementById('totTime').textContent='0:00';ap.play().then(()=>{pl=true;upb()}).catch(()=>{pl=false;upb()})}
 function playSong(i){if(i===cur)tp();else loadSong(i)}
@@ -442,15 +572,125 @@ ap.addEventListener('ended',()=>{pl=false;upb();ns()});
 ap.addEventListener('error',()=>{pl=false;upb()});
 ap.volume=0.7;
 
+// Chat system
 let chatToken='',chatId='',chatPollInterval;
-async function registerChat(){const n=document.getElementById('chatName').value.trim();const p=document.getElementById('chatPhone').value.trim();const e=document.getElementById('chatEmail').value.trim();if(!n)return alert('Please enter your name');if(!p&&!e)return alert('Please enter phone or email');try{const r=await fetch('/api/chat/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,phone:p,email:e})});const d=await r.json();if(d.success){chatToken=d.sessionToken;chatId=d.chatId;document.getElementById('chatRegisterForm').classList.add('hidden');document.getElementById('chatInterface').classList.remove('hidden');loadChatMessages();chatPollInterval=setInterval(loadChatMessages,3000)}else{alert(d.error||'Registration failed')}}catch(err){alert('Connection error')}}
-async function loadChatMessages(){try{const r=await fetch('/api/chat/messages?token='+chatToken);const d=await r.json();if(d.success){const mc=document.getElementById('chatMessages');mc.innerHTML=d.messages.map(m=>'<div class="flex '+(m.sender==='user'?'justify-end':'justify-start')+'"><div class="max-w-[80%] px-4 py-2.5 text-sm '+(m.sender==='user'?'chat-msg-user text-white':'chat-msg-admin text-gray-200')+'">'+m.message+'<div class="text-xs text-gray-500 mt-1">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div></div>').join('');mc.scrollTop=mc.scrollHeight}else{clearInterval(chatPollInterval)}}catch(err){}}
-async function sendMessage(){const msg=document.getElementById('chatInput').value.trim();if(!msg)return;try{const r=await fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:chatToken,message:msg})});const d=await r.json();if(d.success){document.getElementById('chatInput').value='';loadChatMessages()}}catch(err){}}
+
+// Check if user was previously logged in
+function checkPreviousSession() {
+    const saved = localStorage.getItem('chatSession');
+    if (saved) {
+        try {
+            const session = JSON.parse(saved);
+            chatToken = session.token;
+            chatId = session.chatId;
+            document.getElementById('chatRegisterForm').classList.add('hidden');
+            document.getElementById('chatInterface').classList.remove('hidden');
+            loadChatMessages();
+            chatPollInterval = setInterval(loadChatMessages, 3000);
+        } catch(e) {
+            localStorage.removeItem('chatSession');
+        }
+    }
+}
+
+async function registerChat() {
+    const name = document.getElementById('chatName').value.trim();
+    const phoneEmail = document.getElementById('chatPhoneEmail').value.trim();
+    
+    if (!name) return alert('Please enter your name');
+    if (!phoneEmail) return alert('Please enter your phone number or email');
+    
+    try {
+        const r = await fetch('/api/chat/register', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name, phoneEmail})
+        });
+        const d = await r.json();
+        
+        if (d.success) {
+            chatToken = d.sessionToken;
+            chatId = d.chatId;
+            
+            // Save session
+            localStorage.setItem('chatSession', JSON.stringify({
+                token: chatToken,
+                chatId: chatId
+            }));
+            
+            document.getElementById('chatRegisterForm').classList.add('hidden');
+            document.getElementById('chatInterface').classList.remove('hidden');
+            loadChatMessages();
+            chatPollInterval = setInterval(loadChatMessages, 3000);
+        } else {
+            alert(d.error || 'Registration failed');
+        }
+    } catch(err) {
+        alert('Connection error. Please try again.');
+    }
+}
+
+async function loadChatMessages() {
+    try {
+        const r = await fetch('/api/chat/messages?token=' + chatToken);
+        const d = await r.json();
+        
+        if (d.success) {
+            const mc = document.getElementById('chatMessages');
+            mc.innerHTML = d.messages.map(m => 
+                '<div class="flex ' + (m.sender === 'user' ? 'justify-end' : 'justify-start') + '">' +
+                '<div class="max-w-[80%] px-4 py-2.5 text-sm ' + (m.sender === 'user' ? 'chat-msg-user text-white' : 'chat-msg-admin text-gray-200') + '">' +
+                m.message +
+                '<div class="text-xs text-gray-500 mt-1">' + new Date(m.createdAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) + '</div>' +
+                '</div></div>'
+            ).join('');
+            mc.scrollTop = mc.scrollHeight;
+        } else {
+            // Session expired
+            clearInterval(chatPollInterval);
+            logoutChat();
+        }
+    } catch(err) {}
+}
+
+async function sendMessage() {
+    const msg = document.getElementById('chatInput').value.trim();
+    if (!msg) return;
+    
+    try {
+        const r = await fetch('/api/chat/send', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({token: chatToken, message: msg})
+        });
+        const d = await r.json();
+        
+        if (d.success) {
+            document.getElementById('chatInput').value = '';
+            loadChatMessages();
+        }
+    } catch(err) {}
+}
+
+function logoutChat() {
+    clearInterval(chatPollInterval);
+    localStorage.removeItem('chatSession');
+    chatToken = '';
+    chatId = '';
+    document.getElementById('chatRegisterForm').classList.remove('hidden');
+    document.getElementById('chatInterface').classList.add('hidden');
+    document.getElementById('chatMessages').innerHTML = '<div class="text-center text-xs text-gray-500 py-4">Loading messages...</div>';
+    document.getElementById('chatInput').value = '';
+}
+
+// Check for previous session on load
+checkPreviousSession();
 </script>
 </body>
 </html>`;
 }
 
+// Admin panel HTML functions remain the same
 function getAdminLoginHTML(error = '') {
     return `<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config={darkMode:'class',theme:{extend:{colors:{dark:{950:'#09090b',900:'#101014',800:'#18181c',700:'#1f1f23',600:'#27272b'},accent:{purple:'#9333ea',pink:'#ec4899'}}}}}</script></head><body class="bg-gradient-to-br from-dark-950 via-dark-900 to-dark-850 flex items-center justify-center min-h-screen font-sans"><div class="glass-card p-8 w-full max-w-md"><div class="text-center mb-6"><div class="w-14 h-14 mx-auto mb-3 rounded-full bg-gradient-to-br from-accent-purple to-accent-pink flex items-center justify-center"><svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg></div><h2 class="text-xl font-bold text-white">Admin Login</h2></div>${error?`<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-5 text-sm text-center">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="mb-4"><label class="block text-gray-400 text-sm font-semibold mb-1.5">Username</label><input type="text" name="username" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-purple transition" required></div><div class="mb-5"><label class="block text-gray-400 text-sm font-semibold mb-1.5">Password</label><input type="password" name="password" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-purple transition" required></div><button type="submit" class="w-full py-3 bg-gradient-to-r from-accent-purple to-accent-pink text-white rounded-xl font-bold text-sm hover:shadow-glow transition">Sign In</button></form><div class="text-center mt-5"><a href="/" class="text-sm text-gray-500 hover:text-white transition">Back to Home</a></div></div></body></html>`;
 }
@@ -458,6 +698,154 @@ function getAdminLoginHTML(error = '') {
 function getAdminPanelHTML(photos = [], msg = '', err = '') {
     const phtml = photos.map(p => `<div class="glass-card overflow-hidden hover-lift"><img src="${p.path}" class="w-full h-40 object-cover"><div class="p-3">${p.caption?`<p class="text-sm text-gray-300">${p.caption}</p>`:''}<p class="text-xs text-gray-500 mt-1">${new Date(p.uploadedAt).toLocaleDateString()}</p></div><form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="w-full py-2 bg-red-500/10 text-red-400 text-sm font-bold hover:bg-red-500/20 transition" onclick="return confirm('Delete?')">Delete</button></form></div>`).join('');
     return `<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel</title><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config={darkMode:'class',theme:{extend:{colors:{dark:{950:'#09090b',900:'#101014',800:'#18181c',700:'#1f1f23',600:'#27272b'},accent:{purple:'#9333ea',pink:'#ec4899',green:'#22c55e',red:'#ef4444'}}}}}</script><style>.gradient-text{background:linear-gradient(135deg,#a78bfa,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent}.glass-card{background:rgba(24,24,28,0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.06);border-radius:18px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}.hover-lift{transition:all 0.3s}.hover-lift:hover{transform:translateY(-2px)}</style></head><body class="bg-gradient-to-br from-dark-950 via-dark-900 to-dark-850 text-gray-200 font-sans min-h-screen"><header class="glass border-b border-white/5 sticky top-0 z-50"><div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center"><h2 class="text-lg font-bold gradient-text">Admin Panel</h2><div class="flex gap-2"><a href="/" class="px-3 py-1.5 glass rounded-lg text-xs hover:border-white/20 transition">Site</a><a href="/admin/logout" class="px-3 py-1.5 glass rounded-lg text-xs hover:border-red-500/50 transition">Logout</a></div></div></header><div class="max-w-6xl mx-auto px-4 py-6">${msg?`<div class="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-xl mb-5 text-sm">${msg}</div>`:''}${err?`<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-5 text-sm">${err}</div>`:''}<div class="glass-card p-6 mb-6"><h3 class="text-lg font-bold text-white mb-4">Upload Photo</h3><form method="POST" action="/admin/upload" enctype="multipart/form-data"><div class="mb-4"><label class="block text-gray-400 text-sm font-semibold mb-1.5">Photo</label><input type="file" name="photo" accept="image/*" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-accent-purple file:text-white file:font-semibold file:text-sm file:cursor-pointer focus:outline-none transition" required></div><div class="mb-5"><label class="block text-gray-400 text-sm font-semibold mb-1.5">Caption</label><input type="text" name="caption" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-purple transition"></div><button type="submit" class="px-6 py-3 bg-gradient-to-r from-accent-purple to-accent-pink text-white rounded-xl font-bold text-sm hover:shadow-glow transition">Upload</button></form></div><h3 class="text-lg font-bold text-white mb-4">Gallery (${photos.length})</h3>${photos.length?`<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">${phtml}</div>`:'<p class="text-gray-500 text-center py-12">No photos yet</p>'}</div></body></html>`;
+}
+
+// Admin chat panel HTML
+function getAdminChatHTML(chatList = [], currentChatId = null, messages = []) {
+    const userList = chatList.map(c => `
+        <div class="p-3 hover:bg-dark-700/40 cursor-pointer transition ${currentChatId === c.chatId ? 'bg-accent-purple/20 border-l-2 border-accent-purple' : ''}" 
+             onclick="window.location.href='/admin/chat?chatId=${c.chatId}'">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold text-white">${c.name}</div>
+                    <div class="text-xs text-gray-400">${c.phoneEmail}</div>
+                </div>
+                ${c.unread > 0 ? `<span class="px-2 py-1 bg-red-500 text-white text-xs rounded-full">${c.unread}</span>` : ''}
+            </div>
+            <div class="text-xs text-gray-500 mt-1">Last active: ${new Date(c.lastSeen).toLocaleString()}</div>
+            ${c.lastMessage ? `<div class="text-xs text-gray-400 mt-1 truncate">${c.lastMessage.message}</div>` : ''}
+        </div>
+    `).join('');
+
+    const messageList = messages.map(m => `
+        <div class="flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}">
+            <div class="max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ${
+                m.sender === 'user' 
+                    ? 'bg-accent-purple/20 text-white rounded-br-sm' 
+                    : 'bg-dark-700/60 text-gray-200 rounded-bl-sm'
+            }">
+                ${m.message}
+                <div class="text-xs text-gray-500 mt-1">
+                    ${new Date(m.createdAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                    ${m.sender === 'user' && m.read ? ' ✓✓' : ''}
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    return `<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Admin Chat Panel</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={darkMode:'class',theme:{extend:{colors:{dark:{950:'#09090b',900:'#101014',800:'#18181c',700:'#1f1f23',600:'#27272b'},accent:{purple:'#9333ea',pink:'#ec4899',green:'#22c55e',red:'#ef4444'}}}}}
+</script>
+<style>
+.gradient-text{background:linear-gradient(135deg,#a78bfa,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent}
+.glass{background:rgba(24,24,28,0.7);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.04)}
+</style>
+</head>
+<body class="bg-gradient-to-br from-dark-950 via-dark-900 to-dark-850 text-gray-200 font-sans min-h-screen">
+<header class="glass border-b border-white/5 sticky top-0 z-50">
+<div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+<h2 class="text-lg font-bold gradient-text">Chat Panel</h2>
+<div class="flex gap-2">
+<a href="/admin" class="px-3 py-1.5 glass rounded-lg text-xs hover:border-white/20 transition">Dashboard</a>
+<a href="/admin/logout" class="px-3 py-1.5 glass rounded-lg text-xs hover:border-red-500/50 transition">Logout</a>
+</div>
+</div>
+</header>
+
+<div class="max-w-7xl mx-auto flex h-[calc(100vh-64px)]">
+<!-- User List -->
+<div class="w-80 glass border-r border-white/5 overflow-y-auto">
+<div class="p-3 border-b border-white/5">
+<h3 class="text-sm font-bold text-white">Conversations</h3>
+</div>
+<div id="userList">
+${userList || '<div class="text-center text-gray-500 py-8">No conversations yet</div>'}
+</div>
+</div>
+
+<!-- Chat Area -->
+<div class="flex-1 flex flex-col">
+${currentChatId ? `
+<div class="flex-1 overflow-y-auto p-4 space-y-3" id="chatMessages">
+${messageList || '<div class="text-center text-gray-500 py-8">Select a conversation</div>'}
+</div>
+<div class="p-4 glass border-t border-white/5">
+<div class="flex gap-2">
+<input type="text" id="adminMessage" placeholder="Type your reply..." 
+       class="flex-1 bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-accent-purple transition"
+       onkeypress="if(event.key==='Enter')sendAdminMessage()">
+<button onclick="sendAdminMessage()" 
+        class="px-5 py-3 bg-gradient-to-r from-accent-purple to-accent-pink text-white rounded-xl font-bold text-sm hover:shadow-glow transition">
+Send
+</button>
+</div>
+</div>
+` : `
+<div class="flex-1 flex items-center justify-center">
+<div class="text-center text-gray-500">
+<svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+<path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
+</svg>
+<p>Select a conversation to start chatting</p>
+</div>
+</div>
+`}
+</div>
+</div>
+
+${currentChatId ? `
+<script>
+let refreshInterval = setInterval(refreshMessages, 2000);
+
+async function refreshMessages() {
+    try {
+        const r = await fetch('/api/admin/messages?chatId=${currentChatId}');
+        const d = await r.json();
+        if (d.success) {
+            const mc = document.getElementById('chatMessages');
+            mc.innerHTML = d.messages.map(m => 
+                '<div class="flex ' + (m.sender === 'user' ? 'justify-end' : 'justify-start') + '">' +
+                '<div class="max-w-[70%] px-4 py-2.5 rounded-2xl text-sm ' + 
+                (m.sender === 'user' ? 'bg-accent-purple/20 text-white rounded-br-sm' : 'bg-dark-700/60 text-gray-200 rounded-bl-sm') + '">' +
+                m.message +
+                '<div class="text-xs text-gray-500 mt-1">' + 
+                new Date(m.createdAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) +
+                (m.sender === 'user' && m.read ? ' ✓✓' : '') +
+                '</div></div></div>'
+            ).join('');
+            mc.scrollTop = mc.scrollHeight;
+        }
+    } catch(err) {}
+}
+
+async function sendAdminMessage() {
+    const msg = document.getElementById('adminMessage').value.trim();
+    if (!msg) return;
+    
+    try {
+        const r = await fetch('/api/admin/send', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({chatId: '${currentChatId}', message: msg})
+        });
+        const d = await r.json();
+        if (d.success) {
+            document.getElementById('adminMessage').value = '';
+            refreshMessages();
+        }
+    } catch(err) {}
+}
+</script>
+` : ''}
+</body>
+</html>`;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -472,13 +860,19 @@ const server = http.createServer(async (req, res) => {
 
     if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
+    // Serve static assets
     if (pathname.startsWith('/assets/')) {
         const decodedPathname = decodeURIComponent(pathname);
         const assetPath = path.join(__dir, decodedPathname);
         if (!assetPath.startsWith(ASSETS_DIR)) { res.writeHead(403); res.end(); return; }
         if (fs.existsSync(assetPath)) {
             const ext = path.extname(assetPath).toLowerCase();
-            const types = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac' };
+            const types = {
+                '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg',
+                '.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml',
+                '.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg',
+                '.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac'
+            };
             const ct = types[ext] || 'application/octet-stream';
             const stat = fs.statSync(assetPath);
             res.writeHead(200, { 'Content-Type':ct, 'Content-Length':stat.size, 'Cache-Control':'public, max-age=86400' });
@@ -487,99 +881,298 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // Chat API endpoints
     if (pathname === '/api/chat/register' && method === 'POST') {
-        let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
+        let body = ''; 
+        req.on('data', c => body += c); 
+        req.on('end', async () => {
             try {
-                const { name, phone, email } = JSON.parse(body);
-                if (!name || (!phone && !email)) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:'Name and phone or email required'})); return; }
-                const user = await createOrGetChatUser(name, phone, email);
+                const { name, phoneEmail } = JSON.parse(body);
+                if (!name || !phoneEmail) {
+                    res.writeHead(400, {'Content-Type': 'application/json'});
+                    res.end(JSON.stringify({success: false, error: 'Name and phone/email are required'}));
+                    return;
+                }
+                
+                const user = await createOrGetChatUser(name, phoneEmail);
                 const sessionToken = await createChatSession(user.chatId);
-                res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:true,chatId:user.chatId,sessionToken}));
-            } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:e.message})); }
-        }); return;
+                
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({
+                    success: true,
+                    chatId: user.chatId,
+                    sessionToken,
+                    name: user.name
+                }));
+            } catch(e) {
+                res.writeHead(500, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({success: false, error: e.message}));
+            }
+        });
+        return;
     }
 
     if (pathname === '/api/chat/messages' && method === 'GET') {
         const token = parsedUrl.query.token;
-        if (!token) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:'No token'})); return; }
+        if (!token) {
+            res.writeHead(401, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({success: false, error: 'No session token'}));
+            return;
+        }
+        
         const user = await getChatUserByToken(token);
-        if (!user) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:'Invalid token'})); return; }
+        if (!user) {
+            res.writeHead(401, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({success: false, error: 'Invalid or expired session'}));
+            return;
+        }
+        
         const messages = await getChatMessages(user.chatId);
-        res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:true,messages}));
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({success: true, messages, chatId: user.chatId}));
         return;
     }
 
     if (pathname === '/api/chat/send' && method === 'POST') {
-        let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
+        let body = ''; 
+        req.on('data', c => body += c); 
+        req.on('end', async () => {
             try {
                 const { token, message } = JSON.parse(body);
-                if (!token||!message) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:'Token and message required'})); return; }
+                if (!token || !message) {
+                    res.writeHead(400, {'Content-Type': 'application/json'});
+                    res.end(JSON.stringify({success: false, error: 'Token and message required'}));
+                    return;
+                }
+                
                 const user = await getChatUserByToken(token);
-                if (!user) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:'Invalid token'})); return; }
-                await saveChatMessage(user.chatId, 'user', message);
-                res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:true}));
-            } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:e.message})); }
-        }); return;
+                if (!user) {
+                    res.writeHead(401, {'Content-Type': 'application/json'});
+                    res.end(JSON.stringify({success: false, error: 'Invalid session'}));
+                    return;
+                }
+                
+                const msg = await saveChatMessage(user.chatId, 'user', message);
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({success: true, message: msg}));
+            } catch(e) {
+                res.writeHead(500, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({success: false, error: e.message}));
+            }
+        });
+        return;
     }
 
+    // Admin chat endpoints
+    if (pathname === '/admin/chat' && method === 'GET') {
+        const s = getSession(cookies.sessionId);
+        if (!s) {
+            res.writeHead(302, {'Location': '/admin'});
+            res.end();
+            return;
+        }
+        
+        const chatId = parsedUrl.query.chatId;
+        let messages = [];
+        const chatList = await getAdminChatList();
+        
+        if (chatId) {
+            messages = await getChatMessages(chatId);
+            await markMessagesRead(chatId);
+        }
+        
+        res.writeHead(200, {'Content-Type': 'text/html;charset=utf-8'});
+        res.end(getAdminChatHTML(chatList, chatId, messages));
+        return;
+    }
+
+    if (pathname === '/api/admin/messages' && method === 'GET') {
+        const s = getSession(cookies.sessionId);
+        if (!s) {
+            res.writeHead(401, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({success: false, error: 'Unauthorized'}));
+            return;
+        }
+        
+        const chatId = parsedUrl.query.chatId;
+        if (!chatId) {
+            res.writeHead(400, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({success: false, error: 'ChatId required'}));
+            return;
+        }
+        
+        const messages = await getChatMessages(chatId);
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({success: true, messages}));
+        return;
+    }
+
+    if (pathname === '/api/admin/send' && method === 'POST') {
+        const s = getSession(cookies.sessionId);
+        if (!s) {
+            res.writeHead(401, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({success: false, error: 'Unauthorized'}));
+            return;
+        }
+        
+        let body = ''; 
+        req.on('data', c => body += c); 
+        req.on('end', async () => {
+            try {
+                const { chatId, message } = JSON.parse(body);
+                if (!chatId || !message) {
+                    res.writeHead(400, {'Content-Type': 'application/json'});
+                    res.end(JSON.stringify({success: false, error: 'ChatId and message required'}));
+                    return;
+                }
+                
+                const msg = await saveChatMessage(chatId, 'admin', message);
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({success: true, message: msg}));
+            } catch(e) {
+                res.writeHead(500, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({success: false, error: e.message}));
+            }
+        });
+        return;
+    }
+
+    // Existing admin routes
     if (pathname === '/admin' && method === 'GET') {
         const s = getSession(cookies.sessionId);
-        if (s) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p)); return; }
-        res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminLoginHTML()); return;
+        if (s) {
+            const p = await getGalleryPhotos();
+            res.writeHead(200, {'Content-Type': 'text/html;charset=utf-8'});
+            res.end(getAdminPanelHTML(p));
+            return;
+        }
+        res.writeHead(200, {'Content-Type': 'text/html;charset=utf-8'});
+        res.end(getAdminLoginHTML());
+        return;
     }
 
     if (pathname === '/admin/login' && method === 'POST') {
-        let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
+        let body = ''; 
+        req.on('data', c => body += c); 
+        req.on('end', async () => {
             const params = new URLSearchParams(body);
-            if (await verifyAdmin(params.get('username'),params.get('password'))) {
+            if (await verifyAdmin(params.get('username'), params.get('password'))) {
                 const sid = createSession(params.get('username'));
-                res.writeHead(302,{'Location':'/admin','Set-Cookie':`sessionId=${sid};HttpOnly;Path=/;Max-Age=7200;SameSite=Lax`}); res.end();
-            } else { res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminLoginHTML('Invalid credentials')); }
-        }); return;
+                res.writeHead(302, {
+                    'Location': '/admin',
+                    'Set-Cookie': `sessionId=${sid};HttpOnly;Path=/;Max-Age=7200;SameSite=Lax`
+                });
+                res.end();
+            } else {
+                res.writeHead(200, {'Content-Type': 'text/html;charset=utf-8'});
+                res.end(getAdminLoginHTML('Invalid credentials'));
+            }
+        });
+        return;
     }
 
-    if (pathname === '/admin/logout') { sessions.delete(cookies.sessionId); res.writeHead(302,{'Location':'/admin','Set-Cookie':'sessionId=;HttpOnly;Path=/;Max-Age=0'}); res.end(); return; }
+    if (pathname === '/admin/logout') {
+        sessions.delete(cookies.sessionId);
+        res.writeHead(302, {
+            'Location': '/admin',
+            'Set-Cookie': 'sessionId=;HttpOnly;Path=/;Max-Age=0'
+        });
+        res.end();
+        return;
+    }
 
     if (pathname === '/admin/upload' && method === 'POST') {
-        if (!getSession(cookies.sessionId)) { res.writeHead(302,{'Location':'/admin'}); res.end(); return; }
-        const form = new formidable.IncomingForm({ uploadDir:GALLERY_DIR, keepExtensions:true, maxFileSize:10*1024*1024 });
+        if (!getSession(cookies.sessionId)) {
+            res.writeHead(302, {'Location': '/admin'});
+            res.end();
+            return;
+        }
+        const form = new formidable.IncomingForm({
+            uploadDir: GALLERY_DIR,
+            keepExtensions: true,
+            maxFileSize: 10 * 1024 * 1024
+        });
         form.parse(req, async (err, fields, files) => {
-            if (err) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Upload error')); return; }
-            const pf = Array.isArray(files.photo)?files.photo[0]:files.photo;
-            if (!pf||!pf.originalFilename) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','No file')); return; }
-            if (!['.jpg','.jpeg','.png','.gif','.webp'].includes(path.extname(pf.originalFilename).toLowerCase())) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Invalid format')); return; }
-            const fn = Date.now()+'_'+pf.originalFilename.replace(/[^a-zA-Z0-9.]/g,'_');
+            if (err) {
+                const p = await getGalleryPhotos();
+                res.writeHead(200, {'Content-Type': 'text/html;charset=utf-8'});
+                res.end(getAdminPanelHTML(p, '', 'Upload error'));
+                return;
+            }
+            const pf = Array.isArray(files.photo) ? files.photo[0] : files.photo;
+            if (!pf || !pf.originalFilename) {
+                const p = await getGalleryPhotos();
+                res.writeHead(200, {'Content-Type': 'text/html;charset=utf-8'});
+                res.end(getAdminPanelHTML(p, '', 'No file'));
+                return;
+            }
+            if (!['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(path.extname(pf.originalFilename).toLowerCase())) {
+                const p = await getGalleryPhotos();
+                res.writeHead(200, {'Content-Type': 'text/html;charset=utf-8'});
+                res.end(getAdminPanelHTML(p, '', 'Invalid format'));
+                return;
+            }
+            const fn = Date.now() + '_' + pf.originalFilename.replace(/[^a-zA-Z0-9.]/g, '_');
             try {
                 fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
-                await savePhoto({ path:'/assets/gallery/'+fn, caption:fields.caption?(Array.isArray(fields.caption)?fields.caption[0]:fields.caption):'' });
-                const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'Uploaded'));
-            } catch(e) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Save error')); }
-        }); return;
+                await savePhoto({
+                    path: '/assets/gallery/' + fn,
+                    caption: fields.caption ? (Array.isArray(fields.caption) ? fields.caption[0] : fields.caption) : ''
+                });
+                const p = await getGalleryPhotos();
+                res.writeHead(200, {'Content-Type': 'text/html;charset=utf-8'});
+                res.end(getAdminPanelHTML(p, 'Uploaded'));
+            } catch (e) {
+                const p = await getGalleryPhotos();
+                res.writeHead(200, {'Content-Type': 'text/html;charset=utf-8'});
+                res.end(getAdminPanelHTML(p, '', 'Save error'));
+            }
+        });
+        return;
     }
 
     if (pathname === '/admin/delete' && method === 'POST') {
-        if (!getSession(cookies.sessionId)) { res.writeHead(302,{'Location':'/admin'}); res.end(); return; }
-        let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
+        if (!getSession(cookies.sessionId)) {
+            res.writeHead(302, {'Location': '/admin'});
+            res.end();
+            return;
+        }
+        let body = ''; 
+        req.on('data', c => body += c); 
+        req.on('end', async () => {
             const params = new URLSearchParams(body);
-            try { const photo = await db.collection('gallery_photos').findOne({_id:new ObjectId(params.get('photoId'))}); if(photo){const fp=path.join(__dir,photo.path);if(fs.existsSync(fp))fs.unlinkSync(fp);} await deletePhoto(params.get('photoId')); } catch(e){}
-            const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'Deleted'));
-        }); return;
+            try {
+                const photo = await db.collection('gallery_photos').findOne({_id: new ObjectId(params.get('photoId'))});
+                if (photo) {
+                    const fp = path.join(__dir, photo.path);
+                    if (fs.existsSync(fp)) fs.unlinkSync(fp);
+                }
+                await deletePhoto(params.get('photoId'));
+            } catch (e) {}
+            const p = await getGalleryPhotos();
+            res.writeHead(200, {'Content-Type': 'text/html;charset=utf-8'});
+            res.end(getAdminPanelHTML(p, 'Deleted'));
+        });
+        return;
     }
 
     if (pathname === '/' || pathname === '/index.html') {
         const photos = await getGalleryPhotos();
-        res.writeHead(200,{'Content-Type':'text/html;charset=utf-8','Cache-Control':'public, max-age=3600'});
+        res.writeHead(200, {
+            'Content-Type': 'text/html;charset=utf-8',
+            'Cache-Control': 'public, max-age=3600'
+        });
         res.end(getMainHTML(photos));
         return;
     }
 
-    res.writeHead(404,{'Content-Type':'text/html;charset=utf-8'});
+    res.writeHead(404, {'Content-Type': 'text/html;charset=utf-8'});
     res.end(`<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><title>404</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-dark-950 flex items-center justify-center h-screen text-white font-sans"><div class="text-center"><h1 class="text-8xl font-bold text-accent-purple">404</h1><p class="text-gray-400">Page not found</p><a href="/" class="inline-block mt-4 px-5 py-2 bg-accent-purple text-white rounded-lg">Home</a></div></body></html>`);
 });
 
 async function start() {
     await connectDB();
-    server.listen(PORT, () => console.log(`Server: http://localhost:${PORT}`));
+    server.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
 }
 
 start();
