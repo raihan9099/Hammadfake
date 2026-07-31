@@ -71,7 +71,7 @@ async function connectDB() {
         for (const col of collections) { if (!names.includes(col)) await db.createCollection(col); }
         await db.collection('chat_messages').createIndex({ chatId: 1, createdAt: -1 });
         await db.collection('chat_users').createIndex({ chatId: 1 }, { unique: true });
-        await db.collection('chat_sessions').createIndex({ chatId: 1 });
+        await db.collection('chat_sessions').createIndex({ sessionToken: 1 }, { unique: true });
         const admins = db.collection('admin_users');
         if (!await admins.findOne({ username: 'admin' })) {
             await admins.insertOne({ username: 'admin', password: await bcrypt.hash('admin123', 10), createdAt: new Date() });
@@ -406,6 +406,10 @@ ${coverSongs.map((s, i) => `
 </div>
 </main>
 
+<footer class="border-t border-white/5 py-4 text-center">
+<p class="text-xs text-gray-600">&copy; ${DATA.celebrity.fullName} &bull; Official Verification Hub</p>
+</footer>
+
 <audio id="welcomeVoice" src="${VOICE.welcome}" preload="none"></audio>
 <audio id="audioPlayer" preload="none"></audio>
 
@@ -455,9 +459,27 @@ function getAdminLoginHTML(error = '') {
     return `<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config={darkMode:'class',theme:{extend:{colors:{dark:{950:'#09090b',900:'#101014',800:'#18181c',700:'#1f1f23',600:'#27272b'},accent:{purple:'#9333ea',pink:'#ec4899'}}}}}</script></head><body class="bg-gradient-to-br from-dark-950 via-dark-900 to-dark-850 flex items-center justify-center min-h-screen font-sans"><div class="glass-card p-8 w-full max-w-md"><div class="text-center mb-6"><div class="w-14 h-14 mx-auto mb-3 rounded-full bg-gradient-to-br from-accent-purple to-accent-pink flex items-center justify-center"><svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg></div><h2 class="text-xl font-bold text-white">Admin Login</h2></div>${error?`<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-5 text-sm text-center">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="mb-4"><label class="block text-gray-400 text-sm font-semibold mb-1.5">Username</label><input type="text" name="username" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-purple transition" required></div><div class="mb-5"><label class="block text-gray-400 text-sm font-semibold mb-1.5">Password</label><input type="password" name="password" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-purple transition" required></div><button type="submit" class="w-full py-3 bg-gradient-to-r from-accent-purple to-accent-pink text-white rounded-xl font-bold text-sm hover:shadow-glow transition">Sign In</button></form><div class="text-center mt-5"><a href="/" class="text-sm text-gray-500 hover:text-white transition">Back to Home</a></div></div></body></html>`;
 }
 
+function getAdminChatHTML(chatList = [], selectedChatId = null, selectedMessages = []) {
+    const listHTML = chatList.map(c => `
+    <div class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-dark-700/40 transition border-b border-dark-700/30 ${c.chatId === selectedChatId ? 'bg-accent-purple/10 border-l-2 border-l-accent-purple' : ''}" onclick="location.href='/admin/dashboard?chat=${c.chatId}'">
+    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-accent-purple to-accent-pink flex items-center justify-center text-white font-bold flex-shrink-0">${c.name.charAt(0).toUpperCase()}</div>
+    <div class="flex-1 min-w-0">
+    <div class="flex justify-between items-center"><span class="text-sm font-bold text-white truncate">${c.name}</span><span class="text-xs text-gray-500">${c.lastMessage ? new Date(c.lastMessage.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : ''}</span></div>
+    <div class="flex justify-between items-center"><span class="text-xs text-gray-400 truncate">${c.lastMessage ? (c.lastMessage.sender==='admin'?'You: ':'')+c.lastMessage.message : 'No messages'}</span>${c.unread > 0 ? `<span class="bg-accent-green text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">${c.unread}</span>` : ''}</div>
+    </div>
+    </div>`).join('');
+
+    const messagesHTML = selectedMessages.map(m => `
+    <div class="flex ${m.sender==='user' ? 'justify-start' : 'justify-end'}">
+    <div class="max-w-[70%] px-4 py-2 text-sm ${m.sender==='user' ? 'bg-dark-700 text-gray-200 rounded-r-xl rounded-bl-xl' : 'bg-accent-green/15 text-accent-green rounded-l-xl rounded-br-xl'}">${m.message}<div class="text-xs text-gray-500 mt-1">${new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div></div>
+    </div>`).join('');
+
+    return `<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Chat | Verification Hub</title><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config={darkMode:'class',theme:{extend:{colors:{dark:{950:'#09090b',900:'#101014',800:'#18181c',700:'#1f1f23',600:'#27272b'},accent:{purple:'#9333ea',pink:'#ec4899',green:'#22c55e',red:'#ef4444'}}}}}</script><style>.gradient-text{background:linear-gradient(135deg,#a78bfa,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent}</style></head><body class="bg-dark-950 text-gray-200 font-sans h-screen flex"><div class="w-80 bg-dark-900 border-r border-dark-700 flex flex-col"><div class="p-4 border-b border-dark-700"><h2 class="text-lg font-bold gradient-text">Chats</h2></div><div class="flex-1 overflow-y-auto">${listHTML}</div><div class="p-3 border-t border-dark-700"><a href="/" class="block text-center text-sm text-gray-400 hover:text-white transition">Back to Site</a></div></div><div class="flex-1 flex flex-col"><div class="p-4 border-b border-dark-700 bg-dark-900"><h3 class="font-bold text-white">${selectedChatId ? chatList.find(c=>c.chatId===selectedChatId)?.name || 'Chat' : 'Select a chat'}</h3></div><div class="flex-1 overflow-y-auto p-4 space-y-3" id="msgContainer">${messagesHTML||'<p class="text-center text-gray-500 mt-10">Select a chat to view messages</p>'}</div>${selectedChatId?`<div class="p-3 border-t border-dark-700 bg-dark-900 flex gap-2"><input type="text" id="adminMsgInput" placeholder="Type a reply..." class="flex-1 bg-dark-700 border border-dark-600 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-accent-purple transition" onkeypress="if(event.key==='Enter')sendAdminMsg()"><button onclick="sendAdminMsg()" class="px-5 py-2.5 bg-gradient-to-r from-accent-purple to-accent-pink text-white rounded-xl font-bold text-sm">Send</button></div>`:''}</div><script>async function sendAdminMsg(){const msg=document.getElementById('adminMsgInput').value.trim();if(!msg)return;try{await fetch('/api/admin/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:'${selectedChatId||''}',message:msg})});location.reload()}catch(e){alert('Error sending message')}}</script></body></html>`;
+}
+
 function getAdminPanelHTML(photos = [], msg = '', err = '') {
     const phtml = photos.map(p => `<div class="glass-card overflow-hidden hover-lift"><img src="${p.path}" class="w-full h-40 object-cover"><div class="p-3">${p.caption?`<p class="text-sm text-gray-300">${p.caption}</p>`:''}<p class="text-xs text-gray-500 mt-1">${new Date(p.uploadedAt).toLocaleDateString()}</p></div><form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="w-full py-2 bg-red-500/10 text-red-400 text-sm font-bold hover:bg-red-500/20 transition" onclick="return confirm('Delete?')">Delete</button></form></div>`).join('');
-    return `<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel</title><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config={darkMode:'class',theme:{extend:{colors:{dark:{950:'#09090b',900:'#101014',800:'#18181c',700:'#1f1f23',600:'#27272b'},accent:{purple:'#9333ea',pink:'#ec4899',green:'#22c55e',red:'#ef4444'}}}}}</script><style>.gradient-text{background:linear-gradient(135deg,#a78bfa,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent}.glass-card{background:rgba(24,24,28,0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.06);border-radius:18px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}.hover-lift{transition:all 0.3s}.hover-lift:hover{transform:translateY(-2px)}</style></head><body class="bg-gradient-to-br from-dark-950 via-dark-900 to-dark-850 text-gray-200 font-sans min-h-screen"><header class="glass border-b border-white/5 sticky top-0 z-50"><div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center"><h2 class="text-lg font-bold gradient-text">Admin Panel</h2><div class="flex gap-2"><a href="/" class="px-3 py-1.5 glass rounded-lg text-xs hover:border-white/20 transition">Site</a><a href="/admin/logout" class="px-3 py-1.5 glass rounded-lg text-xs hover:border-red-500/50 transition">Logout</a></div></div></header><div class="max-w-6xl mx-auto px-4 py-6">${msg?`<div class="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-xl mb-5 text-sm">${msg}</div>`:''}${err?`<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-5 text-sm">${err}</div>`:''}<div class="glass-card p-6 mb-6"><h3 class="text-lg font-bold text-white mb-4">Upload Photo</h3><form method="POST" action="/admin/upload" enctype="multipart/form-data"><div class="mb-4"><label class="block text-gray-400 text-sm font-semibold mb-1.5">Photo</label><input type="file" name="photo" accept="image/*" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-accent-purple file:text-white file:font-semibold file:text-sm file:cursor-pointer focus:outline-none transition" required></div><div class="mb-5"><label class="block text-gray-400 text-sm font-semibold mb-1.5">Caption</label><input type="text" name="caption" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-purple transition"></div><button type="submit" class="px-6 py-3 bg-gradient-to-r from-accent-purple to-accent-pink text-white rounded-xl font-bold text-sm hover:shadow-glow transition">Upload</button></form></div><h3 class="text-lg font-bold text-white mb-4">Gallery (${photos.length})</h3>${photos.length?`<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">${phtml}</div>`:'<p class="text-gray-500 text-center py-12">No photos yet</p>'}</div></body></html>`;
+    return `<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel</title><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config={darkMode:'class',theme:{extend:{colors:{dark:{950:'#09090b',900:'#101014',800:'#18181c',700:'#1f1f23',600:'#27272b'},accent:{purple:'#9333ea',pink:'#ec4899',green:'#22c55e',red:'#ef4444'}}}}}</script><style>.gradient-text{background:linear-gradient(135deg,#a78bfa,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent}.glass-card{background:rgba(24,24,28,0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.06);border-radius:18px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}.hover-lift{transition:all 0.3s}.hover-lift:hover{transform:translateY(-2px)}</style></head><body class="bg-gradient-to-br from-dark-950 via-dark-900 to-dark-850 text-gray-200 font-sans min-h-screen"><header class="glass border-b border-white/5 sticky top-0 z-50"><div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center"><h2 class="text-lg font-bold gradient-text">Admin Panel</h2><div class="flex gap-2"><a href="/" class="px-3 py-1.5 glass rounded-lg text-xs hover:border-white/20 transition">Site</a><a href="/admin/dashboard" class="px-3 py-1.5 glass rounded-lg text-xs hover:border-white/20 transition">Chats</a><a href="/admin/logout" class="px-3 py-1.5 glass rounded-lg text-xs hover:border-red-500/50 transition">Logout</a></div></div></header><div class="max-w-6xl mx-auto px-4 py-6">${msg?`<div class="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-xl mb-5 text-sm">${msg}</div>`:''}${err?`<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-5 text-sm">${err}</div>`:''}<div class="glass-card p-6 mb-6"><h3 class="text-lg font-bold text-white mb-4">Upload Photo</h3><form method="POST" action="/admin/upload" enctype="multipart/form-data"><div class="mb-4"><label class="block text-gray-400 text-sm font-semibold mb-1.5">Photo</label><input type="file" name="photo" accept="image/*" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-accent-purple file:text-white file:font-semibold file:text-sm file:cursor-pointer focus:outline-none transition" required></div><div class="mb-5"><label class="block text-gray-400 text-sm font-semibold mb-1.5">Caption</label><input type="text" name="caption" class="w-full bg-dark-700 border border-dark-500 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent-purple transition"></div><button type="submit" class="px-6 py-3 bg-gradient-to-r from-accent-purple to-accent-pink text-white rounded-xl font-bold text-sm hover:shadow-glow transition">Upload</button></form></div><h3 class="text-lg font-bold text-white mb-4">Gallery (${photos.length})</h3>${photos.length?`<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">${phtml}</div>`:'<p class="text-gray-500 text-center py-12">No photos yet</p>'}</div></body></html>`;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -469,7 +491,6 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
     if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
     if (pathname.startsWith('/assets/')) {
@@ -481,7 +502,7 @@ const server = http.createServer(async (req, res) => {
             const types = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac' };
             const ct = types[ext] || 'application/octet-stream';
             const stat = fs.statSync(assetPath);
-            res.writeHead(200, { 'Content-Type':ct, 'Content-Length':stat.size, 'Cache-Control':'public, max-age=86400' });
+            res.writeHead(200, { 'Content-Type':ct, 'Content-Length':stat.size, 'Cache-Control':'public, max-age=86400', 'Accept-Ranges':'bytes' });
             fs.createReadStream(assetPath).pipe(res);
         } else { res.writeHead(404); res.end(); }
         return;
@@ -489,36 +510,25 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/chat/register' && method === 'POST') {
         let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
-            try {
-                const { name, phone, email } = JSON.parse(body);
-                if (!name || (!phone && !email)) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:'Name and phone or email required'})); return; }
-                const user = await createOrGetChatUser(name, phone, email);
-                const sessionToken = await createChatSession(user.chatId);
-                res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:true,chatId:user.chatId,sessionToken}));
-            } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:e.message})); }
+            try { const { name, phone, email } = JSON.parse(body); if (!name || (!phone && !email)) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:'Name and phone or email required'})); return; } const user = await createOrGetChatUser(name, phone, email); const sessionToken = await createChatSession(user.chatId); res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:true,chatId:user.chatId,sessionToken})); } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:e.message})); }
         }); return;
     }
 
     if (pathname === '/api/chat/messages' && method === 'GET') {
-        const token = parsedUrl.query.token;
-        if (!token) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:'No token'})); return; }
-        const user = await getChatUserByToken(token);
-        if (!user) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:'Invalid token'})); return; }
-        const messages = await getChatMessages(user.chatId);
-        res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:true,messages}));
-        return;
+        const token = parsedUrl.query.token; if (!token) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false})); return; }
+        const user = await getChatUserByToken(token); if (!user) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false})); return; }
+        const messages = await getChatMessages(user.chatId); res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:true,messages})); return;
     }
 
     if (pathname === '/api/chat/send' && method === 'POST') {
         let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
-            try {
-                const { token, message } = JSON.parse(body);
-                if (!token||!message) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:'Token and message required'})); return; }
-                const user = await getChatUserByToken(token);
-                if (!user) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:'Invalid token'})); return; }
-                await saveChatMessage(user.chatId, 'user', message);
-                res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:true}));
-            } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false,error:e.message})); }
+            try { const { token, message } = JSON.parse(body); if (!token||!message) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false})); return; } const user = await getChatUserByToken(token); if (!user) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false})); return; } await saveChatMessage(user.chatId, 'user', message); res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:true})); } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false})); }
+        }); return;
+    }
+
+    if (pathname === '/api/admin/chat/send' && method === 'POST') {
+        let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
+            try { const { chatId, message } = JSON.parse(body); if (!chatId||!message) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false})); return; } await saveChatMessage(chatId, 'admin', message); await markMessagesRead(chatId); res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:true})); } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({success:false})); }
         }); return;
     }
 
@@ -526,6 +536,16 @@ const server = http.createServer(async (req, res) => {
         const s = getSession(cookies.sessionId);
         if (s) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p)); return; }
         res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminLoginHTML()); return;
+    }
+
+    if (pathname === '/admin/dashboard' && method === 'GET') {
+        const s = getSession(cookies.sessionId);
+        if (!s) { res.writeHead(302,{'Location':'/admin'}); res.end(); return; }
+        const chatList = await getAdminChatList();
+        const selectedChatId = parsedUrl.query.chat || null;
+        let selectedMessages = [];
+        if (selectedChatId) { selectedMessages = await getChatMessages(selectedChatId); await markMessagesRead(selectedChatId); }
+        res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminChatHTML(chatList, selectedChatId, selectedMessages)); return;
     }
 
     if (pathname === '/admin/login' && method === 'POST') {
@@ -549,11 +569,7 @@ const server = http.createServer(async (req, res) => {
             if (!pf||!pf.originalFilename) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','No file')); return; }
             if (!['.jpg','.jpeg','.png','.gif','.webp'].includes(path.extname(pf.originalFilename).toLowerCase())) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Invalid format')); return; }
             const fn = Date.now()+'_'+pf.originalFilename.replace(/[^a-zA-Z0-9.]/g,'_');
-            try {
-                fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
-                await savePhoto({ path:'/assets/gallery/'+fn, caption:fields.caption?(Array.isArray(fields.caption)?fields.caption[0]:fields.caption):'' });
-                const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'Uploaded'));
-            } catch(e) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Save error')); }
+            try { fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn)); await savePhoto({ path:'/assets/gallery/'+fn, caption:fields.caption?(Array.isArray(fields.caption)?fields.caption[0]:fields.caption):'' }); const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'Uploaded')); } catch(e) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Save error')); }
         }); return;
     }
 
