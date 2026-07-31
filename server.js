@@ -414,4 +414,571 @@ ${coverSongs.map((s, i) => `
 <!-- ============ CHAT WIDGET WITH VOICE ============ -->
 <div class="chat-widget">
 <button class="chat-btn" onclick="toggleChat()" id="chatBtn">
-<svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297
+<svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
+</button>
+
+<div class="chat-window" id="chatWindow">
+<div class="chat-header">
+<div class="chat-avatar">
+<img src="${HAMMAD_PROFILE}" alt="Hammad" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=width:100%;height:100%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px>H</div>'">
+<div class="chat-online"></div>
+</div>
+<div style="flex:1">
+<div class="chat-header-name">Hammad Bin Amir</div>
+<div class="chat-header-status" id="statusText">Online</div>
+</div>
+<button class="chat-close" onclick="toggleChat()">✕</button>
+</div>
+
+<div id="chatLogin" class="chat-login">
+<h3>💬 Chat with Hammad</h3>
+<p>Enter your details to start</p>
+<input type="text" id="userName" placeholder="Your Name">
+<input type="text" id="userContact" placeholder="Phone Number or Email">
+<button onclick="registerChat()">Start Chat</button>
+</div>
+
+<div id="chatUI" style="display:none;flex:1;flex-direction:column">
+<div class="chat-messages" id="chatMessages">
+<div style="text-align:center;color:#8696a0;font-size:12px;padding:10px">🔒 Messages are secure</div>
+</div>
+<div class="typing-indicator" id="typingDiv">
+<div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
+<div style="clear:both"></div>
+</div>
+<div class="recording-bar" id="recordingBar">
+<span>🔴 Recording voice message...</span>
+<span id="recTime">00:00</span>
+</div>
+<div class="chat-input-area">
+<input type="text" id="msgInput" placeholder="Type a message" onkeypress="if(event.key==='Enter')sendMessage()">
+<button id="micBtn" onmousedown="startRecording()" onmouseup="stopRecording()" onmouseleave="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Hold to record voice">🎤</button>
+<button class="chat-send-btn" onclick="sendMessage()">➤</button>
+</div>
+</div>
+</div>
+</div>
+
+<audio id="welcomeVoice" src="${VOICE.welcome}" preload="none"></audio>
+
+<script>
+// Welcome voice
+setTimeout(()=>{const v=document.getElementById('welcomeVoice');if(v&&!sessionStorage.getItem('vp')){v.play().catch(()=>{});sessionStorage.setItem('vp','1')}},2000);
+
+// Music player
+function playSong(url,title){const a=document.getElementById('coverAudio');a.src=url;a.play().catch(()=>{});if(title)document.title=title}
+
+// ============ CHAT SYSTEM WITH VOICE ============
+let chatToken = localStorage.getItem('chatToken');
+let chatId = null;
+let pollInterval = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingStart = 0;
+let recTimerInterval = null;
+
+// Auto login if token exists
+if(chatToken){ verifyToken(); }
+
+async function verifyToken(){
+    try{
+        const r = await fetch('/api/chat/verify?token=' + encodeURIComponent(chatToken));
+        const d = await r.json();
+        if(d.success){
+            chatId = d.chatId;
+            showChatUI();
+            loadMessages();
+            startPolling();
+        } else {
+            localStorage.removeItem('chatToken');
+            chatToken = null;
+        }
+    }catch(e){}
+}
+
+function toggleChat(){
+    const w = document.getElementById('chatWindow');
+    w.classList.toggle('open');
+    if(w.classList.contains('open') && chatToken) loadMessages();
+}
+
+function showChatUI(){
+    document.getElementById('chatLogin').style.display = 'none';
+    document.getElementById('chatUI').style.display = 'flex';
+}
+
+async function registerChat(){
+    const name = document.getElementById('userName').value.trim();
+    const contact = document.getElementById('userContact').value.trim();
+    
+    if(!name){alert('Please enter your name');return}
+    if(!contact){alert('Please enter phone or email');return}
+    
+    try{
+        const r = await fetch('/api/chat/register', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({name, phoneEmail:contact})
+        });
+        const d = await r.json();
+        
+        if(d.success){
+            chatToken = d.token;
+            chatId = d.chatId;
+            localStorage.setItem('chatToken', chatToken);
+            showChatUI();
+            loadMessages();
+            startPolling();
+        } else {
+            alert(d.error || 'Registration failed');
+        }
+    }catch(e){
+        alert('Connection error. Please try again.');
+    }
+}
+
+function startPolling(){
+    if(pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(loadMessages, 2000);
+}
+
+async function loadMessages(){
+    if(!chatToken) return;
+    try{
+        const r = await fetch('/api/chat/messages?token=' + encodeURIComponent(chatToken) + '&t=' + Date.now());
+        const d = await r.json();
+        
+        if(d.success){
+            const container = document.getElementById('chatMessages');
+            container.innerHTML = '<div style="text-align:center;color:#8696a0;font-size:12px;padding:10px">🔒 Messages are secure</div>';
+            
+            d.messages.forEach(m => {
+                const isUser = m.sender === 'user';
+                const div = document.createElement('div');
+                
+                if(m.type === 'voice' && m.voiceUrl){
+                    // Voice message
+                    div.innerHTML = 
+                        '<div class="msg ' + (isUser ? 'msg-out' : 'msg-in') + '">' +
+                        '<div class="voice-msg">' +
+                        '<button class="voice-play-btn" onclick="playVoice(\'' + m.voiceUrl + '\', this)">▶</button>' +
+                        '<div class="voice-wave">' +
+                        Array.from({length:12}, (_,i) => '<div class="voice-bar" style="animation-delay:' + (i*0.08) + 's;height:' + (5+Math.random()*15) + 'px"></div>').join('') +
+                        '</div>' +
+                        '</div>' +
+                        '<span class="msg-time">' + new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) + (isUser?' ✓✓':'') + '</span>' +
+                        '</div>';
+                } else {
+                    // Text message
+                    div.innerHTML = 
+                        '<div class="msg ' + (isUser ? 'msg-out' : 'msg-in') + '">' +
+                        m.message +
+                        '<span class="msg-time">' + new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) + (isUser?' ✓✓':'') + '</span>' +
+                        '</div>';
+                }
+                container.appendChild(div);
+            });
+            
+            container.scrollTop = container.scrollHeight;
+        } else {
+            clearInterval(pollInterval);
+            localStorage.removeItem('chatToken');
+            chatToken = null;
+            document.getElementById('chatLogin').style.display = 'flex';
+            document.getElementById('chatUI').style.display = 'none';
+        }
+    }catch(e){}
+}
+
+function playVoice(url, btn){
+    const audio = new Audio(url);
+    const origText = btn.textContent;
+    btn.textContent = '⏸';
+    audio.play();
+    audio.onended = () => { btn.textContent = origText; };
+    audio.onerror = () => { btn.textContent = origText; };
+}
+
+async function sendMessage(){
+    const input = document.getElementById('msgInput');
+    const msg = input.value.trim();
+    if(!msg || !chatToken) return;
+    
+    input.value = '';
+    
+    try{
+        const r = await fetch('/api/chat/send', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({token:chatToken, message:msg, type:'text'})
+        });
+        const d = await r.json();
+        if(d.success) loadMessages();
+    }catch(e){}
+}
+
+// ============ VOICE RECORDING ============
+async function startRecording(){
+    try{
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        audioChunks = [];
+        
+        mediaRecorder.ondataavailable = (e) => {
+            if(e.data.size > 0) audioChunks.push(e.data);
+        };
+        
+        mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const reader = new FileReader();
+            reader.onload = async () => {
+                const base64 = reader.result.split(',')[1];
+                try{
+                    const r = await fetch('/api/chat/send-voice', {
+                        method:'POST',
+                        headers:{'Content-Type':'application/json'},
+                        body:JSON.stringify({token:chatToken, audio:base64})
+                    });
+                    const d = await r.json();
+                    if(d.success) loadMessages();
+                }catch(e){}
+            };
+            reader.readAsDataURL(audioBlob);
+            stream.getTracks().forEach(t => t.stop());
+        };
+        
+        mediaRecorder.start();
+        recordingStart = Date.now();
+        
+        document.getElementById('micBtn').classList.add('recording');
+        document.getElementById('recordingBar').style.display = 'flex';
+        
+        recTimerInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - recordingStart) / 1000);
+            const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const secs = (elapsed % 60).toString().padStart(2, '0');
+            document.getElementById('recTime').textContent = mins + ':' + secs;
+        }, 100);
+        
+    }catch(e){
+        alert('Microphone access denied. Please allow microphone permission.');
+    }
+}
+
+function stopRecording(){
+    if(!mediaRecorder || mediaRecorder.state === 'inactive') return;
+    
+    mediaRecorder.stop();
+    document.getElementById('micBtn').classList.remove('recording');
+    document.getElementById('recordingBar').style.display = 'none';
+    clearInterval(recTimerInterval);
+}
+</script>
+</body>
+</html>`;
+}
+
+// ==================== ADMIN HTML ====================
+function getAdminLoginHTML(error = '') {
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-950 flex items-center justify-center min-h-screen"><div class="bg-gray-900 p-8 rounded-2xl w-full max-w-sm border border-gray-800"><h2 class="text-xl font-bold text-white text-center mb-6">Admin Login</h2>${error?`<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-4 text-sm text-center">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="mb-4"><label class="block text-gray-400 text-sm mb-1">Username</label><input type="text" name="username" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" required></div><div class="mb-5"><label class="block text-gray-400 text-sm mb-1">Password</label><input type="password" name="password" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" required></div><button type="submit" class="w-full py-3 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700">Sign In</button></form><div class="text-center mt-5"><a href="/" class="text-sm text-gray-500 hover:text-white">Back</a></div></div></body></html>`;
+}
+
+async function getAdminPanelHTML(photos = [], msg = '', err = '') {
+    const photoHTML = photos.map(p => `
+<div class="glass-card overflow-hidden">
+<img src="${p.path}" class="w-full h-40 object-cover">
+<div class="p-3">${p.caption?`<p class="text-sm text-gray-300">${p.caption}</p>`:''}<p class="text-xs text-gray-500 mt-1">${new Date(p.uploadedAt).toLocaleDateString()}</p></div>
+<form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="w-full py-2 bg-red-500/10 text-red-400 text-sm font-bold hover:bg-red-500/20" onclick="return confirm('Delete?')">Delete</button></form>
+</div>`).join('');
+
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>.glass-card{background:rgba(24,24,28,0.85);border:1px solid rgba(255,255,255,0.06);border-radius:12px}body{background:#09090b;color:#e5e5e5;font-family:sans-serif}</style></head>
+<body class="min-h-screen">
+<header class="glass-card sticky top-0 z-50 p-4 mb-6"><div class="max-w-6xl mx-auto flex justify-between items-center"><h1 class="text-lg font-bold text-purple-400">Admin Panel</h1><div class="flex gap-2"><a href="/admin/chat" class="px-3 py-1.5 bg-purple-600 rounded-lg text-xs hover:bg-purple-700">Chat Panel</a><a href="/" class="px-3 py-1.5 bg-gray-800 rounded-lg text-xs">Site</a><a href="/admin/logout" class="px-3 py-1.5 bg-gray-800 rounded-lg text-xs">Logout</a></div></div></header>
+<div class="max-w-6xl mx-auto px-4">
+${msg?`<div class="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-xl mb-4 text-sm">${msg}</div>`:''}
+${err?`<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-4 text-sm">${err}</div>`:''}
+<h2 class="text-lg font-bold text-white mb-4">Gallery (${photos.length})</h2>
+${photos.length?`<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">${photoHTML}</div>`:'<p class="text-gray-500 text-center py-12">No photos yet</p>'}
+</div></body></html>`;
+}
+
+// ==================== SERVER ====================
+const server = http.createServer(async (req, res) => {
+    const parsedUrl = url.parse(req.url, true);
+    const pathname = parsedUrl.pathname;
+    const method = req.method;
+    const cookies = parseCookies(req.headers.cookie);
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+    // Static assets
+    if (pathname.startsWith('/assets/')) {
+        const assetPath = path.join(__dir, decodeURIComponent(pathname));
+        if (!assetPath.startsWith(ASSETS_DIR)) { res.writeHead(403); res.end(); return; }
+        if (fs.existsSync(assetPath)) {
+            const ext = path.extname(assetPath).toLowerCase();
+            const types = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.webm':'audio/webm' };
+            res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' });
+            fs.createReadStream(assetPath).pipe(res);
+        } else { res.writeHead(404); res.end(); }
+        return;
+    }
+
+    // ==================== CHAT API ====================
+    if (pathname === '/api/chat/register' && method === 'POST') {
+        let body = '';
+        req.on('data', c => body += c);
+        req.on('end', async () => {
+            try {
+                const { name, phoneEmail } = JSON.parse(body);
+                if (!name || !phoneEmail) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'All fields required' })); return; }
+                
+                const user = await createOrGetChatUser(name, phoneEmail);
+                if (!user) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Failed to create user' })); return; }
+                
+                const token = await createChatSession(user.chatId);
+                
+                const messages = await getChatMessages(user.chatId);
+                if (messages.length === 0) {
+                    await saveChatMessage(user.chatId, 'admin', 'Hello! 👋 Welcome to the chat. How can I help you today?');
+                }
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, chatId: user.chatId, token, name: user.name }));
+            } catch (e) {
+                console.error('Register error:', e);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: 'Server error' }));
+            }
+        });
+        return;
+    }
+
+    if (pathname === '/api/chat/verify' && method === 'GET') {
+        const token = parsedUrl.query.token;
+        const user = await getChatUserByToken(token);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: !!user, chatId: user ? user.chatId : null }));
+        return;
+    }
+
+    if (pathname === '/api/chat/messages' && method === 'GET') {
+        const token = parsedUrl.query.token;
+        if (!token) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+        const user = await getChatUserByToken(token);
+        if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Invalid token' })); return; }
+        const messages = await getChatMessages(user.chatId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, messages }));
+        return;
+    }
+
+    if (pathname === '/api/chat/send' && method === 'POST') {
+        let body = '';
+        req.on('data', c => body += c);
+        req.on('end', async () => {
+            try {
+                const { token, message, type } = JSON.parse(body);
+                if (!token || !message) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+                const user = await getChatUserByToken(token);
+                if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Invalid token' })); return; }
+                await saveChatMessage(user.chatId, 'user', message, type || 'text');
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false }));
+            }
+        });
+        return;
+    }
+
+    // Voice message endpoint
+    if (pathname === '/api/chat/send-voice' && method === 'POST') {
+        let body = '';
+        req.on('data', c => body += c);
+        req.on('end', async () => {
+            try {
+                const { token, audio } = JSON.parse(body);
+                if (!token || !audio) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+                const user = await getChatUserByToken(token);
+                if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+                
+                const buffer = Buffer.from(audio, 'base64');
+                const voiceUrl = saveVoiceMessage(buffer);
+                await saveChatMessage(user.chatId, 'user', '🎤 Voice message', 'voice', voiceUrl);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false }));
+            }
+        });
+        return;
+    }
+
+    // ==================== ADMIN ROUTES ====================
+    if (pathname === '/admin/chat' && method === 'GET') {
+        const s = getSession(cookies.sessionId);
+        if (!s) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
+        
+        const chatId = parsedUrl.query.chatId;
+        const chatList = await getAdminChatList();
+        let messages = [];
+        if (chatId) { messages = await getChatMessages(chatId); await markMessagesRead(chatId); }
+        
+        const userList = chatList.map(c => `
+<div class="p-3 hover:bg-gray-800 cursor-pointer border-b border-gray-800 ${c.chatId===chatId?'bg-purple-600/20 border-l-2 border-purple-500':''}" onclick="location.href='/admin/chat?chatId=${c.chatId}'">
+<div class="flex justify-between items-center">
+<div><div class="text-sm font-semibold text-white">${c.name}</div><div class="text-xs text-gray-400">${c.phoneEmail}</div></div>
+${c.unread>0?`<span class="bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">${c.unread}</span>`:''}
+</div>
+${c.lastMessage?`<div class="text-xs text-gray-500 mt-1 truncate">${c.lastMessage.message}</div>`:''}
+</div>`).join('');
+
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Chat Panel</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>body{background:#111b21;color:#e5e5e5;font-family:sans-serif;height:100vh;display:flex;margin:0}.sidebar{width:350px;background:#111b21;border-right:1px solid #2a3942;display:flex;flex-direction:column}.main{flex:1;display:flex;flex-direction:column}.header{background:#202c33;padding:12px 16px;font-weight:600}.messages{flex:1;overflow-y:auto;padding:16px;background:#0b141a}.input-area{background:#202c33;padding:10px 16px;display:flex;gap:8px}.input-area input{flex:1;background:#2a3942;border:none;padding:10px 16px;border-radius:24px;color:white;outline:none}.input-area button{background:#00a884;color:white;border:none;padding:10px 20px;border-radius:24px;cursor:pointer;font-weight:600}</style></head>
+<body>
+<div class="sidebar"><div class="header flex justify-between items-center"><span>💬 Chats</span><a href="/admin" class="text-xs text-gray-400 hover:text-white">← Admin</a></div><div class="flex-1 overflow-y-auto">${userList}</div></div>
+<div class="main">${chatId?`<div class="header">Chat with ${chatList.find(c=>c.chatId===chatId)?.name||'User'}</div><div class="messages" id="msgContainer"></div><div class="input-area"><input type="text" id="adminMsg" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendAdminMsg()"><button onclick="sendAdminMsg()">Send</button></div>
+<script>
+let cid='${chatId}';
+async function loadMsgs(){
+    try{
+        const r=await fetch('/api/admin/messages?chatId='+cid);
+        const d=await r.json();
+        if(d.success){
+            document.getElementById('msgContainer').innerHTML=d.messages.map(m=>
+                '<div class="flex '+(m.sender==='user'?'justify-start':'justify-end')+' mb-3">'+
+                '<div class="max-w-[70%] px-4 py-2 rounded-lg text-sm '+(m.sender==='user'?'bg-gray-800 text-white rounded-bl-sm':'bg-green-600 text-white rounded-br-sm')+'">'+
+                (m.type==='voice'?'<div style="display:flex;align-items:center;gap:8px"><button onclick="new Audio(\\''+m.voiceUrl+'\\').play()" style="width:32px;height:32px;border-radius:50%;background:#00a884;border:none;color:white;cursor:pointer">▶</button><span>🎤 Voice message</span></div>':m.message)+
+                '<div class="text-xs text-gray-400 mt-1 text-right">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div></div>'
+            ).join('');
+            const c=document.getElementById('msgContainer');c.scrollTop=c.scrollHeight;
+        }
+    }catch(e){}
+}
+async function sendAdminMsg(){
+    const i=document.getElementById('adminMsg');const m=i.value.trim();if(!m)return;i.value='';
+    await fetch('/api/admin/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:cid,message:m})});
+    loadMsgs();
+}
+loadMsgs();setInterval(loadMsgs,2000);
+</script>`:'<div class="flex-1 flex items-center justify-center text-gray-500">Select a conversation</div>'}</div></body></html>`);
+        return;
+    }
+
+    if (pathname === '/api/admin/messages' && method === 'GET') {
+        const s = getSession(cookies.sessionId);
+        if (!s) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+        const chatId = parsedUrl.query.chatId;
+        const messages = await getChatMessages(chatId);
+        await markMessagesRead(chatId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, messages }));
+        return;
+    }
+
+    if (pathname === '/api/admin/send' && method === 'POST') {
+        const s = getSession(cookies.sessionId);
+        if (!s) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+        let body = '';
+        req.on('data', c => body += c);
+        req.on('end', async () => {
+            const { chatId, message } = JSON.parse(body);
+            await saveChatMessage(chatId, 'admin', message);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+        });
+        return;
+    }
+
+    if (pathname === '/admin' && method === 'GET') {
+        const s = getSession(cookies.sessionId);
+        if (s) { const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p)); return; }
+        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(getAdminLoginHTML());
+        return;
+    }
+
+    if (pathname === '/admin/login' && method === 'POST') {
+        let body = '';
+        req.on('data', c => body += c);
+        req.on('end', async () => {
+            const params = new URLSearchParams(body);
+            if (await verifyAdmin(params.get('username'), params.get('password'))) {
+                const sid = createSession(params.get('username'));
+                res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': `sessionId=${sid};HttpOnly;Path=/;Max-Age=7200;SameSite=Lax` }); res.end();
+            } else {
+                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(getAdminLoginHTML('Invalid credentials'));
+            }
+        });
+        return;
+    }
+
+    if (pathname === '/admin/logout') {
+        sessions.delete(cookies.sessionId);
+        res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': 'sessionId=;HttpOnly;Path=/;Max-Age=0' }); res.end();
+        return;
+    }
+
+    if (pathname === '/admin/upload' && method === 'POST') {
+        if (!getSession(cookies.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
+        const form = new formidable.IncomingForm({ uploadDir: GALLERY_DIR, keepExtensions: true, maxFileSize: 10 * 1024 * 1024 });
+        form.parse(req, async (err, fields, files) => {
+            if (err) { const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p, '', 'Upload error')); return; }
+            const pf = Array.isArray(files.photo) ? files.photo[0] : files.photo;
+            if (!pf || !pf.originalFilename) { const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p, '', 'No file')); return; }
+            const fn = Date.now() + '_' + pf.originalFilename.replace(/[^a-zA-Z0-9.]/g, '_');
+            try {
+                fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
+                await savePhoto({ path: '/assets/gallery/' + fn, caption: fields.caption ? (Array.isArray(fields.caption) ? fields.caption[0] : fields.caption) : '' });
+                const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p, 'Uploaded'));
+            } catch (e) { const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p, '', 'Save error')); }
+        });
+        return;
+    }
+
+    if (pathname === '/admin/delete' && method === 'POST') {
+        if (!getSession(cookies.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
+        let body = '';
+        req.on('data', c => body += c);
+        req.on('end', async () => {
+            const params = new URLSearchParams(body);
+            try {
+                const photo = await db.collection('gallery_photos').findOne({ _id: new ObjectId(params.get('photoId')) });
+                if (photo) { const fp = path.join(__dir, photo.path); if (fs.existsSync(fp)) fs.unlinkSync(fp); }
+                await deletePhoto(params.get('photoId'));
+            } catch (e) { }
+            const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p, 'Deleted'));
+        });
+        return;
+    }
+
+    if (pathname === '/' || pathname === '/index.html') {
+        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+        res.end(getMainHTML());
+        return;
+    }
+
+    res.writeHead(404, { 'Content-Type': 'text/html;charset=utf-8' }); res.end('404');
+});
+
+async function start() {
+    await connectDB();
+    server.listen(PORT, () => {
+        console.log('✅ Server running on port', PORT);
+        console.log('✅ Chat with voice messages enabled');
+        console.log('✅ Admin: /admin (admin / admin123)');
+    });
+}
+
+start();
