@@ -1,13 +1,14 @@
 {
   "name": "verification-hub",
   "version": "1.0.0",
+  "description": "Verification Hub with Chat System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "formidable": "^2.1.1",
-    "mongodb": "^5.7.0"
+    "formidable": "^3.5.1",
+    "mongodb": "^6.3.0"
   }
 }
