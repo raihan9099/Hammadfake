@@ -1,25 +1,24 @@
 {
-  "name": "whatsapp-advanced-server",
+  "name": "verification-hub-server",
   "version": "1.0.0",
-  "description": "Advanced WhatsApp-style chat server with MongoDB, WebSocket, voice messages, and images",
+  "description": "Verification Hub for Baiilla Maach with chat, gallery, and music features",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
   "keywords": [
-    "whatsapp",
+    "verification",
     "chat",
-    "websocket",
     "mongodb",
-    "voice-messages",
-    "real-time"
+    "gallery",
+    "music"
   ],
   "author": "Hammad Bin Amir",
   "license": "MIT",
   "dependencies": {
     "mongodb": "^6.0.0",
-    "ws": "^8.14.2",
+    "bcryptjs": "^2.4.3",
     "formidable": "^3.5.1"
   },
   "devDependencies": {
