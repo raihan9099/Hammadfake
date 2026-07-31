@@ -16,8 +16,10 @@ const __dir = path.resolve();
 const ASSETS_DIR = path.join(__dir, 'assets');
 const GALLERY_DIR = path.join(__dir, 'assets', 'gallery');
 const COVER_MUSIC_DIR = path.join(__dir, 'assets', 'covermusic');
+const CHAT_MEDIA_DIR = path.join(__dir, 'assets', 'chat_media');
+const CHAT_VOICE_DIR = path.join(__dir, 'assets', 'chat_voice');
 
-[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR].forEach(dir => {
+[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR, CHAT_MEDIA_DIR, CHAT_VOICE_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -112,11 +114,10 @@ async function createOrGetChatUser(name, phoneEmail) {
 
 async function createChatSession(chatId) {
     const token = crypto.randomBytes(32).toString('hex');
-    // Remove old sessions for this user
     await db.collection('chat_sessions').deleteMany({ chatId });
     await db.collection('chat_sessions').insertOne({
         chatId, token, createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     });
     return token;
 }
@@ -129,11 +130,14 @@ async function getChatUserByToken(token) {
 }
 
 async function getChatMessages(chatId) {
-    return await db.collection('chat_messages').find({ chatId }).sort({ createdAt: 1 }).limit(100).toArray();
+    return await db.collection('chat_messages').find({ chatId }).sort({ createdAt: 1 }).limit(200).toArray();
 }
 
-async function saveChatMessage(chatId, sender, message) {
-    const msg = { chatId, sender, message, createdAt: new Date(), read: false };
+async function saveChatMessage(chatId, sender, message, type = 'text', fileUrl = null) {
+    const msg = { 
+        chatId, sender, message, type, fileUrl, 
+        createdAt: new Date(), read: false 
+    };
     await db.collection('chat_messages').insertOne(msg);
     await db.collection('chat_users').updateOne({ chatId }, { $set: { lastSeen: new Date() } });
     return msg;
@@ -190,194 +194,237 @@ function getMainHTML(galleryPhotos = []) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#075e54">
+<meta name="theme-color" content="#0084ff">
 <title>Baiilla Maach | Verification Hub</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config={darkMode:'class'}</script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#09090b;color:#e5e5e5;min-height:100vh}
-.glass{background:rgba(24,24,28,0.7);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.04)}
-.glass-card{background:rgba(24,24,28,0.85);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.06);border-radius:18px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f0f2f5;color:#1c1e21;min-height:100vh}
+.dark body{background:#18191a;color:#e4e6eb}
+.glass{background:rgba(255,255,255,0.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,0.08)}
+.dark .glass{background:rgba(36,37,38,0.95);border-bottom:1px solid rgba(255,255,255,0.08)}
+.glass-card{background:white;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,0.1)}
+.dark .glass-card{background:#242526;box-shadow:0 1px 2px rgba(0,0,0,0.3)}
 .verified-glow{box-shadow:0 0 15px rgba(34,197,94,0.3)}
 .danger-glow{box-shadow:0 0 15px rgba(239,68,68,0.3)}
-.gradient-text{background:linear-gradient(135deg,#a78bfa,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.gradient-text{background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700}
 
-/* Chat Widget */
-.chat-widget{position:fixed;bottom:20px;right:20px;z-index:9999}
-.chat-btn{width:58px;height:58px;background:#25d366;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(37,211,102,0.4);transition:all 0.3s;border:none;animation:bounceIn 0.5s}
-.chat-btn:hover{transform:scale(1.1)}
-.chat-btn svg{width:30px;height:30px;fill:white}
-.chat-badge{position:absolute;top:-5px;right:-5px;background:#ef4444;color:white;border-radius:50%;width:22px;height:22px;font-size:11px;display:none;align-items:center;justify-content:center;font-weight:bold}
-@keyframes bounceIn{0%{transform:scale(0)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+/* Messenger-style Chat Widget */
+.messenger-btn{position:fixed;bottom:20px;right:20px;z-index:9999;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#00c6ff,#0078ff);box-shadow:0 4px 15px rgba(0,120,255,0.4);cursor:pointer;border:none;display:flex;align-items:center;justify-content:center;transition:all 0.3s cubic-bezier(0.175,0.885,0.32,1.275)}
+.messenger-btn:hover{transform:scale(1.08);box-shadow:0 6px 20px rgba(0,120,255,0.5)}
+.messenger-btn:active{transform:scale(0.95)}
+.messenger-btn svg{width:32px;height:32px;fill:white;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.2))}
+.messenger-badge{position:absolute;top:-4px;right:-4px;background:#ff3b30;color:white;border-radius:50%;min-width:22px;height:22px;font-size:12px;display:none;align-items:center;justify-content:center;font-weight:700;border:2px solid white;padding:0 5px}
+@keyframes messengerPulse{0%,100%{box-shadow:0 4px 15px rgba(0,120,255,0.4)}50%{box-shadow:0 4px 25px rgba(0,120,255,0.6)}}
+.messenger-btn{animation:messengerPulse 2s infinite}
 
-.chat-window{position:fixed;bottom:90px;right:20px;width:380px;max-width:calc(100vw - 40px);height:550px;max-height:calc(100vh - 130px);background:#111b21;border-radius:12px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.5);display:none;flex-direction:column}
+.chat-window{position:fixed;bottom:90px;right:20px;width:380px;max-width:calc(100vw - 20px);height:600px;max-height:calc(100vh - 120px);background:white;border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.25);display:none;flex-direction:column;animation:slideUp 0.3s cubic-bezier(0.175,0.885,0.32,1.275)}
+.dark .chat-window{background:#242526;box-shadow:0 12px 40px rgba(0,0,0,0.5)}
 .chat-window.open{display:flex}
-.chat-header{background:#202c33;padding:12px 16px;display:flex;align-items:center;gap:10px}
-.chat-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:16px;position:relative}
-.chat-online{width:10px;height:10px;background:#25d366;border-radius:50%;position:absolute;bottom:0;right:0;border:2px solid #202c33}
-.chat-header-name{color:white;font-weight:600;font-size:15px}
-.chat-header-status{color:#a5d6a7;font-size:11px}
-.chat-close{background:none;border:none;color:#8696a0;font-size:20px;cursor:pointer;margin-left:auto;padding:4px}
-.chat-messages{flex:1;overflow-y:auto;padding:16px;background:#0b141a;background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
-.msg{max-width:80%;padding:6px 12px 6px 9px;margin-bottom:4px;border-radius:8px;font-size:14px;line-height:1.45;word-wrap:break-word;animation:fadeIn 0.3s}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.msg-out{background:#005c4b;color:#e9edef;float:right;clear:both;border-radius:8px 0 8px 8px}
-.msg-in{background:#202c33;color:#e9edef;float:left;clear:both;border-radius:0 8px 8px 8px}
-.msg-time{font-size:11px;color:rgba(255,255,255,0.45);text-align:right;margin-top:3px;padding-left:15px;float:right}
-.msg::after{content:'';display:table;clear:both}
-.chat-login{padding:30px 20px;text-align:center;flex:1;display:flex;flex-direction:column;justify-content:center}
-.chat-login h3{color:white;margin-bottom:4px;font-size:16px}
-.chat-login p{color:#8696a0;font-size:12px;margin-bottom:20px}
-.chat-login input{width:100%;background:#2a3942;border:2px solid transparent;padding:10px 14px;border-radius:8px;color:white;font-size:14px;margin-bottom:10px;outline:none;transition:border 0.2s}
-.chat-login input:focus{border-color:#00a884}
-.chat-login button{width:100%;background:#00a884;color:white;border:none;padding:12px;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px}
-.chat-login button:hover{background:#06cf9c}
-.chat-input-area{background:#202c33;padding:8px 12px;display:flex;align-items:center;gap:8px}
-.chat-input-area input{flex:1;background:#2a3942;border:none;padding:10px 14px;border-radius:24px;color:white;font-size:14px;outline:none}
-.chat-input-area input::placeholder{color:#8696a0}
-.chat-send-btn{width:38px;height:38px;border-radius:50%;background:#00a884;border:none;color:white;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.chat-send-btn:hover{background:#06cf9c}
-.typing-indicator{display:none;padding:0 16px 8px}
-.typing-dots{display:flex;gap:4px;padding:8px 12px;background:#202c33;border-radius:8px;float:left;clear:both}
-.typing-dot{width:7px;height:7px;border-radius:50%;background:#8696a0;animation:typing 1.4s infinite}
-.typing-dot:nth-child(2){animation-delay:0.2s}.typing-dot:nth-child(3){animation-delay:0.4s}
-@keyframes typing{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-8px)}}
-@media(max-width:640px){.chat-window{width:100%;max-width:100%;bottom:0;right:0;border-radius:12px 12px 0 0;height:100%;max-height:100%}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px) scale(0.95)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+.chat-header{background:linear-gradient(135deg,#0084ff,#00c6ff);padding:14px 16px;display:flex;align-items:center;gap:12px;color:white}
+.chat-avatar{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;position:relative;overflow:hidden;border:2px solid rgba(255,255,255,0.5)}
+.chat-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.chat-online{width:12px;height:12px;background:#44d62c;border-radius:50%;position:absolute;bottom:0;right:0;border:2px solid white}
+.chat-header-info{flex:1}
+.chat-header-name{font-weight:600;font-size:15px}
+.chat-header-status{font-size:12px;opacity:0.9}
+.chat-actions{display:flex;gap:8px}
+.chat-action-btn{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.2);border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:background 0.2s}
+.chat-action-btn:hover{background:rgba(255,255,255,0.3)}
+
+.chat-messages{flex:1;overflow-y:auto;padding:12px;background:#f0f2f5;background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+.dark .chat-messages{background:#18191a}
+
+.msg-wrapper{margin-bottom:8px;display:flex;animation:msgIn 0.3s ease}
+@keyframes msgIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.msg-wrapper.user{justify-content:flex-end}
+.msg-wrapper.admin{justify-content:flex-start}
+.msg-bubble{max-width:75%;padding:8px 12px;border-radius:18px;font-size:14px;line-height:1.4;word-wrap:break-word;position:relative}
+.user .msg-bubble{background:#0084ff;color:white;border-bottom-right-radius:4px}
+.admin .msg-bubble{background:white;color:#1c1e21;border-bottom-left-radius:4px}
+.dark .admin .msg-bubble{background:#3a3b3c;color:#e4e6eb}
+.msg-image{max-width:250px;border-radius:12px;cursor:pointer;overflow:hidden}
+.msg-image img{width:100%;height:auto;display:block;border-radius:12px}
+.msg-voice{display:flex;align-items:center;gap:8px;padding:8px 12px;min-width:150px}
+.msg-voice button{width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px}
+.user .msg-voice button{background:rgba(255,255,255,0.2);color:white}
+.admin .msg-voice button{background:#e4e6eb;color:#0084ff}
+.voice-wave{flex:1;height:30px;display:flex;align-items:center;gap:2px}
+.voice-wave span{width:3px;background:currentColor;border-radius:2px;animation:wave 1s ease-in-out infinite;opacity:0.6}
+@keyframes wave{0%,100%{height:8px}50%{height:20px}}
+.msg-time{font-size:11px;margin-top:4px;opacity:0.7;display:flex;align-items:center;gap:4px;justify-content:flex-end}
+
+.chat-input-area{background:white;padding:8px 12px;display:flex;align-items:center;gap:8px;border-top:1px solid #e4e6eb}
+.dark .chat-input-area{background:#242526;border-top:1px solid #3a3b3c}
+.chat-input-actions{display:flex;gap:4px}
+.chat-input-btn{width:36px;height:36px;border-radius:50%;border:none;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#0084ff;font-size:18px;transition:background 0.2s}
+.chat-input-btn:hover{background:rgba(0,132,255,0.1)}
+.chat-text-input{flex:1;background:#f0f2f5;border:none;border-radius:20px;padding:10px 16px;font-size:14px;outline:none;color:#1c1e21}
+.dark .chat-text-input{background:#3a3b3c;color:#e4e6eb}
+.chat-text-input::placeholder{color:#8a8d91}
+.chat-send-btn{width:38px;height:38px;border-radius:50%;background:#0084ff;border:none;color:white;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+.chat-send-btn:hover{background:#0073e6;transform:scale(1.05)}
+.chat-send-btn:disabled{opacity:0.5;cursor:not-allowed}
+.voice-record-btn{width:38px;height:38px;border-radius:50%;background:#ff3b30;border:none;color:white;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,59,48,0.4)}50%{box-shadow:0 0 0 12px rgba(255,59,48,0)}}
+.recording-timer{font-size:12px;color:#ff3b30;font-weight:600}
+
+.chat-login{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:30px 20px;text-align:center;background:#f0f2f5}
+.dark .chat-login{background:#18191a}
+.chat-login-avatar{width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#0084ff,#00c6ff);display:flex;align-items:center;justify-content:center;font-size:36px;color:white;margin-bottom:16px;overflow:hidden}
+.chat-login-avatar img{width:100%;height:100%;object-fit:cover}
+.chat-login h3{font-size:18px;font-weight:700;margin-bottom:6px;color:#1c1e21}
+.dark .chat-login h3{color:#e4e6eb}
+.chat-login p{font-size:13px;color:#65676b;margin-bottom:20px}
+.chat-login input{width:100%;background:white;border:2px solid #e4e6eb;padding:12px 16px;border-radius:12px;font-size:14px;margin-bottom:10px;outline:none;transition:border 0.2s}
+.dark .chat-login input{background:#3a3b3c;border-color:#3a3b3c;color:#e4e6eb}
+.chat-login input:focus{border-color:#0084ff}
+.chat-login button{width:100%;background:linear-gradient(135deg,#0084ff,#00c6ff);color:white;border:none;padding:14px;border-radius:12px;font-weight:600;cursor:pointer;font-size:15px;transition:transform 0.2s}
+.chat-login button:hover{transform:translateY(-1px)}
+.chat-login button:active{transform:translateY(0)}
+
+@media(max-width:640px){
+.chat-window{width:100%;max-width:100%;bottom:0;right:0;border-radius:16px 16px 0 0;height:100%;max-height:100%}
+.messenger-btn{bottom:16px;right:16px;width:56px;height:56px}
+}
 </style>
 </head>
-<body class="min-h-screen">
+<body>
 
-<header class="fixed top-0 left-0 right-0 z-40 glass border-b border-white/5">
-<div class="max-w-5xl mx-auto px-3">
-<div class="flex items-center justify-between h-12">
-<div class="flex items-center gap-2">
-<img src="${DATA.celebrity.photo}" alt="" class="w-7 h-7 rounded-full border-2 border-green-500 object-cover" onerror="this.style.display='none'">
-<span class="text-sm font-bold gradient-text">Verification Hub</span>
+<!-- NAVBAR -->
+<header class="glass sticky top-0 z-40">
+<div class="max-w-5xl mx-auto px-4">
+<div class="flex items-center justify-between h-14">
+<div class="flex items-center gap-3">
+<img src="${DATA.celebrity.photo}" alt="" class="w-9 h-9 rounded-full border-2 border-green-500 object-cover" onerror="this.style.display='none'">
+<span class="text-base font-bold gradient-text">Verification Hub</span>
 </div>
 <nav class="flex items-center gap-1">
-<a href="#official" class="px-2 py-1 text-xs text-gray-400 hover:text-white rounded">Official</a>
-<a href="#fake" class="px-2 py-1 text-xs text-gray-400 hover:text-red-400 rounded">Fakes</a>
-${coverSongs.length > 0 ? '<a href="#music" class="px-2 py-1 text-xs text-gray-400 hover:text-green-400 rounded">Music</a>' : ''}
+<a href="#official" class="px-3 py-1.5 text-sm text-gray-600 hover:text-blue-600 rounded-lg font-medium">Official</a>
+<a href="#fake" class="px-3 py-1.5 text-sm text-gray-600 hover:text-red-600 rounded-lg font-medium">Fakes</a>
+${coverSongs.length > 0 ? '<a href="#music" class="px-3 py-1.5 text-sm text-gray-600 hover:text-green-600 rounded-lg font-medium">Music</a>' : ''}
 </nav>
 </div>
 </div>
 </header>
 
-<main class="pt-14 pb-24">
-<div class="max-w-5xl mx-auto px-3">
+<main class="pt-16 pb-28">
+<div class="max-w-5xl mx-auto px-4">
 
-<!-- Profile -->
-<section class="text-center py-6">
-<div class="relative inline-block mb-3">
-<img src="${DATA.celebrity.photo}" alt="" class="w-20 h-20 rounded-full border-3 border-green-500 object-cover mx-auto verified-glow" onerror="this.style.display='none'">
-<div class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-3 border-[#09090b] flex items-center justify-center">
-<svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+<!-- Profile Section -->
+<section class="text-center py-8">
+<div class="relative inline-block mb-4">
+<img src="${DATA.celebrity.photo}" alt="" class="w-24 h-24 rounded-full border-3 border-green-500 object-cover mx-auto verified-glow" onerror="this.style.display='none'">
+<div class="absolute -bottom-1 -right-1 w-7 h-7 bg-green-500 rounded-full border-3 border-white flex items-center justify-center">
+<svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
 </div>
 </div>
-<h1 class="text-xl font-extrabold gradient-text mb-1">${DATA.celebrity.fullName}</h1>
-<p class="text-xs text-gray-400 mb-3">${DATA.celebrity.bio}</p>
-<div class="flex justify-center gap-4 mb-3">
-<div class="glass rounded-xl px-4 py-2"><div class="text-lg font-bold text-white">${DATA.celebrity.tiktokFollowers}</div><div class="text-xs text-gray-400">Followers</div></div>
-<div class="glass rounded-xl px-4 py-2"><div class="text-lg font-bold text-white">${DATA.celebrity.tiktokFollowing}</div><div class="text-xs text-gray-400">Following</div></div>
-<div class="glass rounded-xl px-4 py-2"><div class="text-lg font-bold text-white">${DATA.celebrity.tiktokLikes}</div><div class="text-xs text-gray-400">Likes</div></div>
+<h1 class="text-2xl font-extrabold gradient-text mb-1">${DATA.celebrity.fullName}</h1>
+<p class="text-sm text-gray-500 mb-4">${DATA.celebrity.bio}</p>
+<div class="flex justify-center gap-4 mb-4">
+<div class="glass-card rounded-xl px-5 py-3"><div class="text-xl font-bold">${DATA.celebrity.tiktokFollowers}</div><div class="text-xs text-gray-500">Followers</div></div>
+<div class="glass-card rounded-xl px-5 py-3"><div class="text-xl font-bold">${DATA.celebrity.tiktokFollowing}</div><div class="text-xs text-gray-500">Following</div></div>
+<div class="glass-card rounded-xl px-5 py-3"><div class="text-xl font-bold">${DATA.celebrity.tiktokLikes}</div><div class="text-xs text-gray-500">Likes</div></div>
 </div>
-<div class="flex justify-center gap-2 flex-wrap mb-3">
-<span class="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/10 text-green-400 border border-green-500/25 rounded-full text-xs font-semibold verified-glow">✓ Verified Official</span>
-<span class="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-500/10 text-purple-400 border border-purple-500/25 rounded-full text-xs font-semibold">Creator</span>
+<div class="flex justify-center gap-2 flex-wrap mb-4">
+<span class="inline-flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-600 border border-green-200 rounded-full text-xs font-semibold verified-glow">✓ Verified Official</span>
+<span class="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded-full text-xs font-semibold">Creator</span>
 </div>
-<div class="flex justify-center gap-2">
-<a href="${DATA.realAccounts[0].url}" target="_blank" class="inline-flex items-center gap-1.5 px-4 py-2 glass rounded-full text-xs font-semibold hover:border-green-500/50">TikTok</a>
-<a href="${DATA.realAccounts[1].url}" target="_blank" class="inline-flex items-center gap-1.5 px-4 py-2 glass rounded-full text-xs font-semibold hover:border-green-500/50">Facebook</a>
+<div class="flex justify-center gap-3">
+<a href="${DATA.realAccounts[0].url}" target="_blank" class="inline-flex items-center gap-1.5 px-5 py-2.5 glass-card rounded-full text-sm font-semibold hover:shadow-md transition-shadow">TikTok</a>
+<a href="${DATA.realAccounts[1].url}" target="_blank" class="inline-flex items-center gap-1.5 px-5 py-2.5 glass-card rounded-full text-sm font-semibold hover:shadow-md transition-shadow">Facebook</a>
 </div>
 </section>
 
-<!-- Official -->
-<section id="official" class="py-4">
-<div class="flex items-center gap-2 mb-3">
-<div class="w-7 h-7 rounded-lg bg-green-500/15 flex items-center justify-center verified-glow">
-<svg class="w-3.5 h-3.5 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+<!-- Official Accounts -->
+<section id="official" class="py-6">
+<div class="flex items-center gap-2 mb-4">
+<div class="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center verified-glow">
+<svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
 </div>
-<h2 class="text-base font-bold text-white">✓ Official Verified Account</h2>
+<h2 class="text-lg font-bold">✓ Official Verified Account</h2>
 </div>
-<div class="glass-card p-4">
-<span class="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/15 text-green-400 border border-green-500/30 rounded-full text-xs font-bold mb-3">✓ VERIFIED</span>
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-<div class="space-y-2">
-${DATA.realAccounts.map(acc => `
-<div class="bg-[#1f1f23] rounded-xl p-3">
-<div class="flex items-center justify-between mb-2"><span class="text-xs uppercase text-gray-400">${acc.platform}</span><span class="px-2 py-0.5 bg-green-500/10 text-green-400 text-xs rounded-full">Verified</span></div>
-<div class="flex items-center gap-2">
-${acc.screenshot ? `<img src="${acc.screenshot}" alt="" class="w-12 h-12 rounded-lg object-cover">` : '<div class="w-12 h-12 rounded-lg bg-gray-700 flex items-center justify-center text-lg font-bold">' + acc.platform[0] + '</div>'}
-<div><div class="font-bold text-white text-sm">${acc.username}</div><div class="text-xs text-gray-400">${acc.followers} followers</div></div>
-</div>
-</div>`).join('')}
-</div>
-<div class="bg-[#1f1f23] rounded-xl p-4 flex flex-col items-center justify-center text-center">
-<img src="${DATA.celebrity.photo}" alt="" class="w-14 h-14 rounded-full border-2 border-green-500 mb-2" onerror="this.style.display='none'">
-<div class="text-sm font-bold text-white">@baiillamaach_official</div>
-<div class="text-xs text-gray-400 mb-3">TikTok • Facebook</div>
-<a href="${DATA.realAccounts[0].url}" target="_blank" class="bg-green-500 px-5 py-2.5 rounded-full text-white font-bold text-xs hover:bg-green-600">Follow Official</a>
-<p class="text-xs text-gray-500 mt-3">⚠️ This is the only authentic account</p>
-</div>
-</div>
-</div>
-</section>
-
-<!-- Fake -->
-<section id="fake" class="py-4">
-<div class="flex items-center gap-2 mb-3">
-<div class="w-7 h-7 rounded-lg bg-red-500/15 flex items-center justify-center danger-glow">
-<svg class="w-3.5 h-3.5 text-red-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-</div>
-<h2 class="text-base font-bold text-white">⚠️ Fake Accounts Detected</h2>
-<span class="px-2 py-0.5 bg-red-500/15 text-red-400 text-xs rounded-full font-bold">${totalFake} Active</span>
-</div>
+<div class="glass-card p-5">
+<span class="inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-600 border border-green-200 rounded-full text-xs font-bold mb-4">✓ VERIFIED</span>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 <div class="space-y-3">
-${DATA.fakeAccounts.map((a, i) => `
-<div class="glass-card p-3 border-red-500/20">
-<div class="flex items-center justify-between mb-2">
-<div class="flex items-center gap-1.5"><span class="text-red-400 font-bold">⚠</span><span class="font-bold text-red-300 text-xs">Fake #${i+1}</span></div>
-<span class="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full font-bold">${a.threatLevel}</span>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-<div class="relative rounded-xl overflow-hidden border-2 border-red-500/30">
-${a.screenshot ? `<img src="${a.screenshot}" alt="" class="w-full opacity-90">` : '<div class="w-full h-40 flex items-center justify-center text-3xl text-red-500/30">FAKE</div>'}
-<div class="absolute inset-0 flex items-center justify-center"><span class="bg-red-500/85 text-white px-3 py-1 rounded-lg text-xs font-extrabold">FAKE ACCOUNT</span></div>
-</div>
-<div class="space-y-1.5 text-sm">
-<div class="flex justify-between bg-[#1f1f23] rounded-lg px-3 py-1.5"><span class="text-gray-400">Username</span><span class="text-red-300">${a.username}</span></div>
-<div class="flex justify-between bg-[#1f1f23] rounded-lg px-3 py-1.5"><span class="text-gray-400">Reports</span><span class="text-red-300">${a.reportedCount}+</span></div>
-<div class="bg-red-500/5 rounded-lg p-2 text-xs text-red-300">⚠️ ${a.reason}</div>
-</div>
-</div>
-<div class="flex gap-2 mt-3">
-<a href="${a.profileUrl}" target="_blank" class="flex-1 text-center bg-red-500 px-3 py-2 rounded-full text-white text-xs font-bold hover:bg-red-600">Report</a>
-<button class="flex-1 px-3 py-2 bg-[#1f1f23] border border-red-500/25 text-red-300 rounded-full text-xs font-bold hover:bg-red-500/10" onclick="navigator.clipboard.writeText('${a.username}');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)">Copy</button>
+${DATA.realAccounts.map(acc => `
+<div class="bg-gray-50 rounded-xl p-4">
+<div class="flex items-center justify-between mb-2"><span class="text-xs uppercase text-gray-500 font-semibold">${acc.platform}</span><span class="px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded-full font-semibold">Verified</span></div>
+<div class="flex items-center gap-3">
+${acc.screenshot ? `<img src="${acc.screenshot}" alt="" class="w-12 h-12 rounded-lg object-cover">` : '<div class="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-500">' + acc.platform[0] + '</div>'}
+<div><div class="font-bold text-sm">${acc.username}</div><div class="text-xs text-gray-500">${acc.followers} followers</div></div>
 </div>
 </div>`).join('')}
 </div>
-<div class="text-center mt-3">
-<button onclick="document.getElementById('fakeVoice').play()" class="glass px-4 py-2 rounded-full text-xs text-red-300 hover:bg-red-500/10">🔊 Voice Alert</button>
+<div class="bg-gray-50 rounded-xl p-5 flex flex-col items-center justify-center text-center">
+<img src="${DATA.celebrity.photo}" alt="" class="w-16 h-16 rounded-full border-2 border-green-500 mb-3" onerror="this.style.display='none'">
+<div class="font-bold text-sm">@baiillamaach_official</div>
+<div class="text-xs text-gray-500 mb-4">TikTok • Facebook</div>
+<a href="${DATA.realAccounts[0].url}" target="_blank" class="bg-green-500 px-6 py-2.5 rounded-full text-white font-bold text-sm hover:bg-green-600 transition-colors">Follow Official</a>
+<p class="text-xs text-gray-400 mt-3">⚠️ This is the only authentic account</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- Fake Accounts -->
+<section id="fake" class="py-6">
+<div class="flex items-center gap-2 mb-4">
+<div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center danger-glow">
+<svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+</div>
+<h2 class="text-lg font-bold">⚠️ Fake Accounts Detected</h2>
+<span class="px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded-full font-bold">${totalFake} Active</span>
+</div>
+<div class="space-y-4">
+${DATA.fakeAccounts.map((a, i) => `
+<div class="glass-card p-4 border-l-4 border-red-500">
+<div class="flex items-center justify-between mb-3">
+<div class="flex items-center gap-2"><span class="text-red-500 font-bold">⚠</span><span class="font-bold text-red-600 text-sm">Fake #${i+1}</span></div>
+<span class="px-3 py-1 bg-red-50 text-red-600 text-xs rounded-full font-bold">${a.threatLevel}</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+<div class="relative rounded-xl overflow-hidden border-2 border-red-200">
+${a.screenshot ? `<img src="${a.screenshot}" alt="" class="w-full opacity-90">` : '<div class="w-full h-40 flex items-center justify-center text-3xl text-red-300 bg-red-50">FAKE</div>'}
+<div class="absolute inset-0 flex items-center justify-center"><span class="bg-red-500 text-white px-4 py-1.5 rounded-lg text-xs font-extrabold">FAKE ACCOUNT</span></div>
+</div>
+<div class="space-y-2 text-sm">
+<div class="flex justify-between bg-gray-50 rounded-lg px-3 py-2"><span class="text-gray-500">Username</span><span class="text-red-600 font-medium">${a.username}</span></div>
+<div class="flex justify-between bg-gray-50 rounded-lg px-3 py-2"><span class="text-gray-500">Reports</span><span class="text-red-600 font-medium">${a.reportedCount}+</span></div>
+<div class="bg-red-50 rounded-lg p-3 text-xs text-red-600">⚠️ ${a.reason}</div>
+</div>
+</div>
+<div class="flex gap-3 mt-3">
+<a href="${a.profileUrl}" target="_blank" class="flex-1 text-center bg-red-500 px-4 py-2.5 rounded-full text-white text-xs font-bold hover:bg-red-600 transition-colors">Report</a>
+<button class="flex-1 px-4 py-2.5 bg-gray-100 border border-red-200 text-red-500 rounded-full text-xs font-bold hover:bg-red-50 transition-colors" onclick="navigator.clipboard.writeText('${a.username}');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)">Copy</button>
+</div>
+</div>`).join('')}
+</div>
+<div class="text-center mt-4">
+<button onclick="document.getElementById('fakeVoice').play()" class="glass-card px-5 py-2.5 rounded-full text-sm text-red-500 hover:bg-red-50 transition-colors">🔊 Voice Alert</button>
 </div>
 <audio id="fakeVoice" src="${VOICE.fakeAlert}" preload="none"></audio>
 </section>
 
 ${coverSongs.length > 0 ? `
-<section id="music" class="py-4">
-<div class="flex items-center gap-2 mb-3">
-<span>🎵</span>
-<h2 class="text-base font-bold text-white">Cover Music</h2>
-<span class="text-xs text-gray-400 ml-auto">${coverSongs.length} songs</span>
+<section id="music" class="py-6">
+<div class="flex items-center gap-2 mb-4">
+<span class="text-2xl">🎵</span>
+<h2 class="text-lg font-bold">Cover Music</h2>
+<span class="text-sm text-gray-500 ml-auto">${coverSongs.length} songs</span>
 </div>
 <div class="glass-card p-4">
-<div class="space-y-2 max-h-64 overflow-y-auto">
+<div class="space-y-1 max-h-72 overflow-y-auto">
 ${coverSongs.map((s, i) => `
-<div class="flex items-center gap-3 p-2 hover:bg-[#1f1f23] rounded-lg cursor-pointer" onclick="playSong('${s.audioUrl}','${s.title}')">
-<span class="text-xs text-gray-500">${(i+1).toString().padStart(2,'0')}</span>
-<div class="flex-1"><div class="text-sm text-white">${s.title}</div><div class="text-xs text-gray-400">Cover Song</div></div>
-<button class="text-green-400">▶</button>
+<div class="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors" onclick="playSong('${s.audioUrl}','${s.title}')">
+<span class="text-xs text-gray-400 font-mono">${(i+1).toString().padStart(2,'0')}</span>
+<div class="flex-1"><div class="text-sm font-medium">${s.title}</div><div class="text-xs text-gray-400">Cover Song</div></div>
+<button class="text-blue-500">▶</button>
 </div>`).join('')}
 </div>
 </div>
@@ -387,41 +434,61 @@ ${coverSongs.map((s, i) => `
 </div>
 </main>
 
-<!-- ============ CHAT WIDGET ============ -->
+<!-- ============ MESSENGER-STYLE CHAT WIDGET ============ -->
 <div class="chat-widget">
-<button class="chat-btn" onclick="toggleChat()" id="chatBtn">
-<svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
+<button class="messenger-btn" onclick="toggleChat()" id="chatBtn">
+<svg viewBox="0 0 36 36"><path d="M18 2C9.16 2 2 8.65 2 16.79c0 4.66 2.33 8.82 5.98 11.53V34l5.47-3.02c1.45.4 2.98.61 4.55.61 8.84 0 16-6.65 16-14.79S26.84 2 18 2zm1.39 20.53l-4.07-4.34-7.95 4.34 8.74-9.27 4.15 4.34 7.86-4.34-8.73 9.27z"/></svg>
+<span class="messenger-badge" id="unreadBadge">0</span>
 </button>
 
 <div class="chat-window" id="chatWindow">
 <div class="chat-header">
-<div class="chat-avatar">H<div class="chat-online"></div></div>
-<div style="flex:1">
-<div class="chat-header-name">Hammad Bin Amir</div>
-<div class="chat-header-status" id="statusText">Online</div>
+<div class="chat-avatar" id="adminAvatar">
+<img src="${DATA.celebrity.photo}" alt="" onerror="this.parentElement.innerHTML='H'">
+<div class="chat-online"></div>
 </div>
-<button class="chat-close" onclick="toggleChat()">✕</button>
+<div class="chat-header-info">
+<div class="chat-header-name">Hammad Bin Amir</div>
+<div class="chat-header-status" id="statusText">Active now</div>
+</div>
+<div class="chat-actions">
+<button class="chat-action-btn" onclick="toggleChat()">✕</button>
+</div>
 </div>
 
 <div id="chatLogin" class="chat-login">
-<h3>💬 Chat with Hammad</h3>
-<p>Enter your details to start</p>
-<input type="text" id="userName" placeholder="Your Name">
-<input type="text" id="userContact" placeholder="Phone Number or Email">
+<div class="chat-login-avatar">
+<img src="${DATA.celebrity.photo}" alt="" onerror="this.innerHTML='H'">
+</div>
+<h3>Chat with Hammad</h3>
+<p>Enter your details to start messaging</p>
+<input type="text" id="userName" placeholder="Your name" autocomplete="name">
+<input type="text" id="userContact" placeholder="Phone number or email" autocomplete="email">
 <button onclick="registerChat()">Start Chat</button>
 </div>
 
-<div id="chatUI" style="display:none;flex:1;flex-direction:column">
+<div id="chatUI" style="display:none;flex:1;flex-direction:column;height:100%">
 <div class="chat-messages" id="chatMessages">
-<div style="text-align:center;color:#8696a0;font-size:12px;padding:10px">🔒 Messages are secure</div>
+<div style="text-align:center;color:#8a8d91;font-size:12px;padding:20px">
+🔒 Messages are end-to-end encrypted
 </div>
-<div class="typing-indicator" id="typingDiv">
-<div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
-<div style="clear:both"></div>
 </div>
 <div class="chat-input-area">
-<input type="text" id="msgInput" placeholder="Type a message" onkeypress="if(event.key==='Enter')sendMessage()">
-<button class="chat-send-btn" onclick="sendMessage()">➤</button>
+<input type="file" id="imageInput" accept="image/*" style="display:none" onchange="sendImage()">
+<button class="chat-input-btn" onclick="document.getElementById('imageInput').click()" title="Send photo">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5-7l-3 3.72L9 13l-3 4h12l-4-5z"/></svg>
+</button>
+<input type="text" id="msgInput" class="chat-text-input" placeholder="Aa" onkeypress="if(event.key==='Enter')sendTextMessage()">
+<button id="voiceBtn" class="chat-input-btn" onclick="startVoiceRecording()" title="Record voice">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+</button>
+<button id="sendBtn" class="chat-send-btn" onclick="sendTextMessage()" style="display:none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+</button>
+</div>
+<div id="recordingUI" style="display:none;background:#f0f2f5;padding:8px 16px;text-align:center">
+<span class="recording-timer" id="recordingTimer">00:00</span>
+<button class="voice-record-btn" onclick="stopVoiceRecording()">⏹ Stop</button>
 </div>
 </div>
 </div>
@@ -431,136 +498,305 @@ ${coverSongs.map((s, i) => `
 
 <script>
 // Welcome voice
-setTimeout(()=>{const v=document.getElementById('welcomeVoice');if(v&&!sessionStorage.getItem('vp')){v.play().catch(()=>{});sessionStorage.setItem('vp','1')}},2000);
+setTimeout(()=>{
+const v=document.getElementById('welcomeVoice');
+if(v&&!sessionStorage.getItem('vp')){
+v.play().catch(()=>{});
+sessionStorage.setItem('vp','1')
+}
+},2000);
 
 // Music player
-function playSong(url,title){const a=document.getElementById('coverAudio');a.src=url;a.play().catch(()=>{});if(title)document.title=title}
+function playSong(url,title){
+const a=document.getElementById('coverAudio');
+a.src=url;
+a.play().catch(()=>{});
+if(title)document.title='🎵 '+title
+}
 
-// ============ CHAT SYSTEM (Polling) ============
+// ============ CHAT SYSTEM ============
 let chatToken = localStorage.getItem('chatToken');
 let chatId = null;
 let pollInterval = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingTimerInterval = null;
+let recordingSeconds = 0;
 
-// Auto login if token exists
-if(chatToken){
-    verifyToken();
-}
+// Auto login
+if(chatToken) verifyToken();
 
 async function verifyToken(){
-    try{
-        const r = await fetch('/api/chat/verify?token=' + encodeURIComponent(chatToken));
-        const d = await r.json();
-        if(d.success){
-            chatId = d.chatId;
-            showChatUI();
-            loadMessages();
-            startPolling();
-        } else {
-            localStorage.removeItem('chatToken');
-            chatToken = null;
-        }
-    }catch(e){}
+try{
+const r = await fetch('/api/chat/verify?token=' + encodeURIComponent(chatToken));
+const d = await r.json();
+if(d.success){
+chatId = d.chatId;
+showChatUI();
+loadMessages();
+startPolling();
+} else {
+localStorage.removeItem('chatToken');
+chatToken = null;
+}
+}catch(e){console.error('Verify error:',e)}
 }
 
 function toggleChat(){
-    const w = document.getElementById('chatWindow');
-    w.classList.toggle('open');
-    if(w.classList.contains('open') && chatToken){
-        loadMessages();
-    }
+const w = document.getElementById('chatWindow');
+w.classList.toggle('open');
+if(w.classList.contains('open') && chatToken){
+loadMessages();
+updateUnreadBadge(0);
+}
 }
 
 function showChatUI(){
-    document.getElementById('chatLogin').style.display = 'none';
-    document.getElementById('chatUI').style.display = 'flex';
+document.getElementById('chatLogin').style.display = 'none';
+document.getElementById('chatUI').style.display = 'flex';
+updateSendButton();
 }
 
 async function registerChat(){
-    const name = document.getElementById('userName').value.trim();
-    const contact = document.getElementById('userContact').value.trim();
-    
-    if(!name){alert('Please enter your name');return}
-    if(!contact){alert('Please enter phone or email');return}
-    
-    try{
-        const r = await fetch('/api/chat/register', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({name, phoneEmail:contact})
-        });
-        const d = await r.json();
-        
-        if(d.success){
-            chatToken = d.token;
-            chatId = d.chatId;
-            localStorage.setItem('chatToken', chatToken);
-            showChatUI();
-            loadMessages();
-            startPolling();
-        } else {
-            alert(d.error || 'Registration failed');
-        }
-    }catch(e){
-        alert('Connection error. Please try again.');
-    }
+const name = document.getElementById('userName').value.trim();
+const contact = document.getElementById('userContact').value.trim();
+
+if(!name){alert('Please enter your name');return}
+if(!contact){alert('Please enter phone number or email');return}
+
+const btn = document.querySelector('#chatLogin button');
+btn.textContent = 'Connecting...';
+btn.disabled = true;
+
+try{
+const r = await fetch('/api/chat/register', {
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({name, phoneEmail:contact})
+});
+const d = await r.json();
+
+if(d.success){
+chatToken = d.token;
+chatId = d.chatId;
+localStorage.setItem('chatToken', chatToken);
+showChatUI();
+loadMessages();
+startPolling();
+} else {
+alert(d.error || 'Registration failed. Please try again.');
+}
+}catch(e){
+alert('Connection error. Please check your internet and try again.');
+}finally{
+btn.textContent = 'Start Chat';
+btn.disabled = false;
+}
 }
 
 function startPolling(){
-    if(pollInterval) clearInterval(pollInterval);
-    pollInterval = setInterval(loadMessages, 2000);
+if(pollInterval) clearInterval(pollInterval);
+pollInterval = setInterval(loadMessages, 3000);
 }
 
 async function loadMessages(){
-    if(!chatToken) return;
-    try{
-        const r = await fetch('/api/chat/messages?token=' + encodeURIComponent(chatToken) + '&t=' + Date.now());
-        const d = await r.json();
-        
-        if(d.success){
-            const container = document.getElementById('chatMessages');
-            container.innerHTML = '<div style="text-align:center;color:#8696a0;font-size:12px;padding:10px">🔒 Messages are secure</div>';
-            
-            d.messages.forEach(m => {
-                const isUser = m.sender === 'user';
-                const div = document.createElement('div');
-                div.innerHTML = 
-                    '<div class="msg ' + (isUser ? 'msg-out' : 'msg-in') + '">' +
-                    m.message +
-                    '<span class="msg-time">' + new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) + (isUser?' ✓✓':'') + '</span>' +
-                    '</div>';
-                container.appendChild(div);
-            });
-            
-            container.scrollTop = container.scrollHeight;
-        } else {
-            // Token expired
-            clearInterval(pollInterval);
-            localStorage.removeItem('chatToken');
-            chatToken = null;
-            document.getElementById('chatLogin').style.display = 'flex';
-            document.getElementById('chatUI').style.display = 'none';
-        }
-    }catch(e){}
+if(!chatToken) return;
+try{
+const r = await fetch('/api/chat/messages?token=' + encodeURIComponent(chatToken) + '&t=' + Date.now());
+const d = await r.json();
+
+if(d.success){
+const container = document.getElementById('chatMessages');
+const wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
+
+container.innerHTML = '<div style="text-align:center;color:#8a8d91;font-size:12px;padding:10px">🔒 Messages are secure</div>';
+
+d.messages.forEach(m => {
+renderMessage(m, container);
+});
+
+if(wasAtBottom) container.scrollTop = container.scrollHeight;
+} else {
+clearInterval(pollInterval);
+localStorage.removeItem('chatToken');
+chatToken = null;
+document.getElementById('chatLogin').style.display = 'flex';
+document.getElementById('chatUI').style.display = 'none';
+}
+}catch(e){console.error('Load messages error:',e)}
 }
 
-async function sendMessage(){
-    const input = document.getElementById('msgInput');
-    const msg = input.value.trim();
-    if(!msg || !chatToken) return;
-    
-    input.value = '';
-    
-    try{
-        const r = await fetch('/api/chat/send', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({token:chatToken, message:msg})
-        });
-        const d = await r.json();
-        if(d.success){
-            loadMessages();
-        }
-    }catch(e){}
+function renderMessage(m, container){
+const wrapper = document.createElement('div');
+wrapper.className = 'msg-wrapper ' + (m.sender === 'user' ? 'user' : 'admin');
+
+const bubble = document.createElement('div');
+bubble.className = 'msg-bubble';
+
+if(m.type === 'image' && m.fileUrl){
+bubble.className += ' msg-image';
+bubble.innerHTML = '<img src="' + m.fileUrl + '" alt="Photo" onclick="window.open(\'' + m.fileUrl + '\')" loading="lazy">';
+} else if(m.type === 'voice' && m.fileUrl){
+bubble.className += ' msg-voice';
+bubble.innerHTML = 
+'<button onclick="playVoice(\'' + m.fileUrl + '\', this)">▶</button>' +
+'<div class="voice-wave">' +
+Array.from({length:8}, (_,i) => '<span style="animation-delay:' + (i*0.12) + 's;height:' + (8+Math.random()*16) + 'px"></span>').join('') +
+'</div>';
+} else {
+bubble.textContent = m.message;
+}
+
+const time = document.createElement('div');
+time.className = 'msg-time';
+time.innerHTML = new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) + 
+(m.sender === 'user' ? ' <span style="font-size:10px">✓</span>' : '');
+
+bubble.appendChild(time);
+wrapper.appendChild(bubble);
+container.appendChild(wrapper);
+}
+
+function updateSendButton(){
+const input = document.getElementById('msgInput');
+const sendBtn = document.getElementById('sendBtn');
+const voiceBtn = document.getElementById('voiceBtn');
+
+if(input.value.trim()){
+sendBtn.style.display = 'flex';
+voiceBtn.style.display = 'none';
+} else {
+sendBtn.style.display = 'none';
+voiceBtn.style.display = 'flex';
+}
+}
+
+document.getElementById('msgInput').addEventListener('input', updateSendButton);
+
+async function sendTextMessage(){
+const input = document.getElementById('msgInput');
+const msg = input.value.trim();
+if(!msg || !chatToken) return;
+
+input.value = '';
+updateSendButton();
+
+try{
+const r = await fetch('/api/chat/send', {
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({token:chatToken, message:msg, type:'text'})
+});
+const d = await r.json();
+if(d.success) loadMessages();
+}catch(e){console.error('Send error:',e)}
+}
+
+function sendImage(){
+const file = document.getElementById('imageInput').files[0];
+if(!file || !chatToken) return;
+
+const formData = new FormData();
+formData.append('image', file);
+formData.append('token', chatToken);
+
+fetch('/api/chat/send-image', {
+method:'POST',
+body:formData
+}).then(r => r.json()).then(d => {
+if(d.success) loadMessages();
+}).catch(e => console.error('Image send error:',e));
+
+document.getElementById('imageInput').value = '';
+}
+
+async function startVoiceRecording(){
+if(!chatToken) return;
+
+try{
+const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+mediaRecorder = new MediaRecorder(stream, {mimeType:'audio/webm'});
+audioChunks = [];
+
+mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+mediaRecorder.onstop = () => {
+stream.getTracks().forEach(track => track.stop());
+sendVoiceMessage();
+};
+
+mediaRecorder.start();
+recordingSeconds = 0;
+
+document.getElementById('recordingUI').style.display = 'block';
+document.querySelector('.chat-input-area').style.display = 'none';
+document.getElementById('recordingTimer').textContent = '00:00';
+
+recordingTimerInterval = setInterval(() => {
+recordingSeconds++;
+const mins = Math.floor(recordingSeconds/60).toString().padStart(2,'0');
+const secs = (recordingSeconds%60).toString().padStart(2,'0');
+document.getElementById('recordingTimer').textContent = mins + ':' + secs;
+}, 1000);
+
+}catch(e){
+alert('Microphone access denied. Please allow microphone access to record voice messages.');
+}
+}
+
+function stopVoiceRecording(){
+if(mediaRecorder && mediaRecorder.state === 'recording'){
+mediaRecorder.stop();
+clearInterval(recordingTimerInterval);
+document.getElementById('recordingUI').style.display = 'none';
+document.querySelector('.chat-input-area').style.display = 'flex';
+}
+}
+
+async function sendVoiceMessage(){
+if(audioChunks.length === 0) return;
+
+const audioBlob = new Blob(audioChunks, {type:'audio/webm'});
+const formData = new FormData();
+formData.append('voice', audioBlob, 'voice.webm');
+formData.append('token', chatToken);
+
+try{
+const r = await fetch('/api/chat/send-voice', {
+method:'POST',
+body:formData
+});
+const d = await r.json();
+if(d.success) loadMessages();
+}catch(e){console.error('Voice send error:',e)}
+audioChunks = [];
+}
+
+function playVoice(url, btn){
+const audio = new Audio(url);
+const icon = btn;
+icon.textContent = '⏸';
+audio.play();
+audio.onended = () => { icon.textContent = '▶' };
+audio.onpause = () => { icon.textContent = '▶' };
+icon.onclick = () => {
+if(audio.paused){
+audio.play();
+icon.textContent = '⏸';
+} else {
+audio.pause();
+icon.textContent = '▶';
+}
+};
+}
+
+function updateUnreadBadge(count){
+const badge = document.getElementById('unreadBadge');
+if(count > 0){
+badge.style.display = 'flex';
+badge.textContent = count > 99 ? '99+' : count;
+} else {
+badge.style.display = 'none';
+}
 }
 </script>
 </body>
@@ -569,7 +805,7 @@ async function sendMessage(){
 
 // ==================== ADMIN HTML ====================
 function getAdminLoginHTML(error = '') {
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-950 flex items-center justify-center min-h-screen"><div class="bg-gray-900 p-8 rounded-2xl w-full max-w-sm border border-gray-800"><h2 class="text-xl font-bold text-white text-center mb-6">Admin Login</h2>${error?`<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-4 text-sm text-center">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="mb-4"><label class="block text-gray-400 text-sm mb-1">Username</label><input type="text" name="username" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" required></div><div class="mb-5"><label class="block text-gray-400 text-sm mb-1">Password</label><input type="password" name="password" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" required></div><button type="submit" class="w-full py-3 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700">Sign In</button></form><div class="text-center mt-5"><a href="/" class="text-sm text-gray-500 hover:text-white">Back</a></div></div></body></html>`;
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-50 flex items-center justify-center min-h-screen"><div class="bg-white p-8 rounded-2xl w-full max-w-sm shadow-lg"><h2 class="text-xl font-bold text-gray-800 text-center mb-6">Admin Login</h2>${error?`<div class="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl mb-4 text-sm text-center">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="mb-4"><label class="block text-gray-600 text-sm mb-1">Username</label><input type="text" name="username" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500" required></div><div class="mb-5"><label class="block text-gray-600 text-sm mb-1">Password</label><input type="password" name="password" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500" required></div><button type="submit" class="w-full py-3 bg-blue-500 text-white rounded-xl font-bold text-sm hover:bg-blue-600">Sign In</button></form><div class="text-center mt-5"><a href="/" class="text-sm text-gray-400 hover:text-gray-600">Back</a></div></div></body></html>`;
 }
 
 async function getAdminPanelHTML(photos = [], msg = '', err = '') {
@@ -578,20 +814,26 @@ async function getAdminPanelHTML(photos = [], msg = '', err = '') {
     const photoHTML = photos.map(p => `
 <div class="glass-card overflow-hidden">
 <img src="${p.path}" class="w-full h-40 object-cover">
-<div class="p-3">${p.caption?`<p class="text-sm text-gray-300">${p.caption}</p>`:''}<p class="text-xs text-gray-500 mt-1">${new Date(p.uploadedAt).toLocaleDateString()}</p></div>
-<form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="w-full py-2 bg-red-500/10 text-red-400 text-sm font-bold hover:bg-red-500/20" onclick="return confirm('Delete?')">Delete</button></form>
+<div class="p-3">${p.caption?`<p class="text-sm text-gray-700">${p.caption}</p>`:''}<p class="text-xs text-gray-400 mt-1">${new Date(p.uploadedAt).toLocaleDateString()}</p></div>
+<form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="w-full py-2 bg-red-50 text-red-500 text-sm font-bold hover:bg-red-100 rounded-b-lg" onclick="return confirm('Delete?')">Delete</button></form>
 </div>`).join('');
 
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<style>.glass-card{background:rgba(24,24,28,0.85);border:1px solid rgba(255,255,255,0.06);border-radius:12px}body{background:#09090b;color:#e5e5e5;font-family:sans-serif}</style></head>
-<body class="min-h-screen">
-<header class="glass-card sticky top-0 z-50 p-4 mb-6"><div class="max-w-6xl mx-auto flex justify-between items-center"><h1 class="text-lg font-bold text-purple-400">Admin Panel</h1><div class="flex gap-2"><a href="/admin/chat" class="px-3 py-1.5 bg-purple-600 rounded-lg text-xs hover:bg-purple-700">Chat Panel</a><a href="/" class="px-3 py-1.5 bg-gray-800 rounded-lg text-xs">Site</a><a href="/admin/logout" class="px-3 py-1.5 bg-gray-800 rounded-lg text-xs">Logout</a></div></div></header>
+<style>.glass-card{background:white;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}body{background:#f0f2f5;font-family:-apple-system,sans-serif}</style></head>
+<body>
+<header class="glass-card sticky top-0 z-50 p-4 mb-6"><div class="max-w-6xl mx-auto flex justify-between items-center"><h1 class="text-lg font-bold text-blue-600">Admin Panel</h1><div class="flex gap-2"><a href="/admin/chat" class="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">💬 Chat Panel</a><a href="/" class="px-3 py-2 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">Site</a><a href="/admin/logout" class="px-3 py-2 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">Logout</a></div></div></header>
 <div class="max-w-6xl mx-auto px-4">
-${msg?`<div class="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-xl mb-4 text-sm">${msg}</div>`:''}
-${err?`<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-4 text-sm">${err}</div>`:''}
-<h2 class="text-lg font-bold text-white mb-4">Gallery (${photos.length})</h2>
-${photos.length?`<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">${photoHTML}</div>`:'<p class="text-gray-500 text-center py-12">No photos yet</p>'}
+${msg?`<div class="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-xl mb-4 text-sm">${msg}</div>`:''}
+${err?`<div class="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl mb-4 text-sm">${err}</div>`:''}
+<form method="POST" action="/admin/upload" enctype="multipart/form-data" class="glass-card p-4 mb-6">
+<h2 class="font-bold text-gray-700 mb-3">Upload Photo</h2>
+<div class="flex gap-3"><input type="file" name="photo" accept="image/*" class="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm" required>
+<button type="submit" class="px-6 py-3 bg-blue-500 text-white rounded-xl text-sm font-bold hover:bg-blue-600">Upload</button></div>
+<input type="text" name="caption" placeholder="Caption (optional)" class="w-full mt-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm">
+</form>
+<h2 class="text-lg font-bold text-gray-800 mb-4">Gallery (${photos.length})</h2>
+${photos.length?`<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">${photoHTML}</div>`:'<p class="text-gray-500 text-center py-12">No photos yet</p>'}
 </div></body></html>`;
 }
 
@@ -611,11 +853,23 @@ const server = http.createServer(async (req, res) => {
     // Static assets
     if (pathname.startsWith('/assets/')) {
         const assetPath = path.join(__dir, decodeURIComponent(pathname));
-        if (!assetPath.startsWith(ASSETS_DIR)) { res.writeHead(403); res.end(); return; }
+        const allowedDirs = [ASSETS_DIR, CHAT_MEDIA_DIR, CHAT_VOICE_DIR];
+        if (!allowedDirs.some(dir => assetPath.startsWith(dir))) { 
+            res.writeHead(403); res.end(); return; 
+        }
         if (fs.existsSync(assetPath)) {
             const ext = path.extname(assetPath).toLowerCase();
-            const types = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac' };
-            res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' });
+            const types = { 
+                '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg',
+                '.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml',
+                '.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg',
+                '.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac',
+                '.webm':'audio/webm'
+            };
+            res.writeHead(200, { 
+                'Content-Type': types[ext] || 'application/octet-stream', 
+                'Cache-Control': 'public, max-age=86400' 
+            });
             fs.createReadStream(assetPath).pipe(res);
         } else { res.writeHead(404); res.end(); }
         return;
@@ -628,10 +882,18 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const { name, phoneEmail } = JSON.parse(body);
-                if (!name || !phoneEmail) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'All fields required' })); return; }
+                if (!name || !phoneEmail) { 
+                    res.writeHead(400, { 'Content-Type': 'application/json' }); 
+                    res.end(JSON.stringify({ success: false, error: 'All fields required' })); 
+                    return; 
+                }
                 
                 const user = await createOrGetChatUser(name, phoneEmail);
-                if (!user) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Failed to create user' })); return; }
+                if (!user) { 
+                    res.writeHead(500, { 'Content-Type': 'application/json' }); 
+                    res.end(JSON.stringify({ success: false, error: 'Failed to create user' })); 
+                    return; 
+                }
                 
                 const token = await createChatSession(user.chatId);
                 
@@ -662,10 +924,18 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/chat/messages' && method === 'GET') {
         const token = parsedUrl.query.token;
-        if (!token) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+        if (!token) { 
+            res.writeHead(401, { 'Content-Type': 'application/json' }); 
+            res.end(JSON.stringify({ success: false })); 
+            return; 
+        }
         
         const user = await getChatUserByToken(token);
-        if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Invalid token' })); return; }
+        if (!user) { 
+            res.writeHead(401, { 'Content-Type': 'application/json' }); 
+            res.end(JSON.stringify({ success: false, error: 'Invalid token' })); 
+            return; 
+        }
         
         const messages = await getChatMessages(user.chatId);
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -678,18 +948,109 @@ const server = http.createServer(async (req, res) => {
         req.on('data', c => body += c);
         req.on('end', async () => {
             try {
-                const { token, message } = JSON.parse(body);
-                if (!token || !message) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+                const { token, message, type } = JSON.parse(body);
+                if (!token || !message) { 
+                    res.writeHead(400, { 'Content-Type': 'application/json' }); 
+                    res.end(JSON.stringify({ success: false })); 
+                    return; 
+                }
                 
                 const user = await getChatUserByToken(token);
-                if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Invalid token' })); return; }
+                if (!user) { 
+                    res.writeHead(401, { 'Content-Type': 'application/json' }); 
+                    res.end(JSON.stringify({ success: false, error: 'Invalid token' })); 
+                    return; 
+                }
                 
-                await saveChatMessage(user.chatId, 'user', message);
+                await saveChatMessage(user.chatId, 'user', message, type || 'text');
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: true }));
             } catch (e) {
+                console.error('Send error:', e);
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: false }));
+            }
+        });
+        return;
+    }
+
+    if (pathname === '/api/chat/send-image' && method === 'POST') {
+        const form = new formidable.IncomingForm({ 
+            uploadDir: CHAT_MEDIA_DIR, 
+            keepExtensions: true, 
+            maxFileSize: 10 * 1024 * 1024 
+        });
+        form.parse(req, async (err, fields, files) => {
+            try {
+                const token = Array.isArray(fields.token) ? fields.token[0] : fields.token;
+                const user = await getChatUserByToken(token);
+                if (!user) {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, error: 'Invalid token' }));
+                    return;
+                }
+                
+                const imageFile = Array.isArray(files.image) ? files.image[0] : files.image;
+                if (!imageFile || !imageFile.originalFilename) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, error: 'No file' }));
+                    return;
+                }
+                
+                const filename = Date.now() + '_' + crypto.randomBytes(4).toString('hex') + path.extname(imageFile.originalFilename);
+                const newPath = path.join(CHAT_MEDIA_DIR, filename);
+                fs.renameSync(imageFile.filepath, newPath);
+                
+                const fileUrl = '/assets/chat_media/' + filename;
+                await saveChatMessage(user.chatId, 'user', '📷 Photo', 'image', fileUrl);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, fileUrl }));
+            } catch (e) {
+                console.error('Image upload error:', e);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: 'Upload failed' }));
+            }
+        });
+        return;
+    }
+
+    if (pathname === '/api/chat/send-voice' && method === 'POST') {
+        const form = new formidable.IncomingForm({ 
+            uploadDir: CHAT_VOICE_DIR, 
+            keepExtensions: true, 
+            maxFileSize: 5 * 1024 * 1024 
+        });
+        form.parse(req, async (err, fields, files) => {
+            try {
+                const token = Array.isArray(fields.token) ? fields.token[0] : fields.token;
+                const user = await getChatUserByToken(token);
+                if (!user) {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, error: 'Invalid token' }));
+                    return;
+                }
+                
+                const voiceFile = Array.isArray(files.voice) ? files.voice[0] : files.voice;
+                if (!voiceFile || !voiceFile.originalFilename) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, error: 'No file' }));
+                    return;
+                }
+                
+                const filename = Date.now() + '_' + crypto.randomBytes(4).toString('hex') + '.webm';
+                const newPath = path.join(CHAT_VOICE_DIR, filename);
+                fs.renameSync(voiceFile.filepath, newPath);
+                
+                const fileUrl = '/assets/chat_voice/' + filename;
+                await saveChatMessage(user.chatId, 'user', '🎤 Voice message', 'voice', fileUrl);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, fileUrl }));
+            } catch (e) {
+                console.error('Voice upload error:', e);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: 'Upload failed' }));
             }
         });
         return;
@@ -710,37 +1071,49 @@ const server = http.createServer(async (req, res) => {
         }
         
         const userList = chatList.map(c => `
-<div class="p-3 hover:bg-gray-800 cursor-pointer border-b border-gray-800 ${c.chatId === chatId ? 'bg-purple-600/20 border-l-2 border-purple-500' : ''}" onclick="location.href='/admin/chat?chatId=${c.chatId}'">
+<div class="p-3 hover:bg-gray-100 cursor-pointer border-b ${c.chatId === chatId ? 'bg-blue-50 border-l-3 border-blue-500' : ''}" onclick="location.href='/admin/chat?chatId=${c.chatId}'">
 <div class="flex justify-between items-center">
-<div><div class="text-sm font-semibold text-white">${c.name}</div><div class="text-xs text-gray-400">${c.phoneEmail}</div></div>
-${c.unread > 0 ? `<span class="bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">${c.unread}</span>` : ''}
+<div><div class="text-sm font-semibold">${c.name}</div><div class="text-xs text-gray-500">${c.phoneEmail}</div></div>
+${c.unread > 0 ? `<span class="bg-blue-500 text-white text-xs rounded-full px-2 py-0.5">${c.unread}</span>` : ''}
 </div>
-${c.lastMessage ? `<div class="text-xs text-gray-500 mt-1 truncate">${c.lastMessage.message}</div>` : ''}
+${c.lastMessage ? `<div class="text-xs text-gray-400 mt-1 truncate">${c.lastMessage.message}</div>` : ''}
 </div>`).join('');
 
-        const msgHTML = messages.map(m => `
-<div class="flex ${m.sender === 'user' ? 'justify-start' : 'justify-end'} mb-3">
-<div class="max-w-[70%] px-4 py-2 rounded-lg text-sm ${m.sender === 'user' ? 'bg-gray-800 text-white rounded-bl-sm' : 'bg-green-600 text-white rounded-br-sm'}">
+        const msgHTML = messages.map(m => {
+            if(m.type === 'image' && m.fileUrl) {
+                return `<div class="flex ${m.sender === 'user' ? 'justify-start' : 'justify-end'} mb-3">
+<div class="max-w-[70%]"><img src="${m.fileUrl}" class="rounded-xl max-w-[250px]" onclick="window.open('${m.fileUrl}')">
+<div class="text-xs text-gray-400 mt-1">${new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div></div>`;
+            }
+            if(m.type === 'voice' && m.fileUrl) {
+                return `<div class="flex ${m.sender === 'user' ? 'justify-start' : 'justify-end'} mb-3">
+<div class="max-w-[70%] px-4 py-2 rounded-xl ${m.sender === 'user' ? 'bg-gray-100' : 'bg-blue-500 text-white'}">
+<audio controls src="${m.fileUrl}" style="width:200px;height:30px"></audio>
+<div class="text-xs mt-1">${new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div></div>`;
+            }
+            return `<div class="flex ${m.sender === 'user' ? 'justify-start' : 'justify-end'} mb-3">
+<div class="max-w-[70%] px-4 py-2 rounded-xl text-sm ${m.sender === 'user' ? 'bg-gray-100 text-gray-800' : 'bg-blue-500 text-white'}">
 ${m.message}
-<div class="text-xs text-gray-400 mt-1 text-right">${new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
-</div>
-</div>`).join('');
+<div class="text-xs mt-1 opacity-70 text-right">${new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+</div></div>`;
+        }).join('');
 
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Chat Panel</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<style>body{background:#111b21;color:#e5e5e5;font-family:sans-serif;height:100vh;display:flex;margin:0}
-.sidebar{width:350px;background:#111b21;border-right:1px solid #2a3942;display:flex;flex-direction:column}
+<style>body{background:white;font-family:-apple-system,sans-serif;height:100vh;display:flex;margin:0}
+.sidebar{width:350px;background:#f0f2f5;border-right:1px solid #e4e6eb;display:flex;flex-direction:column}
 .main{flex:1;display:flex;flex-direction:column}
-.header{background:#202c33;padding:12px 16px;font-weight:600}
-.messages{flex:1;overflow-y:auto;padding:16px;background:#0b141a}
-.input-area{background:#202c33;padding:10px 16px;display:flex;gap:8px}
-.input-area input{flex:1;background:#2a3942;border:none;padding:10px 16px;border-radius:24px;color:white;outline:none}
-.input-area button{background:#00a884;color:white;border:none;padding:10px 20px;border-radius:24px;cursor:pointer;font-weight:600}
+.header{background:white;padding:12px 16px;font-weight:600;border-bottom:1px solid #e4e6eb}
+.messages{flex:1;overflow-y:auto;padding:16px;background:#f0f2f5}
+.input-area{background:white;padding:10px 16px;display:flex;gap:8px;border-top:1px solid #e4e6eb}
+.input-area input{flex:1;background:#f0f2f5;border:none;padding:10px 16px;border-radius:24px;outline:none;font-size:14px}
+.input-area button{background:#0084ff;color:white;border:none;padding:10px 20px;border-radius:24px;cursor:pointer;font-weight:600;font-size:14px}
+.input-area button:hover{background:#0073e6}
 </style></head>
 <body>
 <div class="sidebar">
-<div class="header flex justify-between items-center"><span>💬 Chats</span><a href="/admin" class="text-xs text-gray-400 hover:text-white">← Admin</a></div>
+<div class="header flex justify-between items-center"><span>💬 Chats</span><a href="/admin" class="text-sm text-gray-500 hover:text-blue-500">← Admin</a></div>
 <div class="flex-1 overflow-y-auto">${userList}</div>
 </div>
 <div class="main">
@@ -754,31 +1127,37 @@ ${chatId ? `
 <script>
 let cid = '${chatId}';
 async function loadMsgs(){
-    try{
-        const r = await fetch('/api/admin/messages?chatId=' + cid);
-        const d = await r.json();
-        if(d.success){
-            document.getElementById('msgContainer').innerHTML = d.messages.map(m => 
-                '<div class="flex ' + (m.sender==='user'?'justify-start':'justify-end') + ' mb-3">' +
-                '<div class="max-w-[70%] px-4 py-2 rounded-lg text-sm ' + (m.sender==='user'?'bg-gray-800 text-white rounded-bl-sm':'bg-green-600 text-white rounded-br-sm') + '">' +
-                m.message + '<div class="text-xs text-gray-400 mt-1 text-right">' + new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) + '</div></div></div>'
-            ).join('');
-            const c = document.getElementById('msgContainer');
-            c.scrollTop = c.scrollHeight;
-        }
-    }catch(e){}
+try{
+const r = await fetch('/api/admin/messages?chatId=' + cid);
+const d = await r.json();
+if(d.success){
+let html = '';
+d.messages.forEach(m => {
+if(m.type==='image'&&m.fileUrl){
+html += '<div class="flex '+(m.sender==='user'?'justify-start':'justify-end')+' mb-3"><div class="max-w-[70%]"><img src="'+m.fileUrl+'" class="rounded-xl max-w-[250px]" onclick="window.open(\''+m.fileUrl+'\')"><div class="text-xs text-gray-400 mt-1">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div></div>';
+} else if(m.type==='voice'&&m.fileUrl){
+html += '<div class="flex '+(m.sender==='user'?'justify-start':'justify-end')+' mb-3"><div class="max-w-[70%] px-4 py-2 rounded-xl '+(m.sender==='user'?'bg-gray-100':'bg-blue-500 text-white')+'"><audio controls src="'+m.fileUrl+'" style="width:200px;height:30px"></audio><div class="text-xs mt-1">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div></div>';
+} else {
+html += '<div class="flex '+(m.sender==='user'?'justify-start':'justify-end')+' mb-3"><div class="max-w-[70%] px-4 py-2 rounded-xl text-sm '+(m.sender==='user'?'bg-gray-100 text-gray-800':'bg-blue-500 text-white')+'">'+m.message+'<div class="text-xs mt-1 opacity-70 text-right">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div></div>';
+}
+});
+document.getElementById('msgContainer').innerHTML = html;
+const c = document.getElementById('msgContainer');
+c.scrollTop = c.scrollHeight;
+}
+}catch(e){}
 }
 async function sendAdminMsg(){
-    const input = document.getElementById('adminMsg');
-    const msg = input.value.trim();
-    if(!msg) return;
-    input.value = '';
-    try{
-        await fetch('/api/admin/send', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:cid, message:msg})});
-        loadMsgs();
-    }catch(e){}
+const input = document.getElementById('adminMsg');
+const msg = input.value.trim();
+if(!msg) return;
+input.value = '';
+try{
+await fetch('/api/admin/send', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:cid, message:msg, type:'text'})});
+loadMsgs();
+}catch(e){}
 }
-setInterval(loadMsgs, 2000);
+setInterval(loadMsgs, 3000);
 </script>` : '<div class="flex-1 flex items-center justify-center text-gray-500">Select a conversation</div>'}
 </div>
 </body></html>`);
@@ -804,8 +1183,8 @@ setInterval(loadMsgs, 2000);
         let body = '';
         req.on('data', c => body += c);
         req.on('end', async () => {
-            const { chatId, message } = JSON.parse(body);
-            await saveChatMessage(chatId, 'admin', message);
+            const { chatId, message, type } = JSON.parse(body);
+            await saveChatMessage(chatId, 'admin', message, type || 'text');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true }));
         });
@@ -900,9 +1279,9 @@ setInterval(loadMsgs, 2000);
 async function start() {
     await connectDB();
     server.listen(PORT, () => {
-        console.log('Server running on port', PORT);
-        console.log('Admin: /admin (admin / admin123)');
-        console.log('Chat uses polling - no WebSocket needed');
+        console.log('✅ Server running on port', PORT);
+        console.log('👤 Admin: /admin (admin / admin123)');
+        console.log('💬 Chat uses polling with Messenger-style UI');
     });
 }
 
