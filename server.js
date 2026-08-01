@@ -32,7 +32,10 @@ const IMAGES = {
     reportIcon: "/assets/report.png",
     blueTick: "/assets/bluetick.png",
     fbFlag: "/assets/flag.png",
-    voiceMic: "/assets/microphone-in-hand.gif"
+    voiceMic: "/assets/microphone-in-hand.gif",
+    communication: "/assets/communication.png",
+    socialMedia: "/assets/social-media.png",
+    musicIcon: "/assets/music-icon.png"
 };
 
 const VOICE = {
@@ -82,9 +85,8 @@ async function connectDB() {
         if (!await admins.findOne({ username: 'admin' })) {
             await admins.insertOne({ username: 'admin', password: await bcrypt.hash('admin123', 10), createdAt: new Date() });
         }
-        console.log('✅ Database connected');
         return true;
-    } catch (e) { console.error('DB Error:', e.message); return false; }
+    } catch (e) { return false; }
 }
 
 async function getGalleryPhotos() { if (!db) return []; try { return await db.collection('gallery_photos').find({}).sort({ uploadedAt: -1 }).toArray(); } catch (e) { return []; } }
@@ -120,17 +122,13 @@ async function getChatUserByToken(token) {
     return await db.collection('chat_users').findOne({ chatId: session.chatId });
 }
 
-async function getChatMessages(chatId) {
-    return await db.collection('chat_messages').find({ chatId }).sort({ createdAt: 1 }).limit(100).toArray();
-}
-
+async function getChatMessages(chatId) { return await db.collection('chat_messages').find({ chatId }).sort({ createdAt: 1 }).limit(100).toArray(); }
 async function saveChatMessage(chatId, sender, message) {
     const msg = { chatId, sender, message, createdAt: new Date(), read: false };
     await db.collection('chat_messages').insertOne(msg);
     await db.collection('chat_users').updateOne({ chatId }, { $set: { lastSeen: new Date() } });
     return msg;
 }
-
 async function getAdminChatList() {
     const users = await db.collection('chat_users').find({ status: 'active' }).sort({ lastSeen: -1 }).toArray();
     const list = [];
@@ -141,29 +139,17 @@ async function getAdminChatList() {
     }
     return list;
 }
-
-async function markMessagesRead(chatId) {
-    await db.collection('chat_messages').updateMany({ chatId, sender: 'user', read: false }, { $set: { read: true } });
-}
+async function markMessagesRead(chatId) { await db.collection('chat_messages').updateMany({ chatId, sender: 'user', read: false }, { $set: { read: true } }); }
 
 const DATA = {
-    celebrity: {
-        name: "Baiilla Maach",
-        fullName: "Baiilla Maach Official",
-        photo: IMAGES.profile,
-        bio: "Official Entertainment Profile | Bangladesh",
-        tiktokFollowers: "5,000",
-        tiktokFollowing: "0",
-        tiktokLikes: "50K",
-        location: "Dhaka, Bangladesh"
-    },
+    celebrity: { name: "Baiilla Maach", fullName: "Baiilla Maach Official", photo: IMAGES.profile, bio: "Official Entertainment Profile | Bangladesh", tiktokFollowers: "5,000", tiktokFollowing: "0", tiktokLikes: "50K", location: "Dhaka, Bangladesh" },
     realAccounts: [
-        { platform: "TikTok", username: "@baiillamaach_official", url: "https://tiktok.com/@baiillamaach_official", icon: IMAGES.tiktokIcon, screenshot: IMAGES.official, verified: true, followers: "5,000", following: "0", likes: "50K", verifiedIcon: IMAGES.blueTick },
-        { platform: "Facebook", username: "Baiilla Maach Official", url: "https://www.facebook.com/profile.php?id=61575202118828", icon: IMAGES.fbFlag, screenshot: null, verified: true, followers: "Growing", verifiedIcon: IMAGES.blueTick }
+        { platform: "TikTok", username: "@baiillamaach_official", url: "https://tiktok.com/@baiillamaach_official", icon: IMAGES.tiktokIcon, screenshot: IMAGES.official, verified: true, followers: "5,000", verifiedIcon: IMAGES.socialMedia },
+        { platform: "Facebook", username: "Baiilla Maach Official", url: "https://www.facebook.com/profile.php?id=61575202118828", icon: IMAGES.communication, screenshot: null, verified: true, followers: "Growing", verifiedIcon: IMAGES.socialMedia }
     ],
     fakeAccounts: [
-        { platform: "TikTok", username: "@baiilla_mach", profileUrl: "https://tiktok.com/@baiilla_mach", icon: IMAGES.tiktokIcon, screenshot: IMAGES.danger, reason: "Copies official content and logo to deceive followers.", threatLevel: "Critical", reportedCount: 156, detectIcon: IMAGES.fakeDetect, reportIcon: IMAGES.reportIcon },
-        { platform: "TikTok", username: "@hammad_fams0", profileUrl: "https://tiktok.com/@hammad_fams0", icon: IMAGES.tiktokIcon, screenshot: IMAGES.fraud, reason: "Uses official name and photo to mislead followers.", threatLevel: "High", reportedCount: 89, detectIcon: IMAGES.fakeDetect, reportIcon: IMAGES.reportIcon }
+        { platform: "TikTok", username: "@baiilla_mach", profileUrl: "https://tiktok.com/@baiilla_mach", icon: IMAGES.tiktokIcon, screenshot: IMAGES.danger, reason: "Copies official content and logo to deceive followers.", threatLevel: "Critical", reportedCount: 156 },
+        { platform: "TikTok", username: "@hammad_fams0", profileUrl: "https://tiktok.com/@hammad_fams0", icon: IMAGES.tiktokIcon, screenshot: IMAGES.fraud, reason: "Uses official name and photo to mislead followers.", threatLevel: "High", reportedCount: 89 }
     ]
 };
 
@@ -171,18 +157,15 @@ const sessions = new Map();
 function createSession(u) { const id = crypto.randomBytes(32).toString('hex'); sessions.set(id, { username: u, createdAt: Date.now() }); return id; }
 function getSession(id) { const s = sessions.get(id); if (!s) return null; if (Date.now() - s.createdAt > 7200000) { sessions.delete(id); return null; } return s; }
 function parseCookies(h) { const c = {}; if (h) h.split(';').forEach(x => { const p = x.split('='); c[p[0].trim()] = p[1] ? p[1].trim() : ''; }); return c; }
-
 function getLastSeenText() {
     if (adminPresence.isOnline) return 'Online now';
     if (!adminPresence.lastSeen) return 'Offline';
     const diffMs = Date.now() - adminPresence.lastSeen.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
     if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `Active ${diffMins} min ago`;
+    if (diffMins < 60) return `Active ${diffMins}m ago`;
+    const diffHours = Math.floor(diffMs / 3600000);
     if (diffHours < 24) return `Active ${diffHours}h ago`;
-    if (diffDays < 7) return `Active ${diffDays}d ago`;
     return `Last seen ${adminPresence.lastSeen.toLocaleDateString()}`;
 }
 
@@ -197,320 +180,774 @@ function getMainHTML(galleryPhotos = []) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#6366f1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0f0f1a">
 <title>Baiilla Maach | Verification Hub</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-:root{--p:#6366f1;--s:#10b981;--d:#ef4444;--w:#f59e0b;--dark:#1e293b}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#f0f4ff 0%,#faf5ff 50%,#fff1f2 100%);color:#1e293b;min-height:100vh;overflow-x:hidden}
-.glass-card{background:rgba(255,255,255,0.92);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.8);border-radius:18px;box-shadow:0 4px 15px rgba(0,0,0,0.08);padding:18px 20px;margin-bottom:16px;transition:all 0.3s ease}
-.glass-card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,0.1)}
-.glass-card.danger-card{border-left:4px solid var(--d)}
-.glass-card.success-card{border-left:4px solid var(--s)}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:22px;font-weight:600;font-size:13px;cursor:pointer;border:none;text-decoration:none;transition:all 0.3s ease;white-space:nowrap}
-.btn-primary{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;box-shadow:0 4px 12px rgba(99,102,241,0.25)}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(99,102,241,0.35)}
-.btn-danger{background:linear-gradient(135deg,#ef4444,#dc2626);color:white;box-shadow:0 4px 12px rgba(239,68,68,0.25)}
-.btn-danger:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(239,68,68,0.35)}
-.btn-success{background:linear-gradient(135deg,#10b981,#059669);color:white;box-shadow:0 4px 12px rgba(16,185,129,0.25)}
-.btn-outline{background:white;border:2px solid #e2e8f0;color:#64748b}
-.btn-outline:hover{border-color:var(--p);color:var(--p)}
-.btn-sm{padding:5px 12px;font-size:11px;border-radius:16px}
-.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:14px;font-size:11px;font-weight:600;white-space:nowrap}
-.badge-danger{background:#fef2f2;color:#dc2626}
-.badge-success{background:#f0fdf4;color:#059669}
-.section-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f1f5f9}
-.icon-circle{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
-.icon-danger{background:#fef2f2}
-.icon-success{background:#f0fdf4}
-.icon-music{background:#eef2ff}
-.main-header{background:white;border-bottom:1px solid #e2e8f0;padding:10px 0;position:sticky;top:0;z-index:100;backdrop-filter:blur(10px)}
-.header-inner{display:flex;align-items:center;justify-content:space-between;max-width:800px;margin:0 auto;padding:0 16px}
-.header-logo{display:flex;align-items:center;gap:8px}
-.header-logo img{width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid var(--p)}
-.header-nav{display:flex;gap:6px;flex-wrap:wrap}
-.header-nav a{padding:6px 12px;border-radius:18px;font-size:11px;font-weight:600;text-decoration:none;transition:all 0.2s}
-.nav-danger{color:#ef4444;background:#fef2f2}.nav-danger:hover{background:#fee2e2}
-.nav-music{color:#6366f1;background:#eef2ff}.nav-music:hover{background:#e0e7ff}
-.nav-official{color:#10b981;background:#f0fdf4}.nav-official:hover{background:#dcfce7}
-.profile-section{text-align:center;padding:20px 0 12px}
-.profile-pic{width:100px;height:100px;border-radius:50%;object-fit:cover;border:4px solid var(--p);box-shadow:0 0 25px rgba(99,102,241,0.2)}
-.verified-check{position:absolute;bottom:2px;right:2px;width:26px;height:26px;background:var(--s);border-radius:50%;border:3px solid white;display:flex;align-items:center;justify-content:center;font-size:13px;color:white}
-.stats-row{display:flex;justify-content:center;gap:16px;margin:14px 0;flex-wrap:wrap}
-.stat-card{background:white;border-radius:12px;padding:10px 20px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.05);min-width:80px}
-.stat-value{font-size:18px;font-weight:700;color:var(--p)}
-.stat-label{font-size:10px;color:#64748b;font-weight:500;margin-top:2px}
-.music-player{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);border-radius:20px;padding:20px;color:white;margin:14px 0;box-shadow:0 20px 40px rgba(0,0,0,0.3)}
-.player-top{display:flex;align-items:center;gap:14px;margin-bottom:14px}
-.album-art{width:64px;height:64px;border-radius:14px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;border:2px solid rgba(255,255,255,0.2);overflow:hidden}
-.album-art img{width:100%;height:100%;object-fit:cover;animation:spin 8s linear infinite paused}
-.album-art.playing img{animation-play-state:running}
-@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-.play-btn-main{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:2px solid rgba(255,255,255,0.3);color:white;font-size:20px;cursor:pointer;transition:all 0.3s;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(99,102,241,0.4);flex-shrink:0}
-.play-btn-main:hover{transform:scale(1.08)}
-.play-btn-main.playing{background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 0 20px rgba(16,185,129,0.4)}
-.progress-bar{flex:1;height:5px;background:rgba(255,255,255,0.2);border-radius:3px;cursor:pointer;overflow:hidden}
-.progress-fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:3px;width:0%;transition:width 0.1s linear}
-.song-list{max-height:220px;overflow-y:auto;margin-top:14px}
-.song-list::-webkit-scrollbar{width:3px}
-.song-list::-webkit-scrollbar-track{background:transparent}
-.song-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:2px}
-.song-item{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;cursor:pointer;transition:all 0.2s;margin-bottom:2px;font-size:13px}
-.song-item:hover{background:rgba(255,255,255,0.08)}
-.song-item.active{background:rgba(99,102,241,0.25);border-left:3px solid #818cf8}
-.chat-widget{position:fixed;bottom:20px;right:20px;z-index:9999}
-.chat-btn{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:3px solid rgba(255,255,255,0.3);cursor:pointer;box-shadow:0 8px 25px rgba(99,102,241,0.35);transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:24px;position:relative}
-.chat-btn:hover{transform:scale(1.08)}
-.chat-btn img{width:28px;height:28px;border-radius:50%}
-.chat-window{position:fixed;bottom:90px;right:20px;width:360px;max-width:calc(100vw - 32px);height:500px;max-height:calc(100vh - 120px);background:white;border-radius:18px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.25);display:none;flex-direction:column;animation:slideUp 0.35s ease}
-@keyframes slideUp{from{opacity:0;transform:translateY(25px)}to{opacity:1;transform:translateY(0)}}
-.chat-window.open{display:flex}
-.chat-header{background:linear-gradient(135deg,#6366f1,#4f46e5);padding:12px 14px;display:flex;align-items:center;gap:10px;color:white}
-.chat-avatar{width:38px;height:38px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.4);flex-shrink:0;background:rgba(255,255,255,0.2);position:relative}
-.chat-avatar img{width:100%;height:100%;object-fit:cover}
-.chat-avatar-placeholder{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;border:2px solid rgba(255,255,255,0.4)}
-.online-dot{width:9px;height:9px;border-radius:50%;position:absolute;bottom:0;right:0;border:2px solid #4f46e5}
-.online-dot.online{background:#10b981}
-.online-dot.offline{background:#94a3b8}
-.chat-header-info{flex:1;min-width:0}
-.chat-header-name{font-weight:600;font-size:14px;display:flex;align-items:center;gap:4px}
-.chat-header-status{font-size:10px;opacity:0.9}
-.chat-close{background:rgba(255,255,255,0.2);border:none;color:white;width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;margin-left:auto}
-.chat-messages{flex:1;overflow-y:auto;padding:14px;background:#f8fafc}
-.msg{max-width:80%;padding:8px 12px;margin-bottom:5px;border-radius:16px;font-size:13px;line-height:1.45;animation:msgIn 0.25s ease}
-@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.msg-out{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;margin-left:auto;border-bottom-right-radius:4px}
-.msg-in{background:white;color:#1e293b;margin-right:auto;border-bottom-left-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,0.06)}
-.msg-time{font-size:9px;opacity:0.65;margin-top:2px;text-align:right}
-.chat-login{flex:1;display:flex;flex-direction:column;justify-content:center;padding:28px 20px;text-align:center;background:#f8fafc}
-.chat-login h3{font-size:16px;margin-bottom:4px;color:#1e293b}
-.chat-login p{font-size:11px;color:#64748b;margin-bottom:16px}
-.chat-login input{width:100%;padding:10px 14px;border:2px solid #e2e8f0;border-radius:10px;margin-bottom:8px;outline:none;font-size:13px}
-.chat-login input:focus{border-color:#6366f1}
-.chat-login button{width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:14px}
-.chat-input-area{padding:10px 12px;background:white;border-top:1px solid #e2e8f0;display:flex;gap:8px}
-.chat-input-area input{flex:1;padding:8px 12px;border:2px solid #e2e8f0;border-radius:20px;outline:none;font-size:13px}
-.chat-input-area input:focus{border-color:#6366f1}
-.chat-send-btn{width:34px;height:34px;border-radius:50%;background:#6366f1;border:none;color:white;font-size:14px;cursor:pointer;flex-shrink:0}
-.toast{position:fixed;top:14px;right:14px;z-index:99999;background:white;padding:10px 16px;border-radius:10px;box-shadow:0 8px 25px rgba(0,0,0,0.2);transform:translateX(120%);transition:transform 0.3s ease;border-left:4px solid #6366f1;font-size:12px;font-weight:500}
-.toast.show{transform:translateX(0)}
-.toast.error{border-left-color:#ef4444}
-.toast.success{border-left-color:#10b981}
-.fake-card{background:#fef2f2;border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid #fecaca}
-.fake-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.fake-card-body{display:flex;gap:12px;align-items:flex-start}
-.fake-card-img{width:58px;height:58px;border-radius:10px;object-fit:cover;border:2px solid #fca5a5;flex-shrink:0}
-.fake-card-username{font-weight:700;color:#991b1b;font-size:13px}
-.fake-card-reason{font-size:11px;color:#dc2626;margin:3px 0}
-.fake-card-actions{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
-.official-card{background:#f0fdf4;border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid #bbf7d0;display:flex;align-items:center;gap:10px}
-.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
-.gallery-item{border-radius:10px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.08)}
-.gallery-item img{width:100%;height:120px;object-fit:cover;display:block}
-.gallery-item .caption{padding:6px 8px;font-size:11px;color:#64748b;background:white}
+:root {
+    --bg: #0a0a14;
+    --surface: #13132b;
+    --surface2: #1a1a35;
+    --surface3: #222244;
+    --text: #f0f0ff;
+    --text2: #a0a0cc;
+    --text3: #6060a0;
+    --purple: #8b5cf6;
+    --purple2: #a78bfa;
+    --pink: #ec4899;
+    --blue: #3b82f6;
+    --cyan: #06b6d4;
+    --green: #10b981;
+    --red: #ef4444;
+    --orange: #f97316;
+    --yellow: #eab308;
+    --glass: rgba(255,255,255,0.03);
+    --glass-border: rgba(255,255,255,0.06);
+    --glow-purple: 0 0 40px rgba(139,92,246,0.3);
+    --glow-pink: 0 0 40px rgba(236,72,153,0.3);
+    --glow-blue: 0 0 40px rgba(59,130,246,0.3);
+    --glow-green: 0 0 30px rgba(16,185,129,0.3);
+    --glow-red: 0 0 30px rgba(239,68,68,0.3);
+    --radius-sm: 12px;
+    --radius-md: 18px;
+    --radius-lg: 24px;
+    --radius-xl: 32px;
+    --sa: env(safe-area-inset-top);
+    --sb: env(safe-area-inset-bottom);
+}
 
-/* Fake Alert Voice Control */
-.voice-alert-controls{display:flex;gap:8px;align-items:center;margin-top:10px}
-.voice-btn{padding:8px 16px;border-radius:20px;font-weight:600;font-size:12px;cursor:pointer;border:none;transition:all 0.2s;display:flex;align-items:center;gap:6px}
-.voice-btn-play{background:#ef4444;color:white}
-.voice-btn-play:hover{background:#dc2626}
-.voice-btn-stop{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
-.voice-btn-stop:hover{background:#fee2e2}
-.voice-btn-play.playing{background:#10b981}
-.voice-status{font-size:11px;color:#64748b;margin-left:4px}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+body {
+    font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.01em;
+}
+
+/* Animated Stars Background */
+.stars-bg {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+.star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    animation: twinkle var(--dur) ease-in-out infinite;
+    animation-delay: var(--delay);
+    opacity: 0;
+}
+@keyframes twinkle {
+    0%, 100% { opacity: 0.2; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.5); }
+}
+
+/* Floating Orbs */
+.orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+    animation: floatOrb var(--dur) ease-in-out infinite;
+}
+@keyframes floatOrb {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    25% { transform: translate(30px, -40px) scale(1.1); }
+    50% { transform: translate(-20px, -80px) scale(0.9); }
+    75% { transform: translate(-40px, -20px) scale(1.05); }
+}
+
+main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 16px; }
+
+/* Glass Card Premium */
+.glass-card {
+    background: var(--surface);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+    backdrop-filter: blur(10px);
+}
+.glass-card::after {
+    content: '';
+    position: absolute;
+    top: -1px; left: 20px; right: 20px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+}
+.glass-card:hover {
+    border-color: rgba(255,255,255,0.12);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+.glass-card.danger-card { border-left: 3px solid var(--red); }
+.glass-card.success-card { border-left: 3px solid var(--green); }
+.glass-card.music-card { background: linear-gradient(135deg, #1a1a3e 0%, #0f0f28 100%); }
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+    white-space: nowrap;
+    position: relative;
+    overflow: hidden;
+}
+.btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50px;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+.btn-purple { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; box-shadow: var(--glow-purple); }
+.btn-purple:hover { transform: translateY(-2px); box-shadow: 0 0 50px rgba(139,92,246,0.5); }
+.btn-red { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; box-shadow: var(--glow-red); }
+.btn-red:hover { transform: translateY(-2px); box-shadow: 0 0 50px rgba(239,68,68,0.5); }
+.btn-green { background: linear-gradient(135deg, #10b981, #059669); color: #fff; box-shadow: var(--glow-green); }
+.btn-green:hover { transform: translateY(-2px); box-shadow: 0 0 40px rgba(16,185,129,0.5); }
+.btn-outline { background: transparent; border: 1px solid var(--glass-border); color: var(--text2); }
+.btn-outline:hover { border-color: var(--purple); color: var(--purple2); background: rgba(139,92,246,0.1); }
+.btn-sm { padding: 6px 14px; font-size: 11px; border-radius: 40px; }
+
+/* Badge */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 50px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.badge-red { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+.badge-green { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
+.badge-purple { background: rgba(139,92,246,0.15); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.3); }
+
+/* Header */
+.main-header {
+    background: rgba(10,10,20,0.8);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 12px 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 16px;
+    gap: 16px;
+}
+.header-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.header-logo img {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--purple);
+    box-shadow: var(--glow-purple);
+}
+.header-title {
+    font-weight: 700;
+    font-size: 16px;
+    background: linear-gradient(135deg, #c4b5fd, #a78bfa, #f9a8d4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.header-nav { display: flex; gap: 6px; }
+.header-nav a {
+    padding: 7px 14px;
+    border-radius: 50px;
+    font-size: 11px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.3s;
+}
+.nav-red { color: #fca5a5; background: rgba(239,68,68,0.1); }
+.nav-red:hover { background: rgba(239,68,68,0.2); }
+.nav-green { color: #6ee7b7; background: rgba(16,185,129,0.1); }
+.nav-green:hover { background: rgba(16,185,129,0.2); }
+.nav-purple { color: #c4b5fd; background: rgba(139,92,246,0.1); }
+.nav-purple:hover { background: rgba(139,92,246,0.2); }
+
+/* Profile */
+.profile-section { text-align: center; padding: 30px 0 20px; }
+.profile-pic-wrap { position: relative; display: inline-block; margin-bottom: 12px; }
+.profile-pic {
+    width: 110px; height: 110px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--purple);
+    box-shadow: var(--glow-purple), 0 0 80px rgba(139,92,246,0.2);
+    transition: all 0.5s;
+}
+.profile-pic:hover { transform: scale(1.05); box-shadow: var(--glow-purple), 0 0 120px rgba(139,92,246,0.4); }
+.verified-badge-prof {
+    position: absolute;
+    bottom: 4px; right: 4px;
+    width: 30px; height: 30px;
+    background: linear-gradient(135deg, #10b981, #059669);
+    border-radius: 50%;
+    border: 3px solid var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: #fff;
+    box-shadow: var(--glow-green);
+}
+.profile-name {
+    font-size: 26px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #c4b5fd, #f9a8d4, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-top: 8px;
+}
+.profile-bio { color: var(--text2); font-size: 13px; margin-top: 6px; }
+.stats-row { display: flex; justify-content: center; gap: 16px; margin: 20px 0; }
+.stat-card {
+    background: var(--surface2);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 16px 24px;
+    text-align: center;
+    transition: all 0.3s;
+}
+.stat-card:hover { border-color: var(--purple); box-shadow: var(--glow-purple); }
+.stat-value { font-size: 22px; font-weight: 700; color: var(--purple2); }
+.stat-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px; }
+
+/* Section Header */
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--glass-border);
+}
+.icon-circle {
+    width: 44px; height: 44px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+.icon-red { background: rgba(239,68,68,0.15); }
+.icon-green { background: rgba(16,185,129,0.15); }
+.icon-purple { background: rgba(139,92,246,0.15); }
+.section-title { font-size: 18px; font-weight: 700; color: var(--text); }
+.section-subtitle { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* Fake Cards */
+.fake-card {
+    background: rgba(239,68,68,0.05);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: var(--radius-md);
+    padding: 18px;
+    margin-bottom: 12px;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+}
+.fake-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--red), transparent);
+    opacity: 0.5;
+}
+.fake-card:hover { border-color: rgba(239,68,68,0.4); box-shadow: 0 8px 30px rgba(239,68,68,0.1); }
+.fake-card-body { display: flex; gap: 14px; align-items: flex-start; }
+.fake-card-img {
+    width: 60px; height: 60px;
+    border-radius: 14px;
+    object-fit: cover;
+    border: 2px solid rgba(239,68,68,0.3);
+    flex-shrink: 0;
+}
+.fake-card-placeholder {
+    width: 60px; height: 60px;
+    border-radius: 14px;
+    background: rgba(239,68,68,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+/* Official Cards */
+.official-card {
+    background: rgba(16,185,129,0.05);
+    border: 1px solid rgba(16,185,129,0.2);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: all 0.3s;
+}
+.official-card:hover { border-color: rgba(16,185,129,0.4); box-shadow: 0 8px 30px rgba(16,185,129,0.1); }
+
+/* Music Player Ultra Premium */
+.music-player {
+    background: linear-gradient(180deg, #1a1040 0%, #0d0d28 50%, #0a0a1a 100%);
+    border-radius: var(--radius-xl);
+    padding: 28px;
+    color: #fff;
+    margin: 20px 0;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(139,92,246,0.2);
+}
+.music-player::before {
+    content: '';
+    position: absolute;
+    top: -100px; right: -100px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(139,92,246,0.3) 0%, transparent 70%);
+    animation: musicGlow 4s ease-in-out infinite;
+}
+.music-player::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: -80px;
+    width: 250px; height: 250px;
+    background: radial-gradient(circle, rgba(236,72,153,0.2) 0%, transparent 70%);
+    animation: musicGlow 4s ease-in-out infinite 1s;
+}
+@keyframes musicGlow {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.3); opacity: 0.8; }
+}
+.music-player > * { position: relative; z-index: 1; }
+.music-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.music-header-icon {
+    width: 28px; height: 28px;
+    animation: micBounce 1.5s ease-in-out infinite;
+}
+@keyframes micBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+.album-art {
+    width: 80px; height: 80px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    flex-shrink: 0;
+    border: 2px solid rgba(255,255,255,0.1);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    overflow: hidden;
+}
+.album-art img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    animation: spinDisc 6s linear infinite paused;
+}
+.album-art.playing img { animation-play-state: running; }
+@keyframes spinDisc { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.play-btn {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: #1db954;
+    border: none;
+    color: #000;
+    font-size: 22px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 40px rgba(29,185,84,0.4);
+    flex-shrink: 0;
+}
+.play-btn:hover { transform: scale(1.1); box-shadow: 0 0 60px rgba(29,185,84,0.6); }
+.play-btn:active { transform: scale(0.9); }
+.progress-wrap { display: flex; align-items: center; gap: 10px; }
+.progress-bar {
+    flex: 1; height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    cursor: pointer;
+    overflow: visible;
+    position: relative;
+}
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #1db954, #1ed760);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.05s linear;
+    position: relative;
+}
+.progress-thumb {
+    position: absolute;
+    right: -6px; top: 50%;
+    transform: translateY(-50%);
+    width: 12px; height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.progress-bar:hover .progress-thumb { opacity: 1; }
+
+/* Song List */
+.song-list { max-height: 220px; overflow-y: auto; margin-top: 18px; }
+.song-list::-webkit-scrollbar { width: 3px; }
+.song-list::-webkit-scrollbar-track { background: transparent; }
+.song-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.song-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 14px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 3px;
+}
+.song-item:hover { background: rgba(255,255,255,0.04); }
+.song-item.active { background: rgba(29,185,84,0.15); border: 1px solid rgba(29,185,84,0.3); }
+
+/* Chat Widget */
+.chat-widget { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
+.chat-btn {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #8b5cf6, #ec4899);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 10px 40px rgba(139,92,246,0.4);
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+.chat-btn:hover { transform: scale(1.1); box-shadow: 0 15px 50px rgba(236,72,153,0.5); }
+.chat-btn img { width: 30px; height: 30px; border-radius: 50%; }
+.chat-window {
+    position: fixed;
+    bottom: 100px; right: 24px;
+    width: 380px; max-width: calc(100vw - 32px);
+    height: 540px; max-height: calc(100vh - 150px);
+    background: var(--surface);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+    display: none;
+    flex-direction: column;
+    animation: chatIn 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes chatIn { from { opacity: 0; transform: translateY(30px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.chat-window.open { display: flex; }
+.chat-header {
+    background: linear-gradient(135deg, #1a1040, #2d1b69);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--glass-border);
+}
+.chat-header-avatar {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid var(--purple);
+    flex-shrink: 0;
+    position: relative;
+}
+.chat-header-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.chat-online { width: 10px; height: 10px; border-radius: 50%; position: absolute; bottom: 0; right: 0; border: 2px solid #2d1b69; }
+.chat-online.on { background: #10b981; box-shadow: 0 0 8px rgba(16,185,129,0.6); }
+.chat-online.off { background: #64748b; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 16px; background: var(--bg); }
+.msg { max-width: 80%; padding: 10px 15px; margin-bottom: 6px; border-radius: 20px; font-size: 13px; line-height: 1.5; animation: msgPop 0.3s ease; }
+@keyframes msgPop { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.msg-out { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; margin-left: auto; border-bottom-right-radius: 6px; }
+.msg-in { background: var(--surface2); color: var(--text); margin-right: auto; border-bottom-left-radius: 6px; border: 1px solid var(--glass-border); }
+.chat-login { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 30px; text-align: center; }
+.chat-login input {
+    width: 100%; padding: 12px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 13px;
+    margin-bottom: 8px;
+    outline: none;
+}
+.chat-login input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(139,92,246,0.15); }
+.chat-login button {
+    width: 100%; padding: 13px;
+    background: linear-gradient(135deg, #8b5cf6, #ec4899);
+    border: none; border-radius: 12px;
+    color: #fff; font-weight: 600; cursor: pointer;
+    transition: all 0.3s;
+}
+.chat-input-area { padding: 12px 14px; background: var(--surface); border-top: 1px solid var(--glass-border); display: flex; gap: 8px; }
+.chat-input-area input {
+    flex: 1; padding: 10px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--glass-border);
+    border-radius: 25px;
+    color: var(--text); font-size: 13px; outline: none;
+}
+.chat-input-area input:focus { border-color: var(--purple); }
+.chat-send-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: linear-gradient(135deg, #8b5cf6, #ec4899);
+    border: none; color: #fff; font-size: 15px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+.toast {
+    position: fixed; top: 20px; right: 20px; z-index: 99999;
+    background: var(--surface2); border: 1px solid var(--glass-border);
+    padding: 14px 20px; border-radius: 14px;
+    color: var(--text); font-size: 13px;
+    transform: translateX(120%); transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+.toast.show { transform: translateX(0); }
+.toast.error { border-left: 3px solid var(--red); }
+.toast.success { border-left: 3px solid var(--green); }
+
+/* Gallery */
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.gallery-item {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    transition: all 0.3s;
+}
+.gallery-item:hover { transform: translateY(-4px); border-color: var(--purple); box-shadow: var(--glow-purple); }
+.gallery-item img { width: 100%; height: 130px; object-fit: cover; }
+
+@media (max-width: 640px) {
+    .chat-window { width: 100%; max-width: 100%; bottom: 0; right: 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0; height: 85vh; max-height: 85vh; }
+    .chat-widget { bottom: 16px; right: 16px; }
+    .header-nav { display: none; }
+}
 </style>
 </head>
 <body>
+
+<div class="stars-bg" id="starsBg"></div>
+<div class="orb" style="width:300px;height:300px;background:rgba(139,92,246,0.4);top:10%;left:-100px;--dur:8s"></div>
+<div class="orb" style="width:250px;height:250px;background:rgba(236,72,153,0.3);top:50%;right:-80px;--dur:10s"></div>
+<div class="orb" style="width:200px;height:200px;background:rgba(59,130,246,0.3);bottom:10%;left:30%;--dur:12s"></div>
 
 <div id="toast" class="toast"></div>
 
 <header class="main-header">
 <div class="header-inner">
 <div class="header-logo">
-<img src="${profilePic}" alt="Profile" onerror="this.style.display='none'">
-<div>
-<div style="font-weight:700;font-size:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Verification Hub</div>
-<div style="font-size:9px;color:#94a3b8">Official v10</div>
-</div>
+<img src="${profilePic}" alt="Logo" onerror="this.style.display='none'">
+<span class="header-title">Verification Hub</span>
 </div>
 <nav class="header-nav">
-<a href="#fake" class="nav-danger">⚠️ Fakes</a>
-${coverSongs.length > 0 ? '<a href="#music" class="nav-music">🎵 Music</a>' : ''}
-<a href="#official" class="nav-official">✓ Official</a>
-<a href="#gallery" style="color:#8b5cf6;background:#faf5ff;padding:6px 12px;border-radius:18px;font-size:11px;font-weight:600;text-decoration:none">📸 Gallery</a>
+<a href="#fake" class="nav-red">⚠ Fakes</a>
+${coverSongs.length > 0 ? '<a href="#music" class="nav-purple">🎵 Music</a>' : ''}
+<a href="#official" class="nav-green">✓ Official</a>
+<a href="#gallery" class="nav-purple">📸 Gallery</a>
 </nav>
 </div>
 </header>
 
-<main style="max-width:800px;margin:0 auto;padding:14px 16px">
+<main>
 
-<!-- PROFILE -->
 <section class="profile-section">
-<div style="position:relative;display:inline-block">
-<img src="${profilePic}" class="profile-pic" alt="Profile" onerror="this.style.display='none'">
-<div class="verified-check">✓</div>
+<div class="profile-pic-wrap">
+<img src="${profilePic}" class="profile-pic" alt="Profile">
+<div class="verified-badge-prof">✓</div>
 </div>
-<h1 style="font-size:20px;font-weight:800;margin-top:8px;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">${DATA.celebrity.fullName}</h1>
-<p style="color:#64748b;font-size:12px;margin-top:2px">${DATA.celebrity.bio}</p>
+<h1 class="profile-name">${DATA.celebrity.fullName}</h1>
+<p class="profile-bio">${DATA.celebrity.bio}</p>
 <div class="stats-row">
 <div class="stat-card"><div class="stat-value">${DATA.celebrity.tiktokFollowers}</div><div class="stat-label">Followers</div></div>
 <div class="stat-card"><div class="stat-value">${DATA.celebrity.tiktokFollowing}</div><div class="stat-label">Following</div></div>
 <div class="stat-card"><div class="stat-value">${DATA.celebrity.tiktokLikes}</div><div class="stat-label">Likes</div></div>
 </div>
-<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
-<span class="badge badge-success">✓ Verified Official</span>
-<span class="badge" style="background:#eef2ff;color:#6366f1">Creator</span>
+<div style="display:flex;gap:8px;justify-content:center">
+<span class="badge badge-green">✓ Verified</span>
+<span class="badge badge-purple">Creator</span>
 </div>
 </section>
 
-<!-- FAKE ACCOUNTS -->
 <section id="fake" class="glass-card danger-card">
 <div class="section-header">
-<div class="icon-circle icon-danger">
-<img src="${IMAGES.fakeDetect}" alt="Detect" style="width:20px;height:20px" onerror="this.innerHTML='⚠️'">
-</div>
+<div class="icon-circle icon-red">⚠️</div>
 <div>
-<h2 style="font-size:16px;font-weight:700;color:#dc2626">Fake Accounts Detected</h2>
-<p style="font-size:10px;color:#64748b">Report these impersonating accounts</p>
+<div class="section-title" style="color:#fca5a5">Fake Accounts Detected</div>
+<div class="section-subtitle">Report these impersonating accounts</div>
 </div>
-<span class="badge badge-danger" style="margin-left:auto">${totalFake} Active</span>
+<span class="badge badge-red" style="margin-left:auto">${totalFake} Active</span>
 </div>
 ${DATA.fakeAccounts.map((a, i) => `
 <div class="fake-card">
-<div class="fake-card-header">
-<div style="display:flex;align-items:center;gap:5px">
-<img src="${a.icon}" alt="TikTok" style="width:16px;height:16px" onerror="this.style.display='none'">
-<span style="font-weight:700;color:#dc2626;font-size:12px">Fake #${i+1}</span>
-</div>
-<span class="badge badge-danger">${a.threatLevel}</span>
-</div>
 <div class="fake-card-body">
-${a.screenshot ? `<img src="${a.screenshot}" class="fake-card-img" alt="Fake" onerror="this.style.display='none'">` : `<div class="fake-card-img" style="background:#fee2e2;display:flex;align-items:center;justify-content:center;font-size:22px">⚠️</div>`}
+${a.screenshot ? `<img src="${a.screenshot}" class="fake-card-img" alt="Fake">` : '<div class="fake-card-placeholder">⚠️</div>'}
 <div style="flex:1;min-width:0">
-<div class="fake-card-username">${a.username}</div>
-<div class="fake-card-reason">⚠ ${a.reason}</div>
-<div style="font-size:10px;color:#991b1b;margin-top:2px">${a.reportedCount}+ reports</div>
-<div class="fake-card-actions">
-<a href="${a.profileUrl}" target="_blank" class="btn btn-danger btn-sm">
-<img src="${IMAGES.reportIcon}" alt="Report" style="width:12px;height:12px" onerror="this.style.display='none'"> Report
-</a>
-<button onclick="copyText('${a.username}')" class="btn btn-outline btn-sm">Copy</button>
+<div style="font-weight:700;color:#fca5a5;font-size:14px;margin-bottom:4px">${a.username}</div>
+<div style="font-size:11px;color:#f87171;margin-bottom:6px">⚠ ${a.reason}</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<a href="${a.profileUrl}" target="_blank" class="btn btn-red btn-sm">Report</a>
+<button onclick="copyTxt('${a.username}')" class="btn btn-outline btn-sm">Copy</button>
 </div>
 </div>
 </div>
 </div>
 `).join('')}
-
-<!-- VOICE ALERT CONTROLS - ON/OFF -->
-<div class="voice-alert-controls">
-<button class="voice-btn voice-btn-play" id="voicePlayBtn" onclick="toggleFakeVoice()">
-🔊 Play Voice Alert
-</button>
-<button class="voice-btn voice-btn-stop" id="voiceStopBtn" onclick="stopFakeVoice()" style="display:none">
-⏹️ Stop Alert
-</button>
-<span class="voice-status" id="voiceStatus"></span>
+<div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+<button class="btn btn-red btn-sm" id="voicePlayBtn" onclick="toggleFakeVoice()">🔊 Play Alert</button>
+<button class="btn btn-outline btn-sm" id="voiceStopBtn" onclick="stopFakeVoice()" style="display:none">⏹ Stop</button>
 </div>
 <audio id="fakeVoice" src="${VOICE.fakeAlert}" preload="auto"></audio>
 </section>
 
-<!-- MUSIC PLAYER -->
 ${coverSongs.length > 0 ? `
 <section id="music" class="music-player">
-<div class="player-top">
+<div class="music-header">
+<img src="${IMAGES.voiceMic}" class="music-header-icon" alt="Mic" onerror="this.style.display='none'">
+<span style="font-weight:700;font-size:16px">Cover Music</span>
+<span style="font-size:11px;opacity:0.5;margin-left:auto">${coverSongs.length} tracks</span>
+</div>
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
 <div class="album-art" id="albumArt"><span>🎵</span></div>
 <div style="flex:1;min-width:0">
-<div id="currentTitle" style="font-weight:700;font-size:15px">Select a Song</div>
-<div id="currentArtist" style="font-size:11px;opacity:0.7">Cover Music</div>
+<div id="currentTitle" style="font-weight:600;font-size:15px">Select a Song</div>
+<div id="currentArtist" style="font-size:11px;opacity:0.6;margin-top:4px">Cover Music</div>
 </div>
-<button class="play-btn-main" id="playBtn" onclick="togglePlay()" title="Play/Pause">▶️</button>
+<button class="play-btn" id="playBtn" onclick="togglePlay()">▶️</button>
 </div>
-<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-<span id="currentTime" style="font-size:10px;opacity:0.7">0:00</span>
-<div class="progress-bar" onclick="seekAudio(event)"><div class="progress-fill" id="progressFill"></div></div>
-<span id="totalTime" style="font-size:10px;opacity:0.7">0:00</span>
+<div class="progress-wrap">
+<span id="currentTime" style="font-size:10px;opacity:0.5;width:32px">0:00</span>
+<div class="progress-bar" onclick="seekAudio(event)"><div class="progress-fill" id="progressFill"><div class="progress-thumb"></div></div></div>
+<span id="totalTime" style="font-size:10px;opacity:0.5;width:32px;text-align:right">0:00</span>
 </div>
 <div class="song-list">
 ${coverSongs.map((s, i) => `
 <div class="song-item" id="song-${i}" onclick="playSong('${s.audioUrl}','${s.title}','${s.artist}','${s.coverUrl||''}',${i})">
-<span style="opacity:0.6;font-size:11px;width:24px;text-align:center">${(i+1).toString().padStart(2,'0')}</span>
-<div style="flex:1;min-width:0"><div style="font-weight:500;font-size:12px">${s.title}</div><div style="font-size:10px;opacity:0.6">${s.artist}</div></div>
-<span style="font-size:11px;opacity:0.5">▶️</span>
+<span style="opacity:0.4;font-size:12px;width:26px">${(i+1).toString().padStart(2,'0')}</span>
+<div style="flex:1"><div style="font-weight:500;font-size:13px">${s.title}</div><div style="font-size:10px;opacity:0.4">${s.artist}</div></div>
+<span style="font-size:12px;opacity:0.3">▶</span>
 </div>
 `).join('')}
 </div>
 <audio id="coverAudio" preload="none"></audio>
 </section>` : ''}
 
-<!-- OFFICIAL -->
 <section id="official" class="glass-card success-card">
 <div class="section-header">
-<div class="icon-circle icon-success">
-<img src="${IMAGES.blueTick}" alt="Verified" style="width:20px;height:20px" onerror="this.innerHTML='✓'">
-</div>
+<div class="icon-circle icon-green">✓</div>
 <div>
-<h2 style="font-size:16px;font-weight:700;color:#059669">Official Verified Accounts</h2>
-<p style="font-size:10px;color:#64748b">Only follow these real accounts</p>
+<div class="section-title" style="color:#6ee7b7">Official Verified Accounts</div>
+<div class="section-subtitle">Only follow these real accounts</div>
 </div>
 </div>
 ${DATA.realAccounts.map(acc => `
 <div class="official-card">
-${acc.screenshot ? `<img src="${acc.screenshot}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;flex-shrink:0" alt="${acc.platform}" onerror="this.style.display='none'">` : `<div style="width:44px;height:44px;border-radius:10px;background:#10b981;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px;flex-shrink:0">${acc.platform[0]}</div>`}
+<img src="${acc.icon}" style="width:22px;height:22px;flex-shrink:0" onerror="this.style.display='none'">
 <div style="flex:1;min-width:0">
-<div style="display:flex;align-items:center;gap:3px">
-<img src="${acc.icon}" alt="${acc.platform}" style="width:14px;height:14px" onerror="this.style.display='none'">
-<span style="font-weight:600;color:#065f46;font-size:13px">${acc.username}</span>
-<img src="${acc.verifiedIcon}" alt="Verified" style="width:12px;height:12px" onerror="this.style.display='none'">
+<div style="display:flex;align-items:center;gap:5px">
+<span style="font-weight:600;font-size:14px">${acc.username}</span>
+<img src="${acc.verifiedIcon}" style="width:14px;height:14px" onerror="this.style.display='none'">
 </div>
-<div style="font-size:10px;color:#059669;margin-top:1px">${acc.followers} followers</div>
+<div style="font-size:10px;color:var(--text3);margin-top:2px">${acc.followers} followers</div>
 </div>
-<a href="${acc.url}" target="_blank" class="btn btn-success btn-sm">Follow</a>
+<a href="${acc.url}" target="_blank" class="btn btn-green btn-sm">Follow</a>
 </div>
 `).join('')}
 </section>
 
-<!-- GALLERY -->
 <section id="gallery" class="glass-card">
 <div class="section-header">
-<div style="font-size:20px">📸</div>
-<div><h2 style="font-size:16px;font-weight:700">Photo Gallery</h2><p style="font-size:10px;color:#64748b">Official moments</p></div>
+<span style="font-size:22px">📸</span>
+<div><div class="section-title">Photo Gallery</div><div class="section-subtitle">Official moments</div></div>
 </div>
 <div class="gallery-grid">
-${galleryPhotos.map(p => `
-<div class="gallery-item">
-<img src="${p.path}" alt="Gallery" loading="lazy">
-${p.caption ? `<div class="caption">${p.caption}</div>` : ''}
-</div>
-`).join('')}
-${galleryPhotos.length === 0 ? '<p style="color:#94a3b8;text-align:center;grid-column:1/-1;padding:25px;font-size:13px">No photos uploaded yet</p>' : ''}
+${galleryPhotos.map(p => `<div class="gallery-item"><img src="${p.path}" alt="Photo" loading="lazy"></div>`).join('')}
+${galleryPhotos.length === 0 ? '<p style="color:var(--text3);text-align:center;padding:30px;grid-column:1/-1">No photos yet</p>' : ''}
 </div>
 </section>
 
 </main>
 
-<!-- CHAT WIDGET -->
 <div class="chat-widget">
-<button class="chat-btn" onclick="toggleChat()" title="Chat">
-<img src="${IMAGES.messageIcon}" alt="Chat" style="width:26px;height:26px" onerror="this.outerHTML='💬'">
+<button class="chat-btn" onclick="toggleChat()">
+<img src="${IMAGES.messageIcon}" alt="Chat" onerror="this.outerHTML='💬'" style="width:30px;height:30px">
 </button>
 <div class="chat-window" id="chatWindow">
 <div class="chat-header">
-<div class="chat-avatar">
-<img src="${profilePic}" alt="Admin" onerror="this.parentElement.innerHTML='<div class=chat-avatar-placeholder>H</div>'">
-<div class="online-dot ${isOnline ? 'online' : 'offline'}"></div>
+<div class="chat-header-avatar">
+<img src="${profilePic}" alt="Admin">
+<div class="chat-online ${isOnline ? 'on' : 'off'}"></div>
 </div>
-<div class="chat-header-info">
-<div class="chat-header-name">Hammad Bin Amir <img src="${IMAGES.blueTick}" style="width:11px;height:11px" onerror="this.style.display='none'"></div>
-<div class="chat-header-status" id="statusText">${statusText}</div>
+<div style="flex:1">
+<div style="font-weight:600;font-size:15px">Hammad Bin Amir <img src="${IMAGES.socialMedia}" style="width:12px;height:12px;vertical-align:middle" onerror="this.style.display='none'"></div>
+<div style="font-size:10px;opacity:0.7">${statusText}</div>
 </div>
-<button class="chat-close" onclick="toggleChat()">✕</button>
+<button onclick="toggleChat()" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer">✕</button>
 </div>
 <div id="chatLogin" class="chat-login">
-<h3>💬 Chat with Support</h3>
-<p>Enter your details to start</p>
+<div style="font-size:50px;margin-bottom:16px">💬</div>
+<div style="font-weight:700;font-size:18px;margin-bottom:6px">Chat with Support</div>
+<div style="font-size:12px;color:var(--text3);margin-bottom:20px">Enter your details to start</div>
 <input type="text" id="userName" placeholder="Your Name">
 <input type="text" id="userContact" placeholder="Email or Phone">
 <button onclick="registerChat()">Start Conversation</button>
@@ -518,7 +955,7 @@ ${galleryPhotos.length === 0 ? '<p style="color:#94a3b8;text-align:center;grid-c
 <div id="chatUI" style="display:none;flex:1;flex-direction:column">
 <div class="chat-messages" id="chatMessages"></div>
 <div class="chat-input-area">
-<input type="text" id="msgInput" placeholder="Type message..." onkeypress="if(event.key==='Enter')sendMessage()">
+<input type="text" id="msgInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
 <button class="chat-send-btn" onclick="sendMessage()">➤</button>
 </div>
 </div>
@@ -528,116 +965,61 @@ ${galleryPhotos.length === 0 ? '<p style="color:#94a3b8;text-align:center;grid-c
 <audio id="welcomeVoice" src="${VOICE.welcome}" preload="none"></audio>
 
 <script>
-// Toast
-function showToast(m,t){var el=document.getElementById('toast');el.textContent=m;el.className='toast show '+(t||'');setTimeout(function(){el.classList.remove('show')},2800)}
-function copyText(t){navigator.clipboard.writeText(t).then(function(){showToast('Copied!','success')}).catch(function(){showToast('Copy failed','error')})}
+// Stars Background
+(function(){var c=document.getElementById('starsBg');for(var i=0;i<80;i++){var s=document.createElement('div');s.className='star';s.style.cssText='left:'+Math.random()*100+'%;top:'+Math.random()*100+'%;width:'+(Math.random()*3+1)+'px;height:'+(Math.random()*3+1)+'px;--dur:'+(Math.random()*3+2)+'s;--delay:'+(Math.random()*5)+'s';c.appendChild(s)}})();
 
-// Fake Voice Alert - Play/Stop controls
-var fakeVoicePlaying = false;
-var fakeAudio = document.getElementById('fakeVoice');
+function showToast(m,t){var e=document.getElementById('toast');e.textContent=m;e.className='toast show '+(t||'');setTimeout(function(){e.classList.remove('show')},2800)}
+function copyTxt(t){navigator.clipboard.writeText(t).then(function(){showToast('Copied!','success')})}
 
-function toggleFakeVoice(){
-    var btn = document.getElementById('voicePlayBtn');
-    var stopBtn = document.getElementById('voiceStopBtn');
-    var status = document.getElementById('voiceStatus');
-    
-    if(fakeVoicePlaying){
-        // Stop it
-        fakeAudio.pause();
-        fakeAudio.currentTime = 0;
-        fakeVoicePlaying = false;
-        btn.textContent = '🔊 Play Voice Alert';
-        btn.classList.remove('playing');
-        btn.style.display = 'inline-flex';
-        stopBtn.style.display = 'none';
-        status.textContent = '';
-    } else {
-        // Play it
-        fakeAudio.play().then(function(){
-            fakeVoicePlaying = true;
-            btn.textContent = '🔊 Playing...';
-            btn.classList.add('playing');
-            btn.style.display = 'inline-flex';
-            stopBtn.style.display = 'inline-flex';
-            status.textContent = '▶ Playing';
-        }).catch(function(e){
-            showToast('Error playing audio','error');
-        });
-    }
-}
+var fvp=false,fa=document.getElementById('fakeVoice');
+function toggleFakeVoice(){var b=document.getElementById('voicePlayBtn'),s=document.getElementById('voiceStopBtn');if(fvp){fa.pause();fa.currentTime=0;fvp=false;b.textContent='🔊 Play Alert';b.style.display='';s.style.display='none'}else{fa.play().then(function(){fvp=true;b.textContent='🔊 Playing...';s.style.display=''})['catch'](function(){showToast('Error','error')})}}
+function stopFakeVoice(){fa.pause();fa.currentTime=0;fvp=false;document.getElementById('voicePlayBtn').textContent='🔊 Play Alert';document.getElementById('voicePlayBtn').style.display='';document.getElementById('voiceStopBtn').style.display='none'}
+fa.addEventListener('ended',function(){fvp=false;document.getElementById('voicePlayBtn').textContent='🔊 Play Alert';document.getElementById('voicePlayBtn').style.display='';document.getElementById('voiceStopBtn').style.display='none'});
 
-function stopFakeVoice(){
-    fakeAudio.pause();
-    fakeAudio.currentTime = 0;
-    fakeVoicePlaying = false;
-    document.getElementById('voicePlayBtn').textContent = '🔊 Play Voice Alert';
-    document.getElementById('voicePlayBtn').classList.remove('playing');
-    document.getElementById('voicePlayBtn').style.display = 'inline-flex';
-    document.getElementById('voiceStopBtn').style.display = 'none';
-    document.getElementById('voiceStatus').textContent = '';
-}
-
-// Auto stop when audio ends
-fakeAudio.addEventListener('ended', function(){
-    fakeVoicePlaying = false;
-    document.getElementById('voicePlayBtn').textContent = '🔊 Play Voice Alert';
-    document.getElementById('voicePlayBtn').classList.remove('playing');
-    document.getElementById('voicePlayBtn').style.display = 'inline-flex';
-    document.getElementById('voiceStopBtn').style.display = 'none';
-    document.getElementById('voiceStatus').textContent = '';
-});
-
-// Music Player
-var currentAudio=null,isPlaying=false;
-function playSong(url,title,artist,cover,index){
-var a=document.getElementById('coverAudio');var btn=document.getElementById('playBtn');var art=document.getElementById('albumArt');
-if(currentAudio===url){togglePlay();return}
-if(currentAudio){a.pause()}
-currentAudio=url;a.src=url;
-document.getElementById('currentTitle').textContent=title||'Unknown';
-document.getElementById('currentArtist').textContent=artist||'Unknown';
-if(cover){art.innerHTML='<img src=\"'+cover+'\" style=\"width:100%;height:100%;object-fit:cover\" onerror=\"this.parentElement.innerHTML=&quot;<span>🎵</span>&quot;\">'}else{art.innerHTML='<span>🎵</span>'}
+var ca=null,ip=false;
+function playSong(u,t,a,c,i){
+var ad=document.getElementById('coverAudio'),pb=document.getElementById('playBtn'),ar=document.getElementById('albumArt');
+if(ca===u){togglePlay();return}
+if(ca){ad.pause()}ca=u;ad.src=u;
+document.getElementById('currentTitle').textContent=t||'Unknown';
+document.getElementById('currentArtist').textContent=a||'Unknown';
+ar.innerHTML=c?'<img src="'+c+'" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML=\\'<span>🎵</span>\\'">':'<span>🎵</span>';
 document.getElementById('progressFill').style.width='0%';
-document.getElementById('currentTime').textContent='0:00';
-document.getElementById('totalTime').textContent='0:00';
-document.querySelectorAll('.song-item').forEach(function(el){el.classList.remove('active')});
-var songEl=document.getElementById('song-'+index);if(songEl)songEl.classList.add('active');
-a.play().then(function(){isPlaying=true;btn.innerHTML='⏸️';btn.classList.add('playing');art.classList.add('playing')}).catch(function(){showToast('Error playing','error')});
-a.ontimeupdate=function(){if(a.duration){var p=(a.currentTime/a.duration)*100;document.getElementById('progressFill').style.width=p+'%';document.getElementById('currentTime').textContent=formatTime(a.currentTime)}};
-a.onloadedmetadata=function(){document.getElementById('totalTime').textContent=formatTime(a.duration)};
-a.onended=function(){isPlaying=false;btn.innerHTML='▶️';btn.classList.remove('playing');art.classList.remove('playing');document.getElementById('progressFill').style.width='0%';document.getElementById('currentTime').textContent='0:00';currentAudio=null}
+document.getElementById('currentTime').textContent='0:00';document.getElementById('totalTime').textContent='0:00';
+document.querySelectorAll('.song-item').forEach(function(e){e.classList.remove('active')});
+var se=document.getElementById('song-'+i);if(se)se.classList.add('active');
+ad.play().then(function(){ip=true;pb.textContent='⏸️';ar.classList.add('playing')})['catch'](function(){showToast('Error','error')});
+ad.ontimeupdate=function(){if(ad.duration){document.getElementById('progressFill').style.width=(ad.currentTime/ad.duration)*100+'%';document.getElementById('currentTime').textContent=ft(ad.currentTime)}};
+ad.onloadedmetadata=function(){document.getElementById('totalTime').textContent=ft(ad.duration)};
+ad.onended=function(){ip=false;pb.textContent='▶️';ar.classList.remove('playing');document.getElementById('progressFill').style.width='0%';document.getElementById('currentTime').textContent='0:00';ca=null}
 }
-function togglePlay(){var a=document.getElementById('coverAudio');var btn=document.getElementById('playBtn');var art=document.getElementById('albumArt');if(!a.src||a.src===window.location.href){showToast('Select a song','error');return}if(isPlaying){a.pause();isPlaying=false;btn.innerHTML='▶️';btn.classList.remove('playing');art.classList.remove('playing')}else{a.play().then(function(){isPlaying=true;btn.innerHTML='⏸️';btn.classList.add('playing');art.classList.add('playing')}).catch(function(){showToast('Error','error')})}}
-function seekAudio(e){var a=document.getElementById('coverAudio');if(!a.duration)return;var rect=e.currentTarget.getBoundingClientRect();a.currentTime=((e.clientX-rect.left)/rect.width)*a.duration}
-function formatTime(s){if(isNaN(s))return'0:00';var m=Math.floor(s/60);var sec=Math.floor(s%60);return m+':'+sec.toString().padStart(2,'0')}
+function togglePlay(){var a=document.getElementById('coverAudio'),b=document.getElementById('playBtn'),r=document.getElementById('albumArt');if(!a.src||a.src===window.location.href){showToast('Select a song','error');return}if(ip){a.pause();ip=false;b.textContent='▶️';r.classList.remove('playing')}else{a.play().then(function(){ip=true;b.textContent='⏸️';r.classList.add('playing')})['catch'](function(){showToast('Error','error')})}}
+function seekAudio(e){var a=document.getElementById('coverAudio');if(!a.duration)return;a.currentTime=((e.clientX-e.currentTarget.getBoundingClientRect().left)/e.currentTarget.offsetWidth)*a.duration}
+function ft(s){if(isNaN(s))return'0:00';return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0')}
 
-// Welcome voice
-setTimeout(function(){var v=document.getElementById('welcomeVoice');if(v&&!sessionStorage.getItem('vp')){v.play().catch(function(){});sessionStorage.setItem('vp','1')}},2000);
+setTimeout(function(){var v=document.getElementById('welcomeVoice');if(v&&!sessionStorage.getItem('vp')){v.play()['catch'](function(){});sessionStorage.setItem('vp','1')}},2000);
 
-// Chat
-var chatToken=localStorage.getItem('chatToken'),chatId=null,pollInterval=null;
-if(chatToken)verifyToken();
-function verifyToken(){fetch('/api/chat/verify?token='+encodeURIComponent(chatToken)).then(function(r){return r.json()}).then(function(d){if(d.success){chatId=d.chatId;showChatUI();loadMessages();startPolling()}else{localStorage.removeItem('chatToken');chatToken=null}}).catch(function(){})}
-function toggleChat(){var w=document.getElementById('chatWindow');w.classList.toggle('open');if(w.classList.contains('open')&&chatToken)loadMessages()}
-function showChatUI(){document.getElementById('chatLogin').style.display='none';document.getElementById('chatUI').style.display='flex'}
-function registerChat(){var n=document.getElementById('userName').value.trim();var c=document.getElementById('userContact').value.trim();if(!n){showToast('Enter name','error');return}if(!c){showToast('Enter contact','error');return}fetch('/api/chat/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,phoneEmail:c})}).then(function(r){return r.json()}).then(function(d){if(d.success){chatToken=d.token;chatId=d.chatId;localStorage.setItem('chatToken',chatToken);showChatUI();loadMessages();startPolling();showToast('Connected!','success')}else{showToast(d.error||'Failed','error')}}).catch(function(){showToast('Error','error')})}
-function startPolling(){if(pollInterval)clearInterval(pollInterval);pollInterval=setInterval(loadMessages,2000)}
-function loadMessages(){if(!chatToken)return;fetch('/api/chat/messages?token='+encodeURIComponent(chatToken)+'&t='+Date.now()).then(function(r){return r.json()}).then(function(d){if(d.success){var c=document.getElementById('chatMessages');c.innerHTML='';d.messages.forEach(function(m){var div=document.createElement('div');div.className='msg '+(m.sender==='user'?'msg-out':'msg-in');div.innerHTML=m.message+'<div class=\"msg-time\">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+(m.sender==='user'?' ✓✓':'')+'</div>';c.appendChild(div)});c.scrollTop=c.scrollHeight}else{clearInterval(pollInterval);localStorage.removeItem('chatToken');chatToken=null;document.getElementById('chatLogin').style.display='flex';document.getElementById('chatUI').style.display='none'}})}
-function sendMessage(){var i=document.getElementById('msgInput');var m=i.value.trim();if(!m||!chatToken)return;i.value='';fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:chatToken,message:m})}).then(function(r){return r.json()}).then(function(d){if(d.success)loadMessages()})}
-window.addEventListener('beforeunload',function(){if(pollInterval)clearInterval(pollInterval)});
+var ct=localStorage.getItem('chatToken'),cid=null,pi=null;
+if(ct)vt();
+function vt(){fetch('/api/chat/verify?token='+encodeURIComponent(ct)).then(function(r){return r.json()}).then(function(d){if(d.success){cid=d.chatId;sui();lm();sp()}else{localStorage.removeItem('chatToken');ct=null}})}
+function toggleChat(){var w=document.getElementById('chatWindow');w.classList.toggle('open');if(w.classList.contains('open')&&ct)lm()}
+function sui(){document.getElementById('chatLogin').style.display='none';document.getElementById('chatUI').style.display='flex'}
+function registerChat(){var n=document.getElementById('userName').value.trim(),c=document.getElementById('userContact').value.trim();if(!n){showToast('Enter name','error');return}if(!c){showToast('Enter contact','error');return}fetch('/api/chat/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,phoneEmail:c})}).then(function(r){return r.json()}).then(function(d){if(d.success){ct=d.token;cid=d.chatId;localStorage.setItem('chatToken',ct);sui();lm();sp();showToast('Connected!','success')}else{showToast(d.error||'Failed','error')}})}
+function sp(){if(pi)clearInterval(pi);pi=setInterval(lm,2000)}
+function lm(){if(!ct)return;fetch('/api/chat/messages?token='+encodeURIComponent(ct)+'&t='+Date.now()).then(function(r){return r.json()}).then(function(d){if(d.success){var c=document.getElementById('chatMessages');c.innerHTML='';d.messages.forEach(function(m){var div=document.createElement('div');div.className='msg '+(m.sender==='user'?'msg-out':'msg-in');div.innerHTML=m.message+'<div style="font-size:9px;opacity:0.5;margin-top:4px;text-align:right">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div>';c.appendChild(div)});c.scrollTop=c.scrollHeight}else{clearInterval(pi);localStorage.removeItem('chatToken');ct=null;document.getElementById('chatLogin').style.display='flex';document.getElementById('chatUI').style.display='none'}})}
+function sendMessage(){var i=document.getElementById('msgInput'),m=i.value.trim();if(!m||!ct)return;i.value='';fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:ct,message:m})}).then(function(r){return r.json()}).then(function(d){if(d.success)lm()})}
 </script>
 </body>
 </html>`;
 }
 
-function getAdminLoginHTML(error = '') {
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-100 flex items-center justify-center min-h-screen"><div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm"><h2 class="text-2xl font-bold text-center mb-6">Admin Login</h2>${error?`<div class="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm text-center">${error}</div>`:''}<form method="POST" action="/admin/login"><input type="text" name="username" placeholder="Username" class="w-full p-3 border rounded-lg mb-3" required><input type="password" name="password" placeholder="Password" class="w-full p-3 border rounded-lg mb-4" required><button class="w-full py-3 bg-indigo-600 text-white rounded-lg font-semibold">Sign In</button></form><a href="/" class="block text-center mt-4 text-sm text-gray-500">← Back</a></div></body></html>`;
+function getAdminLoginHTML(e = '') {
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-950 flex items-center justify-center min-h-screen"><div class="bg-gray-900 p-8 rounded-2xl w-full max-w-sm border border-gray-800"><h2 class="text-xl font-bold text-white text-center mb-6">Admin Login</h2>${e?`<div class="bg-red-500/10 text-red-400 p-3 rounded-lg mb-4 text-sm text-center">${e}</div>`:''}<form method="POST" action="/admin/login"><input name="username" placeholder="Username" class="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-white mb-3" required><input type="password" name="password" placeholder="Password" class="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-white mb-4" required><button class="w-full py-3 bg-purple-600 text-white rounded-lg font-semibold">Sign In</button></form><a href="/" class="block text-center mt-4 text-sm text-gray-500">Back</a></div></body></html>`;
 }
 
-async function getAdminPanelHTML(photos = [], msg = '', err = '') {
-    const chatList = await getAdminChatList();
-    const photoHTML = photos.map(p => `<div class="bg-white rounded-xl overflow-hidden shadow"><img src="${p.path}" class="w-full h-40 object-cover"><div class="p-3"><p class="text-sm text-gray-600">${p.caption||''}</p><p class="text-xs text-gray-400 mt-1">${new Date(p.uploadedAt).toLocaleDateString()}</p><form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="text-red-500 text-sm mt-2">Delete</button></form></div></div>`).join('');
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-100 min-h-screen"><header class="bg-white p-4 shadow mb-6"><div class="max-w-6xl mx-auto flex justify-between items-center"><h1 class="text-xl font-bold text-indigo-600">Admin Panel</h1><div class="flex gap-3"><a href="/admin/chat" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">Chats (${chatList.reduce((s,c)=>s+c.unread,0)})</a><a href="/" class="px-4 py-2 bg-gray-200 rounded-lg text-sm">Site</a><a href="/admin/logout" class="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-sm">Logout</a></div></div></header><div class="max-w-6xl mx-auto px-4">${msg?`<div class="bg-green-50 text-green-600 p-4 rounded-xl mb-4">${msg}</div>`:''}${err?`<div class="bg-red-50 text-red-600 p-4 rounded-xl mb-4">${err}</div>`:''}<div class="bg-white p-6 rounded-xl shadow mb-6"><h2 class="font-bold mb-4">Upload Photo</h2><form method="POST" action="/admin/upload" enctype="multipart/form-data"><input type="file" name="photo" accept="image/*" class="mb-3" required><input type="text" name="caption" placeholder="Caption" class="w-full p-2 border rounded-lg mb-3"><button class="w-full py-2 bg-indigo-600 text-white rounded-lg">Upload</button></form></div><h2 class="text-xl font-bold mb-4">Gallery (${photos.length})</h2><div class="grid grid-cols-2 md:grid-cols-4 gap-4">${photoHTML||'<p class="text-gray-400 col-span-4 text-center py-12">No photos</p>'}</div></div></body></html>`;
+async function getAdminPanelHTML(p = [], m = '', e = '') {
+    const cl = await getAdminChatList();
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Panel</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-950 min-h-screen text-white"><header class="bg-gray-900 p-4 border-b border-gray-800"><div class="max-w-6xl mx-auto flex justify-between items-center"><h1 class="text-lg font-bold text-purple-400">Admin Panel</h1><div class="flex gap-3"><a href="/admin/chat" class="px-4 py-2 bg-purple-600 rounded-lg text-sm">Chats (${cl.reduce((s,c)=>s+c.unread,0)})</a><a href="/" class="px-4 py-2 bg-gray-800 rounded-lg text-sm">Site</a><a href="/admin/logout" class="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg text-sm">Logout</a></div></div></header><div class="max-w-6xl mx-auto p-4">${m?`<div class="bg-green-500/10 text-green-400 p-4 rounded-xl mb-4">${m}</div>`:''}${e?`<div class="bg-red-500/10 text-red-400 p-4 rounded-xl mb-4">${e}</div>`:''}<div class="bg-gray-900 p-6 rounded-xl border border-gray-800 mb-6"><h2 class="font-bold mb-4">Upload Photo</h2><form method="POST" action="/admin/upload" enctype="multipart/form-data"><input type="file" name="photo" class="mb-3 text-white" required><input name="caption" placeholder="Caption" class="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-white mb-3"><button class="w-full py-3 bg-purple-600 text-white rounded-lg">Upload</button></form></div><h2 class="text-xl font-bold mb-4">Gallery (${p.length})</h2><div class="grid grid-cols-2 md:grid-cols-4 gap-4">${p.map(x=>`<div class="bg-gray-900 rounded-xl overflow-hidden border border-gray-800"><img src="${x.path}" class="w-full h-40 object-cover"><div class="p-3"><p class="text-sm text-gray-400">${x.caption||''}</p><form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${x._id}"><button class="text-red-400 text-sm mt-2">Delete</button></form></div></div>`).join('')||'<p class="text-gray-500 col-span-4 text-center py-12">No photos</p>'}</div></div></body></html>`;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -645,208 +1027,33 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-
-    const parsedUrl = url.parse(req.url, true);
-    const pathname = parsedUrl.pathname;
-    const method = req.method;
-    const cookies = parseCookies(req.headers.cookie);
-
-    if (pathname.startsWith('/assets/')) {
-        const assetPath = path.join(__dir, decodeURIComponent(pathname));
-        if (!assetPath.startsWith(ASSETS_DIR)) { res.writeHead(403); res.end(); return; }
-        if (fs.existsSync(assetPath)) {
-            const ext = path.extname(assetPath).toLowerCase();
-            const types = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac','.ico':'image/x-icon' };
-            res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' });
-            fs.createReadStream(assetPath).pipe(res);
+    const pu = url.parse(req.url, true), pn = pu.pathname, m = req.method, ck = parseCookies(req.headers.cookie);
+    if (pn.startsWith('/assets/')) {
+        const ap = path.join(__dir, decodeURIComponent(pn));
+        if (!ap.startsWith(ASSETS_DIR)) { res.writeHead(403); res.end(); return; }
+        if (fs.existsSync(ap)) {
+            const e = path.extname(ap).toLowerCase();
+            const t = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4' };
+            res.writeHead(200, { 'Content-Type': t[e] || 'application/octet-stream' });
+            fs.createReadStream(ap).pipe(res);
         } else { res.writeHead(404); res.end(); }
         return;
     }
-
-    if (pathname === '/api/chat/register' && method === 'POST') {
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            try {
-                const { name, phoneEmail } = JSON.parse(body);
-                if (!name || !phoneEmail) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'All fields required' })); return; }
-                const user = await createOrGetChatUser(name, phoneEmail);
-                if (!user) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
-                const token = await createChatSession(user.chatId);
-                const messages = await getChatMessages(user.chatId);
-                if (messages.length === 0) await saveChatMessage(user.chatId, 'admin', 'Hello! 👋 How can I help you?');
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, chatId: user.chatId, token, name: user.name }));
-            } catch (e) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); }
-        });
-        return;
-    }
-
-    if (pathname === '/api/chat/verify' && method === 'GET') {
-        const user = await getChatUserByToken(parsedUrl.query.token);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: !!user, chatId: user ? user.chatId : null }));
-        return;
-    }
-
-    if (pathname === '/api/chat/messages' && method === 'GET') {
-        const user = await getChatUserByToken(parsedUrl.query.token);
-        if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
-        const messages = await getChatMessages(user.chatId);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, messages }));
-        return;
-    }
-
-    if (pathname === '/api/chat/send' && method === 'POST') {
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            const { token, message } = JSON.parse(body);
-            const user = await getChatUserByToken(token);
-            if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
-            await saveChatMessage(user.chatId, 'user', message);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
-        });
-        return;
-    }
-
-    if (pathname === '/admin/chat' && method === 'GET') {
-        const s = getSession(cookies.sessionId);
-        if (!s) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
-        adminPresence.isOnline = true;
-        adminPresence.lastSeen = new Date();
-        const chatId = parsedUrl.query.chatId;
-        const chatList = await getAdminChatList();
-        let messages = [];
-        if (chatId) { messages = await getChatMessages(chatId); await markMessagesRead(chatId); }
-        const userList = chatList.map(c => `<div onclick="location.href='/admin/chat?chatId=${c.chatId}'" style="padding:12px;cursor:pointer;border-bottom:1px solid #e2e8f0;${c.chatId===chatId?'background:#eef2ff;border-left:3px solid #6366f1':''}"><div style="font-weight:600">${c.name}</div><div style="font-size:12px;color:#64748b">${c.phoneEmail}</div>${c.unread>0?`<span style="background:#6366f1;color:white;border-radius:10px;padding:2px 8px;font-size:11px">${c.unread}</span>`:''}</div>`).join('');
-        const msgHTML = messages.map(m => `<div style="display:flex;${m.sender==='user'?'justify-content:flex-start':'justify-content:flex-end'};margin-bottom:10px"><div style="max-width:70%;padding:10px 14px;border-radius:15px;${m.sender==='user'?'background:white;border:1px solid #e2e8f0':'background:#6366f1;color:white'}">${m.message}<div style="font-size:10px;opacity:0.7;text-align:right;margin-top:4px">${new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div></div></div>`).join('');
-        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-        res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Chat Panel</title><script src="https://cdn.tailwindcss.com"></script><style>body{margin:0;display:flex;height:100vh;font-family:sans-serif}.sidebar{width:350px;background:white;border-right:1px solid #e2e8f0;overflow-y:auto}.main{flex:1;display:flex;flex-direction:column}.messages{flex:1;overflow-y:auto;padding:20px;background:#f8fafc}.input-area{padding:16px;background:white;border-top:1px solid #e2e8f0;display:flex;gap:10px}.input-area input{flex:1;padding:10px 16px;border:2px solid #e2e8f0;border-radius:25px;outline:none}.input-area button{background:#6366f1;color:white;border:none;padding:10px 20px;border-radius:25px;cursor:pointer;font-weight:600}</style></head><body><div class="sidebar"><div style="padding:16px;background:#6366f1;color:white;font-weight:700">💬 Chats <a href="/admin" style="color:white;float:right;font-size:13px;opacity:0.8">← Back</a></div>${userList}</div><div class="main">${chatId?`<div style="padding:14px;background:white;border-bottom:1px solid #e2e8f0;font-weight:600">${chatList.find(c=>c.chatId===chatId)?.name||'User'}</div><div class="messages" id="msgContainer">${msgHTML||'<p style="text-align:center;color:#94a3b8;padding:40px">No messages</p>'}</div><div class="input-area"><input id="adminMsg" placeholder="Reply..." onkeypress="if(event.key==='Enter')sendAdminMsg()"><button onclick="sendAdminMsg()">Send</button></div><script>let cid='${chatId}';function loadMsgs(){fetch('/api/admin/messages?chatId='+cid).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msgContainer').innerHTML=d.messages.map(m=>'<div style="display:flex;'+(m.sender==='user'?'justify-content:flex-start':'justify-content:flex-end')+';margin-bottom:10px"><div style="max-width:70%;padding:10px 14px;border-radius:15px;'+(m.sender==='user'?'background:white;border:1px solid #e2e8f0':'background:#6366f1;color:white')+'">'+m.message+'<div style="font-size:10px;opacity:0.7;text-align:right;margin-top:4px">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div></div>').join('');document.getElementById('msgContainer').scrollTop=document.getElementById('msgContainer').scrollHeight}})}
-function sendAdminMsg(){var i=document.getElementById('adminMsg');var m=i.value.trim();if(!m)return;i.value='';fetch('/api/admin/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:cid,message:m})}).then(()=>loadMsgs())}
-setInterval(loadMsgs,2000);</script>`:'<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#94a3b8">Select a chat</div>'}</div></body></html>`);
-        return;
-    }
-
-    if (pathname === '/api/admin/messages' && method === 'GET') {
-        if (!getSession(cookies.sessionId)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
-        const messages = await getChatMessages(parsedUrl.query.chatId);
-        await markMessagesRead(parsedUrl.query.chatId);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, messages }));
-        return;
-    }
-
-    if (pathname === '/api/admin/send' && method === 'POST') {
-        if (!getSession(cookies.sessionId)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            const { chatId, message } = JSON.parse(body);
-            await saveChatMessage(chatId, 'admin', message);
-            adminPresence.isOnline = true;
-            adminPresence.lastSeen = new Date();
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
-        });
-        return;
-    }
-
-    if (pathname === '/admin' && method === 'GET') {
-        const s = getSession(cookies.sessionId);
-        if (s) {
-            adminPresence.isOnline = true;
-            adminPresence.lastSeen = new Date();
-            const p = await getGalleryPhotos();
-            res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-            res.end(await getAdminPanelHTML(p));
-            return;
-        }
-        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-        res.end(getAdminLoginHTML());
-        return;
-    }
-
-    if (pathname === '/admin/login' && method === 'POST') {
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            const params = new URLSearchParams(body);
-            if (await verifyAdmin(params.get('username'), params.get('password'))) {
-                const sid = createSession(params.get('username'));
-                adminPresence.isOnline = true;
-                adminPresence.lastSeen = new Date();
-                res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': `sessionId=${sid};HttpOnly;Path=/;Max-Age=7200;SameSite=Lax` });
-                res.end();
-            } else {
-                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-                res.end(getAdminLoginHTML('Invalid credentials'));
-            }
-        });
-        return;
-    }
-
-    if (pathname === '/admin/logout') {
-        sessions.delete(cookies.sessionId);
-        adminPresence.isOnline = false;
-        adminPresence.lastSeen = new Date();
-        res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': 'sessionId=;HttpOnly;Path=/;Max-Age=0' });
-        res.end();
-        return;
-    }
-
-    if (pathname === '/admin/upload' && method === 'POST') {
-        if (!getSession(cookies.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
-        const form = new formidable.IncomingForm({ uploadDir: GALLERY_DIR, keepExtensions: true, maxFileSize: 10 * 1024 * 1024 });
-        form.parse(req, async (err, fields, files) => {
-            if (err) { const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p, '', 'Upload error')); return; }
-            const pf = Array.isArray(files.photo) ? files.photo[0] : files.photo;
-            if (!pf || !pf.originalFilename) { const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p, '', 'No file')); return; }
-            const fn = Date.now() + '_' + pf.originalFilename.replace(/[^a-zA-Z0-9.]/g, '_');
-            try {
-                fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
-                await savePhoto({ path: '/assets/gallery/' + fn, caption: fields.caption ? (Array.isArray(fields.caption) ? fields.caption[0] : fields.caption) : '' });
-                const p = await getGalleryPhotos();
-                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-                res.end(await getAdminPanelHTML(p, 'Uploaded!'));
-            } catch (e) { const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p, '', 'Save error')); }
-        });
-        return;
-    }
-
-    if (pathname === '/admin/delete' && method === 'POST') {
-        if (!getSession(cookies.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            const params = new URLSearchParams(body);
-            try {
-                const photo = await db.collection('gallery_photos').findOne({ _id: new ObjectId(params.get('photoId')) });
-                if (photo) { const fp = path.join(__dir, photo.path); if (fs.existsSync(fp)) fs.unlinkSync(fp); }
-                await deletePhoto(params.get('photoId'));
-            } catch (e) { }
-            const p = await getGalleryPhotos();
-            res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-            res.end(await getAdminPanelHTML(p, 'Deleted'));
-        });
-        return;
-    }
-
-    if (pathname === '/' || pathname === '/index.html') {
-        const photos = await getGalleryPhotos();
-        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-        res.end(getMainHTML(photos));
-        return;
-    }
-
-    res.writeHead(404);
-    res.end('404 - Not Found');
+    if (pn === '/api/chat/register' && m === 'POST') { let b = ''; req.on('data', c => b += c); req.on('end', async () => { try { const { name, phoneEmail } = JSON.parse(b); if (!name || !phoneEmail) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } const u = await createOrGetChatUser(name, phoneEmail); if (!u) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } const t = await createChatSession(u.chatId); if ((await getChatMessages(u.chatId)).length === 0) await saveChatMessage(u.chatId, 'admin', 'Hello! How can I help you? 👋'); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true, chatId: u.chatId, token: t })); } catch (e) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); } }); return; }
+    if (pn === '/api/chat/verify' && m === 'GET') { const u = await getChatUserByToken(pu.query.token); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: !!u, chatId: u ? u.chatId : null })); return; }
+    if (pn === '/api/chat/messages' && m === 'GET') { const u = await getChatUserByToken(pu.query.token); if (!u) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true, messages: await getChatMessages(u.chatId) })); return; }
+    if (pn === '/api/chat/send' && m === 'POST') { let b = ''; req.on('data', c => b += c); req.on('end', async () => { const { token, message } = JSON.parse(b); const u = await getChatUserByToken(token); if (!u) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } await saveChatMessage(u.chatId, 'user', message); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true })); }); return; }
+    if (pn === '/admin' && m === 'GET') { const s = getSession(ck.sessionId); if (s) { adminPresence.isOnline = true; adminPresence.lastSeen = new Date(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(await getGalleryPhotos())); return; } res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(getAdminLoginHTML()); return; }
+    if (pn === '/admin/login' && m === 'POST') { let b = ''; req.on('data', c => b += c); req.on('end', async () => { const p = new URLSearchParams(b); if (await verifyAdmin(p.get('username'), p.get('password'))) { const s = createSession(p.get('username')); adminPresence.isOnline = true; adminPresence.lastSeen = new Date(); res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': `sessionId=${s};HttpOnly;Path=/;Max-Age=7200` }); res.end(); } else { res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(getAdminLoginHTML('Invalid credentials')); } }); return; }
+    if (pn === '/admin/logout') { sessions.delete(ck.sessionId); adminPresence.isOnline = false; adminPresence.lastSeen = new Date(); res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': 'sessionId=;HttpOnly;Path=/;Max-Age=0' }); res.end(); return; }
+    if (pn === '/admin/chat' && m === 'GET') { const s = getSession(ck.sessionId); if (!s) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; } adminPresence.isOnline = true; adminPresence.lastSeen = new Date(); const cid = pu.query.chatId, cl = await getAdminChatList(); let ms = []; if (cid) { ms = await getChatMessages(cid); await markMessagesRead(cid); } res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Chat</title><script src="https://cdn.tailwindcss.com"></script><style>body{margin:0;display:flex;height:100vh;font-family:sans-serif;background:#0a0a14;color:#fff}.sidebar{width:350px;background:#13132b;border-right:1px solid rgba(255,255,255,0.06)}.main{flex:1;display:flex;flex-direction:column}.messages{flex:1;overflow-y:auto;padding:20px;background:#0a0a14}</style></head><body><div class="sidebar"><div style="padding:16px;background:linear-gradient(135deg,#8b5cf6,#6d28d9)">💬 Chats <a href="/admin" style="color:#fff;float:right">Back</a></div>${cl.map(c=>`<div onclick="location.href='/admin/chat?chatId=${c.chatId}'" style="padding:12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.06);${c.chatId===cid?'background:rgba(139,92,246,0.2)':''}"><div style="font-weight:600">${c.name}</div><div style="font-size:12px;opacity:0.6">${c.phoneEmail}</div></div>`).join('')}</div><div class="main">${cid?`<div style="padding:14px;background:#13132b;font-weight:600">${cl.find(c=>c.chatId===cid)?.name}</div><div class="messages" id="mc">${ms.map(m=>`<div style="margin-bottom:10px;text-align:${m.sender==='user'?'left':'right'}"><div style="display:inline-block;max-width:70%;padding:10px 14px;border-radius:16px;${m.sender==='user'?'background:#1a1a35':'background:#8b5cf6'}">${m.message}</div></div>`).join('')}</div><div style="padding:14px;background:#13132b;display:flex;gap:10px"><input id="am" placeholder="Reply..." style="flex:1;padding:10px;background:#1a1a35;border:1px solid rgba(255,255,255,0.1);border-radius:20px;color:#fff;outline:none" onkeypress="if(event.key==='Enter')sm()"><button onclick="sm()" style="background:#8b5cf6;color:#fff;border:none;padding:10px 20px;border-radius:20px;cursor:pointer">Send</button></div><script>let cid='${cid}';function lm(){fetch('/api/admin/messages?chatId='+cid).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('mc').innerHTML=d.messages.map(m=>'<div style="margin-bottom:10px;text-align:'+(m.sender==='user'?'left':'right')+'"><div style="display:inline-block;max-width:70%;padding:10px 14px;border-radius:16px;'+(m.sender==='user'?'background:#1a1a35':'background:#8b5cf6')+'">'+m.message+'</div></div>').join('')}})}function sm(){var i=document.getElementById('am');fetch('/api/admin/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:cid,message:i.value})}).then(()=>{i.value='';lm()})}setInterval(lm,2000)</script>`:'<div style="flex:1;display:flex;align-items:center;justify-content:center;opacity:0.5">Select a chat</div>'}</div></body></html>`); return; }
+    if (pn === '/api/admin/messages' && m === 'GET') { if (!getSession(ck.sessionId)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } await markMessagesRead(pu.query.chatId); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true, messages: await getChatMessages(pu.query.chatId) })); return; }
+    if (pn === '/api/admin/send' && m === 'POST') { if (!getSession(ck.sessionId)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } let b = ''; req.on('data', c => b += c); req.on('end', async () => { const { chatId, message } = JSON.parse(b); await saveChatMessage(chatId, 'admin', message); adminPresence.isOnline = true; adminPresence.lastSeen = new Date(); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true })); }); return; }
+    if (pn === '/admin/upload' && m === 'POST') { if (!getSession(ck.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; } const fm = new formidable.IncomingForm({ uploadDir: GALLERY_DIR, keepExtensions: true }); fm.parse(req, async (err, fields, files) => { if (err) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; } const pf = Array.isArray(files.photo) ? files.photo[0] : files.photo; if (!pf) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; } const fn = Date.now() + '_' + pf.originalFilename; fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn)); await savePhoto({ path: '/assets/gallery/' + fn, caption: fields.caption || '' }); res.writeHead(302, { 'Location': '/admin' }); res.end(); }); return; }
+    if (pn === '/admin/delete' && m === 'POST') { if (!getSession(ck.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; } let b = ''; req.on('data', c => b += c); req.on('end', async () => { const p = new URLSearchParams(b); try { const ph = await db.collection('gallery_photos').findOne({ _id: new ObjectId(p.get('photoId')) }); if (ph && fs.existsSync(path.join(__dir, ph.path))) fs.unlinkSync(path.join(__dir, ph.path)); await deletePhoto(p.get('photoId')); } catch (e) {} res.writeHead(302, { 'Location': '/admin' }); res.end(); }); return; }
+    if (pn === '/' || pn === '/index.html') { res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(getMainHTML(await getGalleryPhotos())); return; }
+    res.writeHead(404); res.end('404');
 });
 
-async function start() {
-    await connectDB();
-    server.listen(PORT, () => console.log(`\n🚀 Server: http://localhost:${PORT}\n👤 Admin: http://localhost:${PORT}/admin (admin/admin123)\n🎵 Music Player with Play/Pause\n🔊 Fake Alert Voice ON/OFF Control\n`));
-}
+async function start() { await connectDB(); server.listen(PORT, () => console.log(`Server: http://localhost:${PORT}`)); }
 start().catch(console.error);
