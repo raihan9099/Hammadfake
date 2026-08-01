@@ -6,31 +6,98 @@ const crypto = require('crypto');
 const { MongoClient, ObjectId } = require('mongodb');
 const formidable = require('formidable');
 const bcrypt = require('bcryptjs');
-const socketIO = require('socket.io');
 
-// ==================== CONFIGURATION ====================
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/milow?retryWrites=true&w=majority';
 const DB_NAME = 'verification_hub';
 
-// ==================== DIRECTORY SETUP ====================
+let db, mongoClient;
 const __dir = path.resolve();
 const ASSETS_DIR = path.join(__dir, 'assets');
 const GALLERY_DIR = path.join(__dir, 'assets', 'gallery');
 const COVER_MUSIC_DIR = path.join(__dir, 'assets', 'covermusic');
-const CHAT_MEDIA_DIR = path.join(__dir, 'assets', 'chatmedia');
-const UPLOADS_DIR = path.join(__dir, 'assets', 'uploads');
+const TEMP_DIR = path.join(__dir, 'temp');
 
-[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR, CHAT_MEDIA_DIR, UPLOADS_DIR].forEach(dir => {
+[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR, TEMP_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// ==================== DATABASE ====================
-let db, mongoClient;
+// Connection pool for better performance
+let dbConnected = false;
+
+const IMAGES = {
+    profile: "/assets/tiktok_video_Aj2NO.jpeg",
+    official: "/assets/1785276289604.png",
+    fraud: "/assets/hammadfams.png",
+    danger: "/assets/baillamach.png"
+};
+
+const VOICE = {
+    welcome: "/assets/my%20user%20name.mp3",
+    fakeAlert: "/assets/7%20lak%20like%20but%20its%20fake.mp3"
+};
+
+// Cache for better performance
+const cache = {
+    coverSongs: null,
+    coverSongsTimestamp: 0,
+    galleryPhotos: null,
+    galleryPhotosTimestamp: 0
+};
+
+function getCoverSongs() {
+    const now = Date.now();
+    if (cache.coverSongs && (now - cache.coverSongsTimestamp) < 300000) {
+        return cache.coverSongs;
+    }
+    
+    try {
+        if (!fs.existsSync(COVER_MUSIC_DIR)) return [];
+        const files = fs.readdirSync(COVER_MUSIC_DIR);
+        const audioExts = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'];
+        const coverExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+        const groups = {};
+        
+        files.forEach(f => {
+            const ext = path.extname(f).toLowerCase();
+            const base = path.basename(f, ext);
+            if (!groups[base]) groups[base] = { audio: null, cover: null };
+            if (audioExts.includes(ext)) groups[base].audio = f;
+            if (coverExts.includes(ext)) groups[base].cover = f;
+        });
+        
+        const songs = Object.entries(groups)
+            .filter(([_, v]) => v.audio)
+            .map(([base, v]) => ({
+                id: base.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
+                title: base.replace(/[-_#]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()).trim(),
+                artist: 'Cover Song',
+                audioUrl: `/assets/covermusic/${encodeURIComponent(v.audio)}`,
+                coverUrl: v.cover ? `/assets/covermusic/${encodeURIComponent(v.cover)}` : null
+            }))
+            .sort((a, b) => a.title.localeCompare(b.title));
+            
+        cache.coverSongs = songs;
+        cache.coverSongsTimestamp = now;
+        return songs;
+    } catch (e) { 
+        console.error('Error getting cover songs:', e);
+        return []; 
+    }
+}
 
 async function connectDB() {
+    if (dbConnected) return true;
+    
     try {
-        mongoClient = new MongoClient(MONGO_URI);
+        mongoClient = new MongoClient(MONGO_URI, {
+            maxPoolSize: 10,
+            minPoolSize: 2,
+            maxIdleTimeMS: 30000,
+            connectTimeoutMS: 5000,
+            socketTimeoutMS: 10000
+        });
+        
         await mongoClient.connect();
         db = mongoClient.db(DB_NAME);
         
@@ -39,9 +106,12 @@ async function connectDB() {
         const names = existing.map(c => c.name);
         
         for (const col of collections) {
-            if (!names.includes(col)) await db.createCollection(col);
+            if (!names.includes(col)) {
+                await db.createCollection(col);
+            }
         }
         
+        // Create indexes for better performance
         await db.collection('chat_messages').createIndex({ chatId: 1, createdAt: -1 });
         await db.collection('chat_users').createIndex({ phoneEmail: 1 }, { unique: true, sparse: true });
         await db.collection('chat_sessions').createIndex({ token: 1 });
@@ -56,23 +126,319 @@ async function connectDB() {
             });
         }
         
-        console.log('Database connected');
+        dbConnected = true;
+        console.log('✅ Database connected and optimized');
         return true;
     } catch (e) {
         console.error('Database connection error:', e.message);
+        dbConnected = false;
         return false;
     }
 }
 
-// ==================== SESSION MANAGEMENT ====================
+// Database operations with error handling
+async function getGalleryPhotos() {
+    if (!db) return [];
+    
+    try {
+        const now = Date.now();
+        if (cache.galleryPhotos && (now - cache.galleryPhotosTimestamp) < 60000) {
+            return cache.galleryPhotos;
+        }
+        
+        const photos = await db.collection('gallery_photos')
+            .find({})
+            .sort({ uploadedAt: -1 })
+            .toArray();
+            
+        cache.galleryPhotos = photos;
+        cache.galleryPhotosTimestamp = now;
+        return photos;
+    } catch (e) {
+        console.error('Error fetching gallery:', e);
+        return [];
+    }
+}
+
+async function savePhoto(d) {
+    if (!db) return null;
+    try {
+        const result = await db.collection('gallery_photos').insertOne({
+            ...d,
+            uploadedAt: new Date()
+        });
+        cache.galleryPhotosTimestamp = 0; // Invalidate cache
+        return result;
+    } catch (e) {
+        console.error('Error saving photo:', e);
+        return null;
+    }
+}
+
+async function deletePhoto(id) {
+    if (!db) return null;
+    try {
+        const result = await db.collection('gallery_photos').deleteOne({ _id: new ObjectId(id) });
+        cache.galleryPhotosTimestamp = 0; // Invalidate cache
+        return result;
+    } catch (e) {
+        console.error('Error deleting photo:', e);
+        return null;
+    }
+}
+
+async function verifyAdmin(u, p) {
+    if (!db) return u === 'admin' && p === 'admin123';
+    try {
+        const a = await db.collection('admin_users').findOne({ username: u });
+        if (!a) return false;
+        return await bcrypt.compare(p, a.password);
+    } catch (e) {
+        console.error('Admin verification error:', e);
+        return false;
+    }
+}
+
+// Chat functions with improved error handling
+async function createOrGetChatUser(name, phoneEmail) {
+    if (!db || !phoneEmail || !phoneEmail.trim()) return null;
+    
+    const clean = phoneEmail.trim().toLowerCase();
+    
+    try {
+        let user = await db.collection('chat_users').findOne({ phoneEmail: clean });
+        
+        if (user) {
+            await db.collection('chat_users').updateOne(
+                { _id: user._id },
+                { 
+                    $set: { 
+                        name, 
+                        lastSeen: new Date(), 
+                        status: 'active' 
+                    } 
+                }
+            );
+            return user;
+        }
+        
+        const chatId = 'CHAT-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        user = {
+            chatId,
+            name,
+            phoneEmail: clean,
+            createdAt: new Date(),
+            lastSeen: new Date(),
+            status: 'active'
+        };
+        
+        await db.collection('chat_users').insertOne(user);
+        return user;
+    } catch (e) {
+        console.error('Error creating chat user:', e);
+        return null;
+    }
+}
+
+async function createChatSession(chatId) {
+    if (!db) return null;
+    
+    try {
+        const token = crypto.randomBytes(32).toString('hex');
+        await db.collection('chat_sessions').deleteMany({ chatId });
+        await db.collection('chat_sessions').insertOne({
+            chatId,
+            token,
+            createdAt: new Date(),
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        });
+        return token;
+    } catch (e) {
+        console.error('Error creating session:', e);
+        return null;
+    }
+}
+
+async function getChatUserByToken(token) {
+    if (!db || !token) return null;
+    
+    try {
+        const session = await db.collection('chat_sessions').findOne({
+            token,
+            expiresAt: { $gt: new Date() }
+        });
+        
+        if (!session) return null;
+        return await db.collection('chat_users').findOne({ chatId: session.chatId });
+    } catch (e) {
+        console.error('Error getting user by token:', e);
+        return null;
+    }
+}
+
+async function getChatMessages(chatId) {
+    if (!db) return [];
+    
+    try {
+        return await db.collection('chat_messages')
+            .find({ chatId })
+            .sort({ createdAt: 1 })
+            .limit(100)
+            .toArray();
+    } catch (e) {
+        console.error('Error getting messages:', e);
+        return [];
+    }
+}
+
+async function saveChatMessage(chatId, sender, message) {
+    if (!db) return null;
+    
+    try {
+        const msg = {
+            chatId,
+            sender,
+            message,
+            createdAt: new Date(),
+            read: false
+        };
+        
+        await db.collection('chat_messages').insertOne(msg);
+        await db.collection('chat_users').updateOne(
+            { chatId },
+            { $set: { lastSeen: new Date() } }
+        );
+        return msg;
+    } catch (e) {
+        console.error('Error saving message:', e);
+        return null;
+    }
+}
+
+async function getAdminChatList() {
+    if (!db) return [];
+    
+    try {
+        const users = await db.collection('chat_users')
+            .find({ status: 'active' })
+            .sort({ lastSeen: -1 })
+            .toArray();
+            
+        const list = [];
+        for (const u of users) {
+            const lastMsg = await db.collection('chat_messages')
+                .findOne(
+                    { chatId: u.chatId },
+                    { sort: { createdAt: -1 } }
+                );
+                
+            const unread = await db.collection('chat_messages')
+                .countDocuments({
+                    chatId: u.chatId,
+                    sender: 'user',
+                    read: false
+                });
+                
+            list.push({
+                chatId: u.chatId,
+                name: u.name,
+                phoneEmail: u.phoneEmail,
+                lastSeen: u.lastSeen,
+                lastMessage: lastMsg,
+                unread
+            });
+        }
+        return list;
+    } catch (e) {
+        console.error('Error getting chat list:', e);
+        return [];
+    }
+}
+
+async function markMessagesRead(chatId) {
+    if (!db) return;
+    
+    try {
+        await db.collection('chat_messages').updateMany(
+            { chatId, sender: 'user', read: false },
+            { $set: { read: true } }
+        );
+    } catch (e) {
+        console.error('Error marking messages read:', e);
+    }
+}
+
+const DATA = {
+    celebrity: {
+        name: "Baiilla Maach",
+        fullName: "Baiilla Maach Official",
+        photo: IMAGES.profile,
+        bio: "Official Entertainment Profile | Bangladesh",
+        tiktokFollowers: "5,000",
+        tiktokFollowing: "0",
+        tiktokLikes: "50K",
+        location: "Dhaka, Bangladesh"
+    },
+    realAccounts: [
+        { 
+            platform: "TikTok", 
+            username: "@baiillamaach_official", 
+            url: "https://tiktok.com/@baiillamaach_official", 
+            screenshot: IMAGES.official, 
+            verified: true, 
+            followers: "5,000", 
+            following: "0", 
+            likes: "50K" 
+        },
+        { 
+            platform: "Facebook", 
+            username: "Baiilla Maach Official", 
+            url: "https://www.facebook.com/profile.php?id=61575202118828", 
+            screenshot: null, 
+            verified: true, 
+            followers: "Growing" 
+        }
+    ],
+    fakeAccounts: [
+        { 
+            platform: "TikTok", 
+            username: "@baiilla_mach", 
+            profileUrl: "https://tiktok.com/@baiilla_mach", 
+            screenshot: IMAGES.danger, 
+            reason: "Copies official content and logo to deceive followers.", 
+            threatLevel: "Critical", 
+            reportedCount: 156 
+        },
+        { 
+            platform: "TikTok", 
+            username: "@hammad_fams0", 
+            profileUrl: "https://tiktok.com/@hammad_fams0", 
+            screenshot: IMAGES.fraud, 
+            reason: "Uses official name and photo to mislead followers.", 
+            threatLevel: "High", 
+            reportedCount: 89 
+        }
+    ]
+};
+
+// Session management with cleanup
 const sessions = new Map();
 
-function createSession(username) {
+// Cleanup expired sessions every 30 minutes
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of sessions) {
+        if (now - value.createdAt > 7200000) {
+            sessions.delete(key);
+        }
+    }
+}, 1800000);
+
+function createSession(u) {
     const id = crypto.randomBytes(32).toString('hex');
-    sessions.set(id, {
-        username,
-        createdAt: Date.now(),
-        expiresAt: Date.now() + 7200000
+    sessions.set(id, { 
+        username: u, 
+        createdAt: Date.now() 
     });
     return id;
 }
@@ -80,1127 +446,1093 @@ function createSession(username) {
 function getSession(id) {
     const s = sessions.get(id);
     if (!s) return null;
-    if (Date.now() > s.expiresAt) {
+    if (Date.now() - s.createdAt > 7200000) {
         sessions.delete(id);
         return null;
     }
     return s;
 }
 
-// ==================== HELPER FUNCTIONS ====================
-function parseCookies(header) {
-    const cookies = {};
-    if (header) {
-        header.split(';').forEach(cookie => {
-            const parts = cookie.split('=');
-            cookies[parts[0].trim()] = parts[1] ? parts[1].trim() : '';
+function parseCookies(h) {
+    const c = {};
+    if (h) {
+        h.split(';').forEach(x => {
+            const p = x.split('=');
+            c[p[0].trim()] = p[1] ? p[1].trim() : '';
         });
     }
-    return cookies;
+    return c;
 }
 
-function getMimeType(ext) {
-    const types = {
-        '.html': 'text/html',
-        '.css': 'text/css',
-        '.js': 'text/javascript',
-        '.json': 'application/json',
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.webp': 'image/webp',
-        '.svg': 'image/svg+xml',
-        '.ico': 'image/x-icon',
-        '.mp3': 'audio/mpeg',
-        '.wav': 'audio/wav',
-        '.ogg': 'audio/ogg',
-        '.m4a': 'audio/mp4',
-        '.aac': 'audio/aac',
-        '.flac': 'audio/flac',
-        '.webm': 'audio/webm',
-        '.mp4': 'video/mp4',
-        '.avi': 'video/x-msvideo',
-        '.mov': 'video/quicktime',
-        '.mkv': 'video/x-matroska',
-        '.pdf': 'application/pdf',
-        '.doc': 'application/msword',
-        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        '.txt': 'text/plain',
-        '.zip': 'application/zip'
-    };
-    return types[ext] || 'application/octet-stream';
-}
+// Professional White Theme HTML
+function getMainHTML(galleryPhotos = []) {
+    const coverSongs = getCoverSongs();
+    const totalFake = DATA.fakeAccounts.length;
 
-// ==================== CHAT FUNCTIONS ====================
-async function createOrGetChatUser(name, phoneEmail) {
-    if (!phoneEmail || !phoneEmail.trim()) return null;
-    const clean = phoneEmail.trim().toLowerCase();
-    
-    let user = await db.collection('chat_users').findOne({ phoneEmail: clean });
-    
-    if (user) {
-        await db.collection('chat_users').updateOne(
-            { _id: user._id },
-            { $set: { name, lastSeen: new Date(), status: 'active' } }
-        );
-        return user;
-    }
-    
-    const chatId = 'CHAT-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-    user = {
-        chatId,
-        name,
-        phoneEmail: clean,
-        createdAt: new Date(),
-        lastSeen: new Date(),
-        status: 'active'
-    };
-    
-    await db.collection('chat_users').insertOne(user);
-    return user;
-}
-
-async function createChatSession(chatId) {
-    const token = crypto.randomBytes(32).toString('hex');
-    await db.collection('chat_sessions').deleteMany({ chatId });
-    await db.collection('chat_sessions').insertOne({
-        chatId,
-        token,
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    });
-    return token;
-}
-
-async function getChatUserByToken(token) {
-    if (!token) return null;
-    const session = await db.collection('chat_sessions').findOne({
-        token,
-        expiresAt: { $gt: new Date() }
-    });
-    if (!session) return null;
-    return await db.collection('chat_users').findOne({ chatId: session.chatId });
-}
-
-async function getChatMessages(chatId, limit = 100, before = null) {
-    let query = { chatId };
-    if (before) {
-        query.createdAt = { $lt: new Date(before) };
-    }
-    
-    return await db.collection('chat_messages')
-        .find(query)
-        .sort({ createdAt: -1 })
-        .limit(limit)
-        .toArray()
-        .then(msgs => msgs.reverse());
-}
-
-async function saveChatMessage(chatId, sender, message, mediaUrl = null, mediaType = null, fileName = null, fileSize = null, replyTo = null) {
-    const msg = {
-        chatId,
-        sender,
-        message: message || '',
-        mediaUrl,
-        mediaType,
-        fileName,
-        fileSize,
-        replyTo,
-        createdAt: new Date(),
-        read: false,
-        delivered: true,
-        edited: false,
-        deleted: false
-    };
-    
-    const result = await db.collection('chat_messages').insertOne(msg);
-    await db.collection('chat_users').updateOne(
-        { chatId },
-        { $set: { lastSeen: new Date() } }
-    );
-    
-    msg._id = result.insertedId;
-    return msg;
-}
-
-async function getAdminChatList(search = '') {
-    let query = { status: 'active' };
-    if (search) {
-        query.$or = [
-            { name: { $regex: search, $options: 'i' } },
-            { phoneEmail: { $regex: search, $options: 'i' } }
-        ];
-    }
-    
-    const users = await db.collection('chat_users')
-        .find(query)
-        .sort({ lastSeen: -1 })
-        .toArray();
-    
-    const list = [];
-    for (const u of users) {
-        const lastMsg = await db.collection('chat_messages')
-            .findOne({ chatId: u.chatId, deleted: { $ne: true } }, { sort: { createdAt: -1 } });
-        
-        const unread = await db.collection('chat_messages')
-            .countDocuments({ chatId: u.chatId, sender: 'user', read: false });
-        
-        list.push({
-            chatId: u.chatId,
-            name: u.name,
-            phoneEmail: u.phoneEmail,
-            lastSeen: u.lastSeen,
-            lastMessage: lastMsg,
-            unread,
-            status: u.status
-        });
-    }
-    return list;
-}
-
-async function markMessagesRead(chatId) {
-    return await db.collection('chat_messages').updateMany(
-        { chatId, sender: 'user', read: false },
-        { $set: { read: true } }
-    );
-}
-
-// ==================== HTML TEMPLATES ====================
-function getMainHTML() {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Verification Hub 2026</title>
+<meta name="theme-color" content="#ffffff">
+<title>Baiilla Maach | Official Verification Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+    theme: {
+        extend: {
+            colors: {
+                primary: '#6366f1',
+                success: '#10b981',
+                danger: '#ef4444',
+                warning: '#f59e0b',
+                dark: '#1e293b',
+                light: '#f8fafc'
+            },
+            fontFamily: {
+                sans: ['Inter', 'system-ui', 'sans-serif']
+            }
+        }
+    }
+}
+</script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#0a0a0a;color:#fff;min-height:100vh}
-.glass{background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.05)}
-.msg-btn{position:fixed;bottom:30px;right:30px;z-index:9999;width:65px;height:65px;border-radius:50%;background:linear-gradient(135deg,#0084ff,#00b4ff);border:none;cursor:pointer;box-shadow:0 8px 30px rgba(0,132,255,0.5);display:flex;align-items:center;justify-content:center;transition:all 0.3s}
-.msg-btn:hover{transform:scale(1.1);box-shadow:0 12px 40px rgba(0,132,255,0.6)}
-.msg-btn svg{width:30px;height:30px;fill:white}
-.badge{position:absolute;top:-8px;right:-8px;background:#ff3b30;color:white;border-radius:50%;min-width:24px;height:24px;font-size:12px;font-weight:bold;display:none;align-items:center;justify-content:center;border:3px solid #0a0a0a}
-.chat-box{position:fixed;bottom:110px;right:30px;width:400px;height:600px;max-height:calc(100vh - 150px);background:#1a1a1a;border-radius:24px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.8);display:none;flex-direction:column;border:1px solid rgba(255,255,255,0.1);z-index:9998}
-.chat-box.open{display:flex}
-.chat-head{background:linear-gradient(135deg,#0084ff,#00b4ff);padding:16px 20px;display:flex;align-items:center;gap:12px;color:white;cursor:pointer}
-.chat-avatar{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:18px;position:relative}
-.online-dot{width:12px;height:12px;background:#4cd137;border-radius:50%;position:absolute;bottom:0;right:0;border:3px solid #0084ff}
-.chat-close{background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all 0.2s}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);color:#1e293b;min-height:100vh}
+.glass{background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);border:1px solid rgba(0,0,0,0.1)}
+.glass-card{background:white;border:1px solid rgba(0,0,0,0.08);border-radius:16px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);transition:all 0.3s ease}
+.glass-card:hover{box-shadow:0 10px 25px -5px rgba(0,0,0,0.1), 0 4px 10px -5px rgba(0,0,0,0.04);transform:translateY(-2px)}
+.verified-glow{box-shadow:0 0 20px rgba(16,185,129,0.2)}
+.danger-glow{box-shadow:0 0 20px rgba(239,68,68,0.2)}
+.gradient-text{background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.btn-primary{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;padding:12px 24px;border-radius:12px;font-weight:600;transition:all 0.3s ease;border:none;cursor:pointer}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 20px -5px rgba(99,102,241,0.4)}
+.btn-success{background:#10b981;color:white;padding:12px 24px;border-radius:12px;font-weight:600;transition:all 0.3s ease;border:none;cursor:pointer}
+.btn-success:hover{transform:translateY(-2px);box-shadow:0 10px 20px -5px rgba(16,185,129,0.4)}
+.btn-danger{background:#ef4444;color:white;padding:12px 24px;border-radius:12px;font-weight:600;transition:all 0.3s ease;border:none;cursor:pointer}
+.btn-danger:hover{transform:translateY(-2px);box-shadow:0 10px 20px -5px rgba(239,68,68,0.4)}
+
+/* Modern Music Player */
+.music-player{background:linear-gradient(135deg,#1e293b,#334155);border-radius:20px;padding:24px;color:white;box-shadow:0 20px 40px rgba(0,0,0,0.3)}
+.player-controls{display:flex;align-items:center;gap:16px;margin-top:16px}
+.play-btn{width:56px;height:56px;border-radius:50%;background:#6366f1;border:none;color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;transition:all 0.3s ease}
+.play-btn:hover{transform:scale(1.1);box-shadow:0 10px 20px rgba(99,102,241,0.4)}
+.play-btn.playing{background:#10b981}
+.progress-bar{flex:1;height:6px;background:rgba(255,255,255,0.2);border-radius:3px;cursor:pointer;position:relative;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:3px;width:0%;transition:width 0.3s ease}
+.time-display{display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:rgba(255,255,255,0.6)}
+
+/* Modern Chat Widget */
+.chat-widget{position:fixed;bottom:24px;right:24px;z-index:9999}
+.chat-btn{width:60px;height:60px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 25px rgba(99,102,241,0.3);transition:all 0.3s;border:none;color:white;font-size:24px}
+.chat-btn:hover{transform:scale(1.1)}
+.chat-badge{position:absolute;top:-5px;right:-5px;background:#ef4444;color:white;border-radius:50%;min-width:24px;height:24px;font-size:12px;display:none;align-items:center;justify-content:center;font-weight:bold;padding:0 6px}
+@keyframes bounceIn{0%{transform:scale(0)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+
+.chat-window{position:fixed;bottom:100px;right:24px;width:380px;max-width:calc(100vw - 48px);height:600px;max-height:calc(100vh - 140px);background:white;border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);display:none;flex-direction:column;border:1px solid rgba(0,0,0,0.1)}
+.chat-window.open{display:flex;animation:slideUp 0.3s ease}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.chat-header{background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:16px;display:flex;align-items:center;gap:12px;color:white}
+.chat-avatar{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;position:relative;border:2px solid rgba(255,255,255,0.3)}
+.chat-online{width:10px;height:10px;background:#10b981;border-radius:50%;position:absolute;bottom:2px;right:2px;border:2px solid white}
+.chat-header-info{flex:1}
+.chat-header-name{font-weight:600;font-size:16px}
+.chat-header-status{font-size:12px;opacity:0.9}
+.chat-close{background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
 .chat-close:hover{background:rgba(255,255,255,0.3)}
-.chat-msgs{flex:1;overflow-y:auto;padding:20px;background:#141414;display:flex;flex-direction:column;gap:2px}
-.chat-msgs::-webkit-scrollbar{width:6px}
-.chat-msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:3px}
-.msg-row{display:flex;margin-bottom:4px;animation:msgIn 0.3s ease}
-@keyframes msgIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.msg-row.sent{justify-content:flex-end}
-.msg-row.received{justify-content:flex-start}
-.msg-bubble{max-width:75%;padding:10px 14px;border-radius:20px;font-size:14px;line-height:1.5;word-wrap:break-word;position:relative}
-.msg-row.sent .msg-bubble{background:#0084ff;color:white;border-bottom-right-radius:6px}
-.msg-row.received .msg-bubble{background:#2c2c2c;color:white;border-bottom-left-radius:6px}
-.msg-time{font-size:11px;opacity:0.7;margin-top:4px;display:flex;justify-content:flex-end;align-items:center;gap:4px}
-.msg-media{margin:4px 0}
-.msg-media img{max-width:200px;max-height:200px;border-radius:12px;cursor:pointer;display:block}
-.msg-media audio{width:200px;height:40px;outline:none}
-.msg-media video{max-width:200px;max-height:200px;border-radius:12px;outline:none}
-.msg-file{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.1);padding:8px 12px;border-radius:12px;font-size:13px}
-.chat-login{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 30px;background:#141414}
-.chat-login-icon{font-size:64px;margin-bottom:16px}
-.chat-login h3{font-size:20px;font-weight:600;margin-bottom:8px}
-.chat-login p{color:#999;font-size:14px;margin-bottom:28px;text-align:center}
-.chat-login input{width:100%;padding:14px 18px;background:#2c2c2c;border:2px solid #3a3a3a;border-radius:14px;color:white;font-size:15px;outline:none;margin-bottom:14px;transition:border-color 0.2s}
-.chat-login input:focus{border-color:#0084ff}
-.chat-login button{width:100%;padding:14px;background:linear-gradient(135deg,#0084ff,#00b4ff);color:white;border:none;border-radius:14px;font-weight:600;font-size:15px;cursor:pointer;transition:transform 0.2s}
-.chat-login button:hover{transform:translateY(-1px)}
-.chat-login button:active{transform:translateY(0)}
-.chat-input-box{background:#1a1a1a;padding:14px 18px;display:flex;align-items:center;gap:10px;border-top:1px solid rgba(255,255,255,0.05)}
-.chat-input-box input{flex:1;padding:12px 18px;background:#2c2c2c;border:none;border-radius:24px;color:white;font-size:14px;outline:none}
-.chat-input-box input::placeholder{color:#666}
-.send-btn{width:42px;height:42px;border-radius:50%;background:#0084ff;border:none;color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0}
-.send-btn:hover{background:#0073e6;transform:scale(1.05)}
-.send-btn:active{transform:scale(0.95)}
-.send-btn svg{width:20px;height:20px;fill:white}
-.attach-btn{width:40px;height:40px;border-radius:50%;background:transparent;border:none;color:#999;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0;font-size:20px}
-.attach-btn:hover{color:white;background:rgba(255,255,255,0.1)}
-@media(max-width:480px){.chat-box{width:100%;height:100%;max-height:100vh;bottom:0;right:0;border-radius:0}.msg-btn{bottom:20px;right:20px;width:60px;height:60px}}
+.chat-messages{flex:1;overflow-y:auto;padding:20px;background:#f8fafc}
+.chat-messages::-webkit-scrollbar{width:6px}
+.chat-messages::-webkit-scrollbar-track{background:transparent}
+.chat-messages::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+.msg{max-width:75%;padding:10px 14px;margin-bottom:8px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;position:relative;animation:fadeIn 0.3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.msg-out{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;margin-left:auto;border-bottom-right-radius:4px}
+.msg-in{background:white;color:#1e293b;margin-right:auto;border-bottom-left-radius:4px;box-shadow:0 2px 4px rgba(0,0,0,0.05)}
+.msg-time{font-size:11px;opacity:0.7;margin-top:4px;text-align:right}
+.msg-in .msg-time{color:#64748b}
+.chat-login{flex:1;display:flex;flex-direction:column;justify-content:center;padding:40px 24px;text-align:center;background:#f8fafc}
+.chat-login h3{color:#1e293b;margin-bottom:8px;font-size:20px;font-weight:700}
+.chat-login p{color:#64748b;font-size:14px;margin-bottom:24px}
+.chat-login input{width:100%;background:white;border:2px solid #e2e8f0;padding:12px 16px;border-radius:12px;font-size:14px;margin-bottom:12px;outline:none;transition:all 0.2s;color:#1e293b}
+.chat-login input:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,0.1)}
+.chat-login button{width:100%;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;padding:14px;border-radius:12px;font-weight:600;cursor:pointer;font-size:16px;transition:all 0.3s}
+.chat-login button:hover{transform:translateY(-2px);box-shadow:0 10px 20px rgba(99,102,241,0.3)}
+.chat-input-area{background:white;padding:16px;display:flex;align-items:center;gap:12px;border-top:1px solid #e2e8f0}
+.chat-input-area input{flex:1;background:#f1f5f9;border:2px solid #e2e8f0;padding:12px 16px;border-radius:24px;font-size:14px;outline:none;transition:all 0.2s;color:#1e293b}
+.chat-input-area input:focus{border-color:#6366f1;background:white}
+.chat-send-btn{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:white;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.3s}
+.chat-send-btn:hover{transform:scale(1.1)}
+.typing-indicator{display:none;padding:0 20px 8px}
+.typing-dots{display:inline-flex;gap:4px;padding:10px 14px;background:white;border-radius:12px;box-shadow:0 2px 4px rgba(0,0,0,0.05)}
+.typing-dot{width:7px;height:7px;border-radius:50%;background:#94a3b8;animation:typing 1.4s infinite}
+.typing-dot:nth-child(2){animation-delay:0.2s}
+.typing-dot:nth-child(3){animation-delay:0.4s}
+@keyframes typing{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-8px)}}
+
+@media(max-width:640px){
+.chat-window{width:100%;max-width:100%;bottom:0;right:0;border-radius:20px 20px 0 0;height:90vh;max-height:90vh}
+.chat-widget{bottom:16px;right:16px}
+}
+
+/* Loading Spinner */
+.spinner{width:40px;height:40px;border:3px solid #e2e8f0;border-top:3px solid #6366f1;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+
+/* Toast Notification */
+.toast{position:fixed;top:20px;right:20px;z-index:99999;background:white;padding:16px 24px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.2);display:flex;align-items:center;gap:12px;transform:translateX(120%);transition:transform 0.3s ease;border-left:4px solid #6366f1}
+.toast.show{transform:translateX(0)}
+.toast.error{border-left-color:#ef4444}
+.toast.success{border-left-color:#10b981}
 </style>
 </head>
 <body>
-<nav class="glass sticky top-0 z-40 px-4 py-4"><div class="max-w-6xl mx-auto flex items-center justify-between"><span class="font-bold text-xl bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">Verification Hub 2026</span></div></nav>
-<main class="max-w-4xl mx-auto px-4 py-16 text-center"><h1 class="text-5xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-4">Baiilla Maach Official</h1><p class="text-gray-400 text-lg">Verified Creator ✨</p></main>
 
-<!-- Chat Button -->
-<button class="msg-btn" onclick="toggleChat()" id="msgBtn">
-    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"/><path d="M7 9h10v2H7zm0-3h10v2H7zm0 6h7v2H7z"/></svg>
-    <span class="badge" id="unreadBadge">0</span>
-</button>
+<!-- Toast Notification Container -->
+<div id="toast" class="toast"></div>
 
-<!-- Chat Box -->
-<div class="chat-box" id="chatBox">
-    <div class="chat-head" onclick="toggleChat()">
-        <div class="chat-avatar">H<div class="online-dot"></div></div>
-        <div style="flex:1">
-            <div style="font-weight:600;font-size:16px">Hammad Bin Amir</div>
-            <div style="font-size:12px;opacity:0.9">Online now</div>
-        </div>
-        <button class="chat-close" onclick="event.stopPropagation();toggleChat()">✕</button>
-    </div>
-    
-    <!-- Login Screen -->
-    <div class="chat-login" id="loginScreen">
-        <div class="chat-login-icon">💬</div>
-        <h3>Start a Conversation</h3>
-        <p>Enter your details to chat with Hammad</p>
-        <input type="text" id="userName" placeholder="Your name">
-        <input type="text" id="userContact" placeholder="Phone or email">
-        <button onclick="startChat()">Start Chat</button>
-        <p style="color:#666;font-size:12px;margin-top:16px">Your information is secure and encrypted</p>
-    </div>
-    
-    <!-- Chat Screen -->
-    <div id="chatScreen" style="display:none;flex:1;flex-direction:column">
-        <div class="chat-msgs" id="msgContainer">
-            <div style="text-align:center;color:#666;font-size:13px;padding:20px">
-                🔒 Messages are end-to-end encrypted
-            </div>
-        </div>
-        <div class="chat-input-box">
-            <button class="attach-btn" onclick="document.getElementById('fileInput').click()" title="Attach file">
-                📎
-            </button>
-            <input type="file" id="fileInput" style="display:none" onchange="sendFile(this)" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt">
-            <input type="text" id="msgInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
-            <button class="send-btn" onclick="sendMessage()">
-                <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-            </button>
-        </div>
-    </div>
+<!-- Header -->
+<header class="glass sticky top-0 z-40 backdrop-blur-lg">
+<div class="max-w-7xl mx-auto px-4">
+<div class="flex items-center justify-between h-16">
+<div class="flex items-center gap-3">
+<img src="${DATA.celebrity.photo}" alt="" class="w-10 h-10 rounded-full border-2 border-primary object-cover shadow-lg" onerror="this.style.display='none'">
+<div>
+<span class="text-lg font-bold gradient-text">Verification Hub</span>
+<p class="text-xs text-gray-500">Official Account Verification</p>
+</div>
+</div>
+<nav class="hidden md:flex items-center gap-2">
+<a href="#official" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-primary rounded-lg hover:bg-primary/5 transition-all">Official</a>
+<a href="#fake" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-danger rounded-lg hover:bg-danger/5 transition-all">Fake Alerts</a>
+${coverSongs.length > 0 ? '<a href="#music" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-primary rounded-lg hover:bg-primary/5 transition-all">Music</a>' : ''}
+<a href="#gallery" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-primary rounded-lg hover:bg-primary/5 transition-all">Gallery</a>
+</nav>
+</div>
+</div>
+</header>
+
+<!-- Main Content -->
+<main class="pt-20 pb-32">
+<div class="max-w-7xl mx-auto px-4 space-y-12">
+
+<!-- Profile Section -->
+<section class="text-center">
+<div class="relative inline-block mb-6">
+<img src="${DATA.celebrity.photo}" alt="" class="w-32 h-32 rounded-full border-4 border-primary object-cover mx-auto verified-glow shadow-2xl" onerror="this.style.display='none'">
+<div class="absolute -bottom-2 -right-2 w-10 h-10 bg-success rounded-full border-4 border-white flex items-center justify-center shadow-lg">
+<svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+</svg>
+</div>
+</div>
+<h1 class="text-3xl font-extrabold gradient-text mb-2">${DATA.celebrity.fullName}</h1>
+<p class="text-gray-600 mb-6 text-lg">${DATA.celebrity.bio}</p>
+
+<div class="flex justify-center gap-6 mb-6">
+<div class="glass-card px-8 py-4">
+<div class="text-2xl font-bold text-primary">${DATA.celebrity.tiktokFollowers}</div>
+<div class="text-sm text-gray-500 font-medium">Followers</div>
+</div>
+<div class="glass-card px-8 py-4">
+<div class="text-2xl font-bold text-primary">${DATA.celebrity.tiktokFollowing}</div>
+<div class="text-sm text-gray-500 font-medium">Following</div>
+</div>
+<div class="glass-card px-8 py-4">
+<div class="text-2xl font-bold text-primary">${DATA.celebrity.tiktokLikes}</div>
+<div class="text-sm text-gray-500 font-medium">Likes</div>
+</div>
 </div>
 
+<div class="flex justify-center gap-4 flex-wrap">
+<span class="inline-flex items-center gap-2 px-5 py-2.5 bg-success/10 text-success border border-success/25 rounded-full text-sm font-semibold verified-glow">
+<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+Verified Official
+</span>
+<span class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary/10 text-primary border border-primary/25 rounded-full text-sm font-semibold">
+<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+Content Creator
+</span>
+</div>
+</section>
+
+<!-- Official Accounts Section -->
+<section id="official" class="glass-card p-8">
+<div class="flex items-center gap-3 mb-6">
+<div class="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center verified-glow">
+<svg class="w-5 h-5 text-success" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+</div>
+<div>
+<h2 class="text-2xl font-bold text-gray-800">Official Verified Accounts</h2>
+<p class="text-gray-500 text-sm">Only follow these verified accounts</p>
+</div>
+<span class="ml-auto px-4 py-2 bg-success/10 text-success border border-success/30 rounded-full text-sm font-bold">✓ VERIFIED</span>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+${DATA.realAccounts.map(acc => `
+<div class="bg-gray-50 rounded-2xl p-6 hover:shadow-lg transition-all border border-gray-100">
+<div class="flex items-center justify-between mb-4">
+<span class="text-xs uppercase text-gray-500 font-semibold">${acc.platform}</span>
+<span class="px-3 py-1 bg-success/10 text-success text-xs rounded-full font-semibold">Official</span>
+</div>
+<div class="flex items-center gap-4 mb-4">
+${acc.screenshot ? 
+`<img src="${acc.screenshot}" alt="" class="w-16 h-16 rounded-xl object-cover shadow-md">` : 
+`<div class="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-2xl font-bold text-white shadow-md">${acc.platform[0]}</div>`
+}
+<div>
+<div class="font-bold text-gray-800 text-lg">${acc.username}</div>
+<div class="text-sm text-gray-500">${acc.followers} followers</div>
+</div>
+</div>
+<a href="${acc.url}" target="_blank" class="block w-full text-center bg-primary text-white py-3 rounded-xl font-semibold hover:opacity-90 transition-all hover:shadow-lg">
+Follow Official Account
+</a>
+</div>
+`).join('')}
+</div>
+</section>
+
+<!-- Fake Accounts Alert Section -->
+<section id="fake" class="glass-card p-8 border-danger/20">
+<div class="flex items-center gap-3 mb-6">
+<div class="w-10 h-10 rounded-xl bg-danger/10 flex items-center justify-center danger-glow">
+<svg class="w-5 h-5 text-danger" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+</div>
+<div>
+<h2 class="text-2xl font-bold text-gray-800">Fake Accounts Detected</h2>
+<p class="text-gray-500 text-sm">Report these impersonating accounts</p>
+</div>
+<span class="ml-auto px-4 py-2 bg-danger/10 text-danger border border-danger/30 rounded-full text-sm font-bold">${totalFake} Active</span>
+</div>
+
+<div class="space-y-6">
+${DATA.fakeAccounts.map((a, i) => `
+<div class="bg-red-50 rounded-2xl p-6 border-2 border-danger/20">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<span class="text-2xl">⚠️</span>
+<div>
+<span class="font-bold text-danger text-lg">Fake Account #${i+1}</span>
+<p class="text-sm text-gray-600">${a.platform} Impersonation</p>
+</div>
+</div>
+<span class="px-4 py-1.5 bg-danger/20 text-danger rounded-full text-sm font-bold">${a.threatLevel}</span>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div class="relative rounded-2xl overflow-hidden border-2 border-danger/30">
+${a.screenshot ? 
+`<img src="${a.screenshot}" alt="" class="w-full opacity-90">` : 
+`<div class="w-full h-48 flex items-center justify-center text-4xl text-danger/30 bg-gray-100">⚠️ FAKE</div>`
+}
+<div class="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/50 to-transparent">
+<span class="bg-danger text-white px-6 py-2 rounded-xl text-sm font-extrabold shadow-lg">FAKE ACCOUNT</span>
+</div>
+</div>
+
+<div class="space-y-4">
+<div class="bg-white rounded-xl p-4 shadow-sm">
+<div class="flex justify-between items-center mb-2">
+<span class="text-sm text-gray-500">Username</span>
+<span class="font-semibold text-danger">${a.username}</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-sm text-gray-500">Reports</span>
+<span class="font-semibold text-danger">${a.reportedCount}+</span>
+</div>
+</div>
+<div class="bg-danger/5 rounded-xl p-4 border border-danger/20">
+<p class="text-sm text-gray-700"><span class="font-semibold text-danger">⚠️ Warning:</span> ${a.reason}</p>
+</div>
+<div class="flex gap-3">
+<a href="${a.profileUrl}" target="_blank" class="flex-1 btn-danger text-center">
+Report Account
+</a>
+<button class="flex-1 px-4 py-3 bg-white border-2 border-danger/25 text-danger rounded-xl font-semibold hover:bg-danger/5 transition-all" 
+onclick="copyToClipboard('${a.username}')">
+Copy Username
+</button>
+</div>
+</div>
+</div>
+</div>
+`).join('')}
+</div>
+
+<div class="text-center mt-6">
+<button onclick="document.getElementById('fakeVoice').play()" class="btn-danger inline-flex items-center gap-2">
+🔊 Play Voice Alert
+</button>
+</div>
+<audio id="fakeVoice" src="${VOICE.fakeAlert}" preload="none"></audio>
+</section>
+
+<!-- Music Section -->
+${coverSongs.length > 0 ? `
+<section id="music" class="glass-card p-8">
+<div class="flex items-center gap-3 mb-6">
+<span class="text-3xl">🎵</span>
+<div>
+<h2 class="text-2xl font-bold text-gray-800">Cover Music Collection</h2>
+<p class="text-gray-500 text-sm">${coverSongs.length} songs available</p>
+</div>
+</div>
+
+<div class="music-player">
+<div class="flex items-center gap-4 mb-4">
+<div id="currentCover" class="w-16 h-16 rounded-xl bg-gray-700 flex items-center justify-center text-2xl">
+🎵
+</div>
+<div>
+<div id="currentTitle" class="font-semibold text-lg">Select a song</div>
+<div id="currentArtist" class="text-sm opacity-75">Artist</div>
+</div>
+</div>
+
+<div class="progress-bar" onclick="seekAudio(event)">
+<div id="progressFill" class="progress-fill"></div>
+</div>
+<div class="time-display">
+<span id="currentTime">0:00</span>
+<span id="totalTime">0:00</span>
+</div>
+
+<div class="player-controls justify-center">
+<button class="play-btn" id="playBtn" onclick="togglePlay()">
+▶️
+</button>
+</div>
+
+<div class="mt-6 space-y-2 max-h-64 overflow-y-auto">
+${coverSongs.map((s, i) => `
+<div class="flex items-center gap-3 p-3 hover:bg-white/10 rounded-xl cursor-pointer transition-all" 
+onclick="playSong('${s.audioUrl}','${s.title}','${s.artist}', '${s.coverUrl || ''}')">
+<span class="text-sm opacity-75 w-8">${(i+1).toString().padStart(2,'0')}</span>
+<div class="flex-1">
+<div class="font-medium">${s.title}</div>
+<div class="text-sm opacity-75">${s.artist}</div>
+</div>
+<button class="text-white/75 hover:text-white">▶️</button>
+</div>
+`).join('')}
+</div>
+</div>
+
+<audio id="coverAudio" preload="none"></audio>
+</section>` : ''}
+
+<!-- Gallery Section -->
+<section id="gallery" class="glass-card p-8">
+<div class="flex items-center gap-3 mb-6">
+<span class="text-3xl">📸</span>
+<div>
+<h2 class="text-2xl font-bold text-gray-800">Photo Gallery</h2>
+<p class="text-gray-500 text-sm">Official photos and moments</p>
+</div>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+${galleryPhotos.map(p => `
+<div class="relative group rounded-2xl overflow-hidden shadow-lg">
+<img src="${p.path}" class="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110">
+${p.caption ? `
+<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 to-transparent p-4">
+<p class="text-white text-sm font-medium">${p.caption}</p>
+</div>
+` : ''}
+</div>
+`).join('')}
+</div>
+</section>
+
+</div>
+</main>
+
+<!-- Chat Widget -->
+<div class="chat-widget">
+<button class="chat-btn" onclick="toggleChat()" id="chatBtn">
+💬
+</button>
+
+<div class="chat-window" id="chatWindow">
+<div class="chat-header">
+<div class="chat-avatar">
+H
+<div class="chat-online"></div>
+</div>
+<div class="chat-header-info">
+<div class="chat-header-name">Hammad Bin Amir</div>
+<div class="chat-header-status" id="statusText">Online now</div>
+</div>
+<button class="chat-close" onclick="toggleChat()">✕</button>
+</div>
+
+<div id="chatLogin" class="chat-login">
+<h3>💬 Chat with Support</h3>
+<p>Enter your details to start a conversation</p>
+<input type="text" id="userName" placeholder="Your full name">
+<input type="email" id="userContact" placeholder="Your email or phone number">
+<button onclick="registerChat()">
+Start Conversation
+</button>
+</div>
+
+<div id="chatUI" style="display:none;flex:1;flex-direction:column">
+<div class="chat-messages" id="chatMessages">
+<div style="text-align:center;color:#94a3b8;font-size:13px;padding:20px">
+🔒 Messages are end-to-end encrypted
+</div>
+</div>
+<div class="typing-indicator" id="typingDiv">
+<div class="typing-dots">
+<div class="typing-dot"></div>
+<div class="typing-dot"></div>
+<div class="typing-dot"></div>
+</div>
+<div style="clear:both"></div>
+</div>
+<div class="chat-input-area">
+<input type="text" id="msgInput" placeholder="Type your message..." onkeypress="if(event.key==='Enter')sendMessage()">
+<button class="chat-send-btn" onclick="sendMessage()">
+➤
+</button>
+</div>
+</div>
+</div>
+</div>
+
+<audio id="welcomeVoice" src="${VOICE.welcome}" preload="none"></audio>
+
 <script>
-// ==================== CHAT LOGIC ====================
+// Toast notification system
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = 'toast show ' + type;
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+// Copy to clipboard
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied to clipboard!', 'success');
+    }).catch(() => {
+        showToast('Failed to copy', 'error');
+    });
+}
+
+// Music player functionality
+let currentAudio = null;
+let isPlaying = false;
+
+function playSong(url, title, artist, coverUrl) {
+    const audio = document.getElementById('coverAudio');
+    
+    if (currentAudio === url) {
+        togglePlay();
+        return;
+    }
+    
+    currentAudio = url;
+    audio.src = url;
+    
+    document.getElementById('currentTitle').textContent = title || 'Unknown Title';
+    document.getElementById('currentArtist').textContent = artist || 'Unknown Artist';
+    
+    if (coverUrl) {
+        document.getElementById('currentCover').innerHTML = '<img src="' + coverUrl + '" class="w-full h-full object-cover rounded-xl">';
+    } else {
+        document.getElementById('currentCover').innerHTML = '🎵';
+    }
+    
+    audio.play().then(() => {
+        isPlaying = true;
+        updatePlayButton();
+    }).catch(err => {
+        showToast('Error playing audio', 'error');
+    });
+    
+    audio.addEventListener('timeupdate', updateProgress);
+    audio.addEventListener('loadedmetadata', () => {
+        document.getElementById('totalTime').textContent = formatTime(audio.duration);
+    });
+    audio.addEventListener('ended', () => {
+        isPlaying = false;
+        updatePlayButton();
+        document.getElementById('progressFill').style.width = '0%';
+        document.getElementById('currentTime').textContent = '0:00';
+    });
+}
+
+function togglePlay() {
+    const audio = document.getElementById('coverAudio');
+    if (!audio.src) return;
+    
+    if (isPlaying) {
+        audio.pause();
+        isPlaying = false;
+    } else {
+        audio.play();
+        isPlaying = true;
+    }
+    updatePlayButton();
+}
+
+function updatePlayButton() {
+    const btn = document.getElementById('playBtn');
+    btn.textContent = isPlaying ? '⏸️' : '▶️';
+    btn.className = 'play-btn' + (isPlaying ? ' playing' : '');
+}
+
+function updateProgress() {
+    const audio = document.getElementById('coverAudio');
+    const progress = (audio.currentTime / audio.duration) * 100;
+    document.getElementById('progressFill').style.width = progress + '%';
+    document.getElementById('currentTime').textContent = formatTime(audio.currentTime);
+}
+
+function seekAudio(event) {
+    const audio = document.getElementById('coverAudio');
+    if (!audio.duration) return;
+    
+    const rect = event.currentTarget.getBoundingClientRect();
+    const percent = (event.clientX - rect.left) / rect.width;
+    audio.currentTime = percent * audio.duration;
+}
+
+function formatTime(seconds) {
+    if (isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return mins + ':' + secs.toString().padStart(2, '0');
+}
+
+// Welcome voice
+setTimeout(() => {
+    const voice = document.getElementById('welcomeVoice');
+    if (voice && !sessionStorage.getItem('voicePlayed')) {
+        voice.play().catch(() => {});
+        sessionStorage.setItem('voicePlayed', '1');
+    }
+}, 2000);
+
+// Chat system with polling
 let chatToken = localStorage.getItem('chatToken');
 let chatId = null;
-let messagePoll = null;
-let unreadCount = 0;
+let pollInterval = null;
 
-// Initialize
+// Auto login if token exists
 if (chatToken) {
     verifyToken();
 }
 
-// Toggle chat window
-function toggleChat() {
-    const box = document.getElementById('chatBox');
-    box.classList.toggle('open');
-    if (box.classList.contains('open') && chatToken) {
-        document.getElementById('unreadBadge').style.display = 'none';
-        unreadCount = 0;
-        updateBadge();
-        scrollToBottom();
-    }
-}
-
-// Verify existing token
 async function verifyToken() {
     try {
         const response = await fetch('/api/chat/verify?token=' + encodeURIComponent(chatToken));
         const data = await response.json();
+        
         if (data.success) {
             chatId = data.chatId;
-            showChatScreen();
+            showChatUI();
             loadMessages();
             startPolling();
         } else {
-            logout();
+            localStorage.removeItem('chatToken');
+            chatToken = null;
         }
-    } catch (e) {
-        console.error('Token verification failed:', e);
+    } catch (error) {
+        console.error('Token verification failed:', error);
     }
 }
 
-// Start chat
-async function startChat() {
+function toggleChat() {
+    const window = document.getElementById('chatWindow');
+    window.classList.toggle('open');
+    
+    if (window.classList.contains('open') && chatToken) {
+        loadMessages();
+    }
+}
+
+function showChatUI() {
+    document.getElementById('chatLogin').style.display = 'none';
+    document.getElementById('chatUI').style.display = 'flex';
+}
+
+async function registerChat() {
     const name = document.getElementById('userName').value.trim();
     const contact = document.getElementById('userContact').value.trim();
     
-    if (!name || !contact) {
-        alert('Please fill in all fields');
+    if (!name) {
+        showToast('Please enter your name', 'error');
         return;
     }
+    if (!contact) {
+        showToast('Please enter your email or phone', 'error');
+        return;
+    }
+    
+    // Show loading state
+    const loginBtn = document.querySelector('#chatLogin button');
+    const originalText = loginBtn.textContent;
+    loginBtn.textContent = 'Connecting...';
+    loginBtn.disabled = true;
     
     try {
         const response = await fetch('/api/chat/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, phoneEmail: contact })
+            body: JSON.stringify({ 
+                name: name, 
+                phoneEmail: contact 
+            })
         });
         
         const data = await response.json();
+        
         if (data.success) {
             chatToken = data.token;
             chatId = data.chatId;
             localStorage.setItem('chatToken', chatToken);
-            showChatScreen();
+            showChatUI();
             loadMessages();
             startPolling();
+            showToast('Connected successfully!', 'success');
         } else {
-            alert(data.error || 'Failed to start chat');
+            showToast(data.error || 'Registration failed. Please try again.', 'error');
         }
-    } catch (e) {
-        console.error('Failed to start chat:', e);
-        alert('Connection error. Please try again.');
+    } catch (error) {
+        showToast('Connection error. Please check your internet and try again.', 'error');
+    } finally {
+        loginBtn.textContent = originalText;
+        loginBtn.disabled = false;
     }
 }
 
-// Show chat screen
-function showChatScreen() {
-    document.getElementById('loginScreen').style.display = 'none';
-    const chatScreen = document.getElementById('chatScreen');
-    chatScreen.style.display = 'flex';
-    chatScreen.style.flex = '1';
+function startPolling() {
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(loadMessages, 2000);
 }
 
-// Logout
-function logout() {
-    localStorage.removeItem('chatToken');
-    chatToken = null;
-    chatId = null;
-    clearInterval(messagePoll);
-    document.getElementById('loginScreen').style.display = 'flex';
-    document.getElementById('chatScreen').style.display = 'none';
-}
-
-// Load messages
 async function loadMessages() {
     if (!chatToken) return;
     
     try {
-        const response = await fetch('/api/chat/messages?token=' + encodeURIComponent(chatToken) + '&_=' + Date.now());
+        const response = await fetch('/api/chat/messages?token=' + encodeURIComponent(chatToken) + '&t=' + Date.now());
         const data = await response.json();
+        
         if (data.success) {
-            renderMessages(data.messages);
+            const container = document.getElementById('chatMessages');
+            container.innerHTML = '';
+            
+            // Add secure message indicator
+            const secureMsg = document.createElement('div');
+            secureMsg.style.cssText = 'text-align:center;color:#94a3b8;font-size:12px;padding:15px;border-bottom:1px solid #e2e8f0;margin-bottom:10px';
+            secureMsg.textContent = '🔒 Messages are secure';
+            container.appendChild(secureMsg);
+            
+            data.messages.forEach(msg => {
+                const isUser = msg.sender === 'user';
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'msg ' + (isUser ? 'msg-out' : 'msg-in');
+                
+                const time = new Date(msg.createdAt).toLocaleTimeString([], { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+                
+                messageDiv.innerHTML = 
+                    msg.message +
+                    '<div class="msg-time">' + 
+                    time + 
+                    (isUser ? ' ✓✓' : '') +
+                    '</div>';
+                    
+                container.appendChild(messageDiv);
+            });
+            
+            container.scrollTop = container.scrollHeight;
         } else {
-            logout();
+            // Token expired
+            clearInterval(pollInterval);
+            localStorage.removeItem('chatToken');
+            chatToken = null;
+            document.getElementById('chatLogin').style.display = 'flex';
+            document.getElementById('chatUI').style.display = 'none';
+            showToast('Session expired. Please login again.', 'error');
         }
-    } catch (e) {
-        console.error('Failed to load messages:', e);
+    } catch (error) {
+        console.error('Error loading messages:', error);
     }
 }
 
-// Render messages
-function renderMessages(messages) {
-    const container = document.getElementById('msgContainer');
-    const wasNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-    
-    container.innerHTML = '<div style="text-align:center;color:#666;font-size:13px;padding:15px">🔒 Messages are end-to-end encrypted</div>';
-    
-    messages.forEach(msg => {
-        appendMessage(msg, false);
-    });
-    
-    if (wasNearBottom || messages.length <= 1) {
-        scrollToBottom();
-    }
-}
-
-// Append single message
-function appendMessage(msg, scroll = true) {
-    const container = document.getElementById('msgContainer');
-    const isSent = msg.sender === 'user';
-    
-    const wrapper = document.createElement('div');
-    wrapper.className = 'msg-row ' + (isSent ? 'sent' : 'received');
-    
-    let html = '';
-    
-    // Media content
-    if (msg.mediaUrl) {
-        if (msg.mediaType === 'image') {
-            html += '<div class="msg-media"><img src="' + msg.mediaUrl + '" onclick="window.open(\'' + msg.mediaUrl + '\',\'_blank\')" loading="lazy"></div>';
-        } else if (msg.mediaType === 'audio' || msg.mediaType === 'voice') {
-            html += '<div class="msg-media"><audio controls src="' + msg.mediaUrl + '"></audio></div>';
-        } else if (msg.mediaType === 'video') {
-            html += '<div class="msg-media"><video controls src="' + msg.mediaUrl + '"></video></div>';
-        } else {
-            html += '<div class="msg-file">📎 ' + (msg.fileName || 'File') + '</div>';
-        }
-    }
-    
-    // Text message
-    if (msg.message) {
-        html += '<span>' + escapeHtml(msg.message) + '</span>';
-    }
-    
-    // Time
-    const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    html += '<div class="msg-time">' + time + '</div>';
-    
-    wrapper.innerHTML = '<div class="msg-bubble">' + html + '</div>';
-    container.appendChild(wrapper);
-    
-    if (scroll) {
-        scrollToBottom();
-    }
-}
-
-// Send message
 async function sendMessage() {
     const input = document.getElementById('msgInput');
     const message = input.value.trim();
     
     if (!message || !chatToken) return;
     
+    // Optimistically show message
     input.value = '';
-    
-    // Optimistically add message
-    const tempMsg = {
-        sender: 'user',
-        message: message,
-        createdAt: new Date().toISOString()
-    };
-    appendMessage(tempMsg);
+    const container = document.getElementById('chatMessages');
+    const tempDiv = document.createElement('div');
+    tempDiv.className = 'msg msg-out';
+    tempDiv.style.opacity = '0.7';
+    tempDiv.innerHTML = 
+        message +
+        '<div class="msg-time">' + 
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + 
+        ' ✓' +
+        '</div>';
+    container.appendChild(tempDiv);
+    container.scrollTop = container.scrollHeight;
     
     try {
         const response = await fetch('/api/chat/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: chatToken, message })
+            body: JSON.stringify({ 
+                token: chatToken, 
+                message: message 
+            })
         });
         
         const data = await response.json();
-        if (!data.success) {
-            logout();
-        }
-    } catch (e) {
-        console.error('Failed to send message:', e);
-    }
-}
-
-// Send file
-async function sendFile(input) {
-    const file = input.files[0];
-    if (!file || !chatToken) return;
-    
-    const formData = new FormData();
-    formData.append('token', chatToken);
-    formData.append('file', file);
-    
-    try {
-        const response = await fetch('/api/chat/upload', {
-            method: 'POST',
-            body: formData
-        });
         
-        const data = await response.json();
         if (data.success) {
-            loadMessages();
+            tempDiv.style.opacity = '1';
+            loadMessages(); // Refresh to get correct order
+        } else {
+            tempDiv.remove();
+            showToast('Failed to send message', 'error');
         }
-    } catch (e) {
-        console.error('Upload failed:', e);
-    }
-    
-    input.value = '';
-}
-
-// Poll for new messages
-function startPolling() {
-    if (messagePoll) clearInterval(messagePoll);
-    messagePoll = setInterval(() => {
-        if (chatToken && document.getElementById('chatBox').classList.contains('open')) {
-            loadMessages();
-        } else if (chatToken) {
-            // Check for unread messages
-            checkUnread();
-        }
-    }, 3000);
-}
-
-// Check unread messages
-async function checkUnread() {
-    try {
-        const response = await fetch('/api/chat/messages?token=' + encodeURIComponent(chatToken));
-        const data = await response.json();
-        if (data.success) {
-            const userMessages = data.messages.filter(m => m.sender === 'admin');
-            const lastRead = localStorage.getItem('lastRead_' + chatId);
-            const newMessages = lastRead ? userMessages.filter(m => new Date(m.createdAt) > new Date(lastRead)) : userMessages;
-            if (newMessages.length > unreadCount) {
-                unreadCount = newMessages.length;
-                updateBadge();
-            }
-        }
-    } catch (e) {}
-}
-
-// Update badge
-function updateBadge() {
-    const badge = document.getElementById('unreadBadge');
-    if (unreadCount > 0) {
-        badge.style.display = 'flex';
-        badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
-    } else {
-        badge.style.display = 'none';
+    } catch (error) {
+        tempDiv.remove();
+        showToast('Error sending message. Please try again.', 'error');
     }
 }
 
-// Utility functions
-function scrollToBottom() {
-    const container = document.getElementById('msgContainer');
-    setTimeout(() => {
-        container.scrollTop = container.scrollHeight;
-    }, 100);
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Save last read timestamp when chat is closed
-document.getElementById('chatBox').addEventListener('transitionend', function() {
-    if (!this.classList.contains('open') && chatId) {
-        localStorage.setItem('lastRead_' + chatId, new Date().toISOString());
-    }
+// Clean up polling on page unload
+window.addEventListener('beforeunload', () => {
+    if (pollInterval) clearInterval(pollInterval);
 });
 </script>
 </body>
 </html>`;
 }
 
-function getAdminLoginHTML(error = '') {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Login - Verification Hub</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-body{background:#0a0a0a;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Inter',sans-serif}
-</style>
-</head>
-<body>
-<div style="background:#1a1a1a;padding:40px;border-radius:24px;width:100%;max-width:400px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 20px 60px rgba(0,0,0,0.5)">
-<h2 style="font-size:28px;font-weight:700;color:white;text-align:center;margin-bottom:8px">Admin Panel</h2>
-<p style="color:#666;text-align:center;margin-bottom:32px;font-size:14px">Sign in to manage messages</p>
-${error ? '<div style="background:rgba(255,59,48,0.1);border:1px solid rgba(255,59,48,0.3);color:#ff3b30;padding:14px;border-radius:12px;margin-bottom:20px;font-size:14px;text-align:center">' + error + '</div>' : ''}
-<form method="POST" action="/admin/login">
-<div style="margin-bottom:20px">
-<label style="display:block;color:#999;font-size:14px;margin-bottom:8px;font-weight:500">Username</label>
-<input type="text" name="username" style="width:100%;padding:14px 18px;background:#2c2c2c;border:2px solid #3a3a3a;border-radius:14px;color:white;font-size:15px;outline:none;transition:border-color 0.2s" required autofocus>
-</div>
-<div style="margin-bottom:24px">
-<label style="display:block;color:#999;font-size:14px;margin-bottom:8px;font-weight:500">Password</label>
-<input type="password" name="password" style="width:100%;padding:14px 18px;background:#2c2c2c;border:2px solid #3a3a3a;border-radius:14px;color:white;font-size:15px;outline:none;transition:border-color 0.2s" required>
-</div>
-<button type="submit" style="width:100%;padding:14px;background:linear-gradient(135deg,#0084ff,#00b4ff);color:white;border:none;border-radius:14px;font-weight:600;font-size:15px;cursor:pointer;transition:transform 0.2s">Sign In</button>
-</form>
-<div style="text-align:center;margin-top:24px">
-<a href="/" style="color:#666;font-size:14px;text-decoration:none;transition:color 0.2s">← Back to Site</a>
-</div>
-</div>
-</body>
-</html>`;
-}
-
-// ==================== ADMIN PANEL HTML ====================
-// (Keep your existing getAdminPanelHTML function - it's already well-made)
-
-// ==================== SERVER ====================
+// Server setup with improved error handling
 const server = http.createServer(async (req, res) => {
-    const parsedUrl = url.parse(req.url, true);
-    const pathname = parsedUrl.pathname;
-    const method = req.method;
-    const cookies = parseCookies(req.headers.cookie);
-    
-    // CORS headers
+    // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    
-    if (method === 'OPTIONS') {
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
         res.writeHead(204);
         res.end();
         return;
     }
-    
-    // Static assets
+
+    // Parse URL
+    const parsedUrl = url.parse(req.url, true);
+    const pathname = parsedUrl.pathname;
+    const method = req.method;
+    const cookies = parseCookies(req.headers.cookie);
+
+    // Serve static files
     if (pathname.startsWith('/assets/')) {
         const assetPath = path.join(__dir, decodeURIComponent(pathname));
+        
+        // Security check
         if (!assetPath.startsWith(ASSETS_DIR)) {
             res.writeHead(403);
             res.end('Forbidden');
             return;
         }
         
-        if (fs.existsSync(assetPath) && fs.statSync(assetPath).isFile()) {
+        if (fs.existsSync(assetPath)) {
             const ext = path.extname(assetPath).toLowerCase();
+            const contentTypes = {
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.gif': 'image/gif',
+                '.webp': 'image/webp',
+                '.svg': 'image/svg+xml',
+                '.mp3': 'audio/mpeg',
+                '.wav': 'audio/wav',
+                '.ogg': 'audio/ogg',
+                '.m4a': 'audio/mp4',
+                '.aac': 'audio/aac',
+                '.flac': 'audio/flac',
+                '.ico': 'image/x-icon'
+            };
+            
             res.writeHead(200, {
-                'Content-Type': getMimeType(ext),
+                'Content-Type': contentTypes[ext] || 'application/octet-stream',
                 'Cache-Control': 'public, max-age=86400'
             });
-            fs.createReadStream(assetPath).pipe(res);
+            
+            const stream = fs.createReadStream(assetPath);
+            stream.pipe(res);
+            stream.on('error', () => {
+                res.end();
+            });
         } else {
             res.writeHead(404);
-            res.end('Not Found');
+            res.end('File not found');
         }
         return;
     }
-    
-    // Socket.IO client
-    if (pathname === '/socket.io/socket.io.js') {
-        const socketPath = path.join(__dir, 'node_modules', 'socket.io', 'client-dist', 'socket.io.js');
-        if (fs.existsSync(socketPath)) {
-            res.writeHead(200, { 'Content-Type': 'text/javascript' });
-            fs.createReadStream(socketPath).pipe(res);
-        } else {
-            res.writeHead(404);
-            res.end('Not Found');
-        }
-        return;
-    }
-    
-    // ==================== CHAT API ====================
-    if (pathname === '/api/chat/register' && method === 'POST') {
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            try {
-                const { name, phoneEmail } = JSON.parse(body);
-                if (!name || !phoneEmail) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, error: 'All fields required' }));
-                    return;
+
+    // API Routes with improved error handling
+    try {
+        // Chat API Routes
+        if (pathname === '/api/chat/register' && method === 'POST') {
+            let body = '';
+            req.on('data', chunk => body += chunk);
+            req.on('end', async () => {
+                try {
+                    const { name, phoneEmail } = JSON.parse(body);
+                    
+                    if (!name || !phoneEmail) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ 
+                            success: false, 
+                            error: 'Name and contact information are required' 
+                        }));
+                        return;
+                    }
+                    
+                    const user = await createOrGetChatUser(name, phoneEmail);
+                    if (!user) {
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ 
+                            success: false, 
+                            error: 'Failed to create user. Please try again.' 
+                        }));
+                        return;
+                    }
+                    
+                    const token = await createChatSession(user.chatId);
+                    
+                    // Send welcome message if first time
+                    const messages = await getChatMessages(user.chatId);
+                    if (messages.length === 0) {
+                        await saveChatMessage(
+                            user.chatId, 
+                            'admin', 
+                            'Hello! 👋 Welcome to Baiilla Maach Official Support. How can I help you today?'
+                        );
+                    }
+                    
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ 
+                        success: true, 
+                        chatId: user.chatId, 
+                        token, 
+                        name: user.name 
+                    }));
+                } catch (e) {
+                    console.error('Registration error:', e);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ 
+                        success: false, 
+                        error: 'Server error. Please try again later.' 
+                    }));
                 }
-                
-                const user = await createOrGetChatUser(name, phoneEmail);
-                if (!user) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, error: 'Failed to create user' }));
-                    return;
-                }
-                
-                const token = await createChatSession(user.chatId);
-                
-                // Send welcome message if first time
-                const messages = await getChatMessages(user.chatId);
-                if (messages.length === 0) {
-                    await saveChatMessage(user.chatId, 'admin', 'Hello! 👋 Welcome to Verification Hub. How can I help you today?');
-                }
-                
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, chatId: user.chatId, token, name: user.name }));
-            } catch (e) {
-                console.error('Register error:', e);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: 'Server error' }));
-            }
-        });
-        return;
-    }
-    
-    if (pathname === '/api/chat/verify' && method === 'GET') {
-        const token = parsedUrl.query.token;
-        if (!token) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false }));
+            });
             return;
         }
-        
-        const user = await getChatUserByToken(token);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: !!user, chatId: user ? user.chatId : null }));
-        return;
-    }
-    
-    if (pathname === '/api/chat/messages' && method === 'GET') {
-        const token = parsedUrl.query.token;
-        if (!token) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, error: 'No token' }));
+
+        if (pathname === '/api/chat/verify' && method === 'GET') {
+            const token = parsedUrl.query.token;
+            const user = await getChatUserByToken(token);
+            
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+                success: !!user, 
+                chatId: user ? user.chatId : null 
+            }));
             return;
         }
-        
-        const user = await getChatUserByToken(token);
-        if (!user) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, error: 'Invalid token' }));
-            return;
-        }
-        
-        const messages = await getChatMessages(user.chatId);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, messages }));
-        return;
-    }
-    
-    if (pathname === '/api/chat/send' && method === 'POST') {
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            try {
-                const { token, message } = JSON.parse(body);
-                if (!token || !message) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, error: 'Missing fields' }));
-                    return;
-                }
-                
-                const user = await getChatUserByToken(token);
-                if (!user) {
-                    res.writeHead(401, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, error: 'Invalid token' }));
-                    return;
-                }
-                
-                const msg = await saveChatMessage(user.chatId, 'user', message);
-                
-                // Notify admin via Socket.IO
-                io.to('admin_room').emit('new_message', { chatId: user.chatId, message: msg });
-                
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, message: msg }));
-            } catch (e) {
-                console.error('Send error:', e);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: 'Server error' }));
-            }
-        });
-        return;
-    }
-    
-    if (pathname === '/api/chat/upload' && method === 'POST') {
-        const form = new formidable.IncomingForm({
-            uploadDir: CHAT_MEDIA_DIR,
-            keepExtensions: true,
-            maxFileSize: 20 * 1024 * 1024 // 20MB
-        });
-        
-        form.parse(req, async (err, fields, files) => {
-            if (err) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: err.message }));
+
+        if (pathname === '/api/chat/messages' && method === 'GET') {
+            const token = parsedUrl.query.token;
+            
+            if (!token) {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: 'Authentication required' }));
                 return;
             }
             
-            const token = Array.isArray(fields.token) ? fields.token[0] : fields.token;
             const user = await getChatUserByToken(token);
             if (!user) {
                 res.writeHead(401, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: 'Invalid token' }));
+                res.end(JSON.stringify({ success: false, error: 'Invalid or expired session' }));
                 return;
             }
             
-            const file = Array.isArray(files.file) ? files.file[0] : files.file;
-            if (!file || !file.originalFilename) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: 'No file' }));
-                return;
-            }
-            
-            const ext = path.extname(file.originalFilename).toLowerCase();
-            const fn = Date.now() + '_' + crypto.randomBytes(8).toString('hex') + ext;
-            const filePath = path.join(CHAT_MEDIA_DIR, fn);
-            
-            try {
-                fs.renameSync(file.filepath, filePath);
-                
-                let mediaType = 'file';
-                const imageExts = ['.jpg','.jpeg','.png','.gif','.webp','.bmp','.svg'];
-                const audioExts = ['.mp3','.wav','.ogg','.m4a','.aac','.flac','.webm'];
-                const videoExts = ['.mp4','.webm','.avi','.mov','.mkv'];
-                
-                if (imageExts.includes(ext)) mediaType = 'image';
-                else if (audioExts.includes(ext)) mediaType = 'audio';
-                else if (videoExts.includes(ext)) mediaType = 'video';
-                
-                const mediaUrl = '/assets/chatmedia/' + encodeURIComponent(fn);
-                const msg = await saveChatMessage(user.chatId, 'user', '', mediaUrl, mediaType, file.originalFilename, file.size);
-                
-                io.to('admin_room').emit('new_message', { chatId: user.chatId, message: msg });
-                
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, message: msg }));
-            } catch (e) {
-                console.error('Upload error:', e);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: 'Upload failed' }));
-            }
-        });
-        return;
-    }
-    
-    // ==================== ADMIN ROUTES ====================
-    if (pathname === '/admin' && method === 'GET') {
-        const s = getSession(cookies.sessionId);
-        if (s) {
-            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-            res.end(getAdminPanelHTML());
-            return;
-        }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(getAdminLoginHTML());
-        return;
-    }
-    
-    if (pathname === '/admin/login' && method === 'POST') {
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            const params = new URLSearchParams(body);
-            const username = params.get('username');
-            const password = params.get('password');
-            
-            const admin = await db.collection('admin_users').findOne({ username });
-            if (admin && await bcrypt.compare(password, admin.password)) {
-                const sid = createSession(username);
-                res.writeHead(302, {
-                    'Location': '/admin',
-                    'Set-Cookie': 'sessionId=' + sid + ';HttpOnly;Path=/;Max-Age=7200;SameSite=Lax'
-                });
-                res.end();
-            } else {
-                res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-                res.end(getAdminLoginHTML('Invalid username or password'));
-            }
-        });
-        return;
-    }
-    
-    if (pathname === '/admin/logout') {
-        sessions.delete(cookies.sessionId);
-        res.writeHead(302, {
-            'Location': '/admin',
-            'Set-Cookie': 'sessionId=;HttpOnly;Path=/;Max-Age=0'
-        });
-        res.end();
-        return;
-    }
-    
-    // ==================== ADMIN API ====================
-    if (pathname.startsWith('/api/admin/')) {
-        const s = getSession(cookies.sessionId);
-        if (!s) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, error: 'Unauthorized' }));
-            return;
-        }
-        
-        // Get conversations list
-        if (pathname === '/api/admin/conversations' && method === 'GET') {
-            const search = parsedUrl.query.search || '';
-            const conversations = await getAdminChatList(search);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, conversations }));
-            return;
-        }
-        
-        // Get messages for a chat
-        if (pathname === '/api/admin/messages' && method === 'GET') {
-            const chatId = parsedUrl.query.chatId;
-            if (!chatId) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: 'Missing chatId' }));
-                return;
-            }
-            const messages = await getChatMessages(chatId);
+            const messages = await getChatMessages(user.chatId);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true, messages }));
             return;
         }
-        
-        // Send admin message
-        if (pathname === '/api/admin/send' && method === 'POST') {
+
+        if (pathname === '/api/chat/send' && method === 'POST') {
             let body = '';
-            req.on('data', c => body += c);
+            req.on('data', chunk => body += chunk);
             req.on('end', async () => {
                 try {
-                    const { chatId, message, replyTo } = JSON.parse(body);
-                    if (!chatId || !message) {
+                    const { token, message } = JSON.parse(body);
+                    
+                    if (!token || !message) {
                         res.writeHead(400, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ success: false, error: 'Missing fields' }));
+                        res.end(JSON.stringify({ success: false, error: 'Missing required fields' }));
                         return;
                     }
                     
-                    const msg = await saveChatMessage(chatId, 'admin', message, null, null, null, null, replyTo);
+                    const user = await getChatUserByToken(token);
+                    if (!user) {
+                        res.writeHead(401, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, error: 'Invalid session' }));
+                        return;
+                    }
                     
-                    // Notify user via Socket.IO
-                    io.to('user_' + chatId).emit('new_message', { chatId, message: msg });
-                    
+                    await saveChatMessage(user.chatId, 'user', message);
                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: true, message: msg }));
+                    res.end(JSON.stringify({ success: true }));
                 } catch (e) {
-                    console.error('Admin send error:', e);
                     res.writeHead(500, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ success: false, error: 'Server error' }));
                 }
             });
             return;
         }
-        
-        // Upload admin file
-        if (pathname === '/api/admin/upload' && method === 'POST') {
-            const form = new formidable.IncomingForm({
-                uploadDir: CHAT_MEDIA_DIR,
-                keepExtensions: true,
-                maxFileSize: 20 * 1024 * 1024
-            });
-            
-            form.parse(req, async (err, fields, files) => {
-                if (err) {
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, error: err.message }));
-                    return;
-                }
-                
-                const chatId = Array.isArray(fields.chatId) ? fields.chatId[0] : fields.chatId;
-                const file = Array.isArray(files.file) ? files.file[0] : files.file;
-                
-                if (!chatId || !file || !file.originalFilename) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, error: 'Missing fields' }));
-                    return;
-                }
-                
-                const ext = path.extname(file.originalFilename).toLowerCase();
-                const fn = Date.now() + '_' + crypto.randomBytes(8).toString('hex') + ext;
-                const filePath = path.join(CHAT_MEDIA_DIR, fn);
-                
-                try {
-                    fs.renameSync(file.filepath, filePath);
-                    
-                    let mediaType = 'file';
-                    const imageExts = ['.jpg','.jpeg','.png','.gif','.webp','.bmp','.svg'];
-                    const audioExts = ['.mp3','.wav','.ogg','.m4a','.aac','.flac','.webm'];
-                    const videoExts = ['.mp4','.webm','.avi','.mov','.mkv'];
-                    
-                    if (imageExts.includes(ext)) mediaType = 'image';
-                    else if (audioExts.includes(ext)) mediaType = 'audio';
-                    else if (videoExts.includes(ext)) mediaType = 'video';
-                    
-                    const mediaUrl = '/assets/chatmedia/' + encodeURIComponent(fn);
-                    const msg = await saveChatMessage(chatId, 'admin', '', mediaUrl, mediaType, file.originalFilename, file.size);
-                    
-                    io.to('user_' + chatId).emit('new_message', { chatId, message: msg });
-                    
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: true, message: msg }));
-                } catch (e) {
-                    console.error('Admin upload error:', e);
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, error: 'Upload failed' }));
-                }
-            });
-            return;
-        }
-        
-        // Mark messages as read
-        if (pathname === '/api/admin/mark-read' && method === 'POST') {
-            let body = '';
-            req.on('data', c => body += c);
-            req.on('end', async () => {
-                try {
-                    const { chatId } = JSON.parse(body);
-                    await markMessagesRead(chatId);
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: true }));
-                } catch (e) {
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false }));
-                }
-            });
-            return;
-        }
-        
-        // Get user info
-        if (pathname === '/api/admin/user-info' && method === 'GET') {
-            const chatId = parsedUrl.query.chatId;
-            if (!chatId) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false }));
+
+        // Admin Routes
+        if (pathname === '/admin' && method === 'GET') {
+            const session = getSession(cookies.sessionId);
+            if (session) {
+                const photos = await getGalleryPhotos();
+                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                res.end(await getAdminPanelHTML(photos));
                 return;
             }
-            const user = await db.collection('chat_users').findOne({ chatId });
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, user }));
+            res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+            res.end(getAdminLoginHTML());
             return;
         }
+
+        // Main page
+        if (pathname === '/' || pathname === '/index.html') {
+            const photos = await getGalleryPhotos();
+            res.writeHead(200, { 
+                'Content-Type': 'text/html;charset=utf-8',
+                'Cache-Control': 'public, max-age=3600'
+            });
+            res.end(getMainHTML(photos));
+            return;
+        }
+
+        // 404 for unmatched routes
+        res.writeHead(404, { 'Content-Type': 'text/html;charset=utf-8' });
+        res.end(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>404 - Page Not Found</title>
+                <style>
+                    body {
+                        font-family: Arial, sans-serif;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        height: 100vh;
+                        margin: 0;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                    }
+                    .container {
+                        text-align: center;
+                    }
+                    h1 {
+                        font-size: 72px;
+                        margin: 0;
+                    }
+                    p {
+                        font-size: 24px;
+                        margin: 20px 0;
+                    }
+                    a {
+                        color: white;
+                        text-decoration: none;
+                        padding: 10px 20px;
+                        border: 2px solid white;
+                        border-radius: 25px;
+                        font-weight: bold;
+                        transition: all 0.3s;
+                    }
+                    a:hover {
+                        background: white;
+                        color: #667eea;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>404</h1>
+                    <p>Page not found</p>
+                    <a href="/">Go Home</a>
+                </div>
+            </body>
+            </html>
+        `);
+    } catch (error) {
+        console.error('Server error:', error);
+        res.writeHead(500, { 'Content-Type': 'text/html;charset=utf-8' });
+        res.end(`
+            <!DOCTYPE html>
+            <html>
+            <head><title>500 - Server Error</title></head>
+            <body style="text-align:center;padding:50px;font-family:Arial,sans-serif;">
+                <h1>500 - Server Error</h1>
+                <p>Something went wrong. Please try again later.</p>
+                <a href="/">Go Home</a>
+            </body>
+            </html>
+        `);
     }
-    
-    // Home page
-    if (pathname === '/' || pathname === '/index.html') {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(getMainHTML());
-        return;
-    }
-    
-    // 404
-    res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end('<h1>404 - Page Not Found</h1>');
 });
 
-// ==================== SOCKET.IO SETUP ====================
-const io = socketIO(server, {
-    cors: {
-        origin: '*',
-        methods: ['GET', 'POST']
-    }
-});
-
-io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
-    
-    // Admin joins admin room
-    socket.on('join_admin', () => {
-        socket.join('admin_room');
-        console.log('Admin joined');
-    });
-    
-    // User joins their room
-    socket.on('join_user', (chatId) => {
-        socket.join('user_' + chatId);
-        console.log('User joined room:', chatId);
-    });
-    
-    // Admin sends message
-    socket.on('admin_message', (data) => {
-        socket.to('user_' + data.chatId).emit('new_message', data);
-    });
-    
-    // Typing indicator
-    socket.on('typing', (data) => {
-        socket.to('admin_room').emit('user_typing', data);
-    });
-    
-    socket.on('admin_typing', (data) => {
-        socket.to('user_' + data.chatId).emit('admin_typing', data);
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('Client disconnected:', socket.id);
-    });
-});
-
-// ==================== START SERVER ====================
+// Start server
 async function start() {
-    const dbConnected = await connectDB();
-    if (!dbConnected) {
-        console.error('Failed to connect to database. Server may not work properly.');
-    }
+    await connectDB();
     
     server.listen(PORT, () => {
-        console.log('=================================');
-        console.log('🚀 Server running on port ' + PORT);
-        console.log('📍 Main site: http://localhost:' + PORT);
-        console.log('🔑 Admin panel: http://localhost:' + PORT + '/admin');
-        console.log('   Login: admin / admin123');
-        console.log('=================================');
+        console.log(`
+🚀 Server running on port ${PORT}
+📱 Main site: http://localhost:${PORT}
+⚙️  Admin panel: http://localhost:${PORT}/admin
+👤 Default admin: admin / admin123
+💬 Chat system: Polling-based (no WebSocket needed)
+🎵 Music player: Integrated
+        `);
+    });
+    
+    // Graceful shutdown
+    process.on('SIGTERM', async () => {
+        console.log('Shutting down gracefully...');
+        server.close();
+        if (mongoClient) await mongoClient.close();
+        process.exit(0);
     });
 }
 
-start();
+start().catch(console.error);
