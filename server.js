@@ -6,12 +6,13 @@ const crypto = require('crypto');
 const { MongoClient, ObjectId } = require('mongodb');
 const formidable = require('formidable');
 const bcrypt = require('bcryptjs');
+const socketIo = require('socket.io');
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/milow?retryWrites=true&w=majority';
 const DB_NAME = 'verification_hub';
 
-let db, mongoClient;
+let db, mongoClient, io;
 const __dir = path.resolve();
 const ASSETS_DIR = path.join(__dir, 'assets');
 const GALLERY_DIR = path.join(__dir, 'assets', 'gallery');
@@ -90,13 +91,10 @@ async function savePhoto(d) { if (!db) return null; return await db.collection('
 async function deletePhoto(id) { if (!db) return null; return await db.collection('gallery_photos').deleteOne({ _id: new ObjectId(id) }); }
 async function verifyAdmin(u, p) { if (!db) return u === 'admin' && p === 'admin123'; const a = await db.collection('admin_users').findOne({ username: u }); if (!a) return false; return await bcrypt.compare(p, a.password); }
 
-// ==================== CHAT FUNCTIONS ====================
 async function createOrGetChatUser(name, phoneEmail) {
     if (!phoneEmail || !phoneEmail.trim()) return null;
     const clean = phoneEmail.trim().toLowerCase();
-    
     let user = await db.collection('chat_users').findOne({ phoneEmail: clean });
-    
     if (user) {
         await db.collection('chat_users').updateOne(
             { _id: user._id },
@@ -104,7 +102,6 @@ async function createOrGetChatUser(name, phoneEmail) {
         );
         return user;
     }
-    
     const chatId = 'CHAT-' + crypto.randomBytes(4).toString('hex').toUpperCase();
     user = { chatId, name, phoneEmail: clean, createdAt: new Date(), lastSeen: new Date(), status: 'active' };
     await db.collection('chat_users').insertOne(user);
@@ -128,14 +125,23 @@ async function getChatUserByToken(token) {
     return await db.collection('chat_users').findOne({ chatId: session.chatId });
 }
 
-async function getChatMessages(chatId) {
-    return await db.collection('chat_messages').find({ chatId }).sort({ createdAt: 1 }).limit(200).toArray();
+async function getChatMessages(chatId, limit = 50, before = null) {
+    let query = { chatId };
+    if (before) {
+        const beforeDate = new Date(before);
+        query.createdAt = { $lt: beforeDate };
+    }
+    return await db.collection('chat_messages').find(query).sort({ createdAt: -1 }).limit(limit).toArray();
 }
 
 async function saveChatMessage(chatId, sender, message, mediaUrl = null, mediaType = null) {
     const msg = { chatId, sender, message, mediaUrl, mediaType, createdAt: new Date(), read: false };
     await db.collection('chat_messages').insertOne(msg);
     await db.collection('chat_users').updateOne({ chatId }, { $set: { lastSeen: new Date() } });
+    if (io) {
+        io.to('admin').emit('new_message', msg);
+        io.to(chatId).emit('new_message', msg);
+    }
     return msg;
 }
 
@@ -152,6 +158,11 @@ async function getAdminChatList() {
 
 async function markMessagesRead(chatId) {
     await db.collection('chat_messages').updateMany({ chatId, sender: 'user', read: false }, { $set: { read: true } });
+    if (io) io.to('admin').emit('messages_read', chatId);
+}
+
+async function updateTyping(chatId, isTyping) {
+    if (io) io.to('admin').emit('typing', { chatId, isTyping });
 }
 
 const DATA = {
@@ -180,11 +191,9 @@ function createSession(u) { const id = crypto.randomBytes(32).toString('hex'); s
 function getSession(id) { const s = sessions.get(id); if (!s) return null; if (Date.now() - s.createdAt > 7200000) { sessions.delete(id); return null; } return s; }
 function parseCookies(h) { const c = {}; if (h) h.split(';').forEach(x => { const p = x.split('='); c[p[0].trim()] = p[1] ? p[1].trim() : ''; }); return c; }
 
-// ==================== MAIN HTML ====================
-function getMainHTML(galleryPhotos = []) {
+function getMainHTML() {
     const coverSongs = getCoverSongs();
     const totalFake = DATA.fakeAccounts.length;
-
     return `<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -194,6 +203,7 @@ function getMainHTML(galleryPhotos = []) {
 <title>Baiilla Maach | Verification Hub</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="/socket.io/socket.io.js"></script>
 <script>tailwind.config={darkMode:'class'}</script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
@@ -203,14 +213,12 @@ body{font-family:'Inter',sans-serif;background:#09090b;color:#e5e5e5;min-height:
 .verified-glow{box-shadow:0 0 15px rgba(34,197,94,0.3)}
 .danger-glow{box-shadow:0 0 15px rgba(239,68,68,0.3)}
 .gradient-text{background:linear-gradient(135deg,#a78bfa,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-
 .chat-widget{position:fixed;bottom:20px;right:20px;z-index:9999}
 .chat-btn{width:58px;height:58px;background:#25d366;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(37,211,102,0.4);transition:all 0.3s;border:none;animation:bounceIn 0.5s}
 .chat-btn:hover{transform:scale(1.1)}
 .chat-btn svg{width:30px;height:30px;fill:white}
 .chat-badge{position:absolute;top:-5px;right:-5px;background:#ef4444;color:white;border-radius:50%;width:22px;height:22px;font-size:11px;display:none;align-items:center;justify-content:center;font-weight:bold}
 @keyframes bounceIn{0%{transform:scale(0)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
-
 .chat-window{position:fixed;bottom:90px;right:20px;width:400px;max-width:calc(100vw - 40px);height:580px;max-height:calc(100vh - 130px);background:#111b21;border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.6);display:none;flex-direction:column}
 .chat-window.open{display:flex}
 .chat-header{background:#202c33;padding:12px 16px;display:flex;align-items:center;gap:10px}
@@ -219,23 +227,21 @@ body{font-family:'Inter',sans-serif;background:#09090b;color:#e5e5e5;min-height:
 .chat-header-name{color:white;font-weight:600;font-size:15px}
 .chat-header-status{color:#a5d6a7;font-size:11px}
 .chat-close{background:none;border:none;color:#8696a0;font-size:20px;cursor:pointer;margin-left:auto;padding:4px}
-.chat-messages{flex:1;overflow-y:auto;padding:16px;background:#0b141a;background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
-.msg{max-width:85%;padding:6px 12px 6px 9px;margin-bottom:4px;border-radius:8px;font-size:14px;line-height:1.45;word-wrap:break-word;animation:fadeIn 0.3s;position:relative}
+.chat-messages{flex:1;overflow-y:auto;padding:16px;background:#0b141a}
+.msg{max-width:85%;padding:6px 12px 6px 9px;margin-bottom:4px;border-radius:8px;font-size:14px;line-height:1.45;word-wrap:break-word;animation:fadeIn 0.3s}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .msg-out{background:#005c4b;color:#e9edef;float:right;clear:both;border-radius:8px 0 8px 8px}
 .msg-in{background:#202c33;color:#e9edef;float:left;clear:both;border-radius:0 8px 8px 8px}
 .msg-time{font-size:10px;color:rgba(255,255,255,0.45);text-align:right;margin-top:3px;padding-left:15px;float:right}
 .msg::after{content:'';display:table;clear:both}
 .msg-media{margin:4px 0;max-width:100%;border-radius:8px}
-.msg-media img{max-width:220px;border-radius:8px;max-height:220px;object-fit:cover;cursor:pointer;border:1px solid rgba(255,255,255,0.05)}
+.msg-media img{max-width:220px;border-radius:8px;max-height:220px;object-fit:cover;cursor:pointer}
 .msg-media audio{width:200px;height:32px;border-radius:20px;display:block}
 .msg-media video{max-width:220px;border-radius:8px;max-height:220px}
-.msg-file{background:rgba(255,255,255,0.05);padding:8px 12px;border-radius:8px;display:flex;align-items:center;gap:8px;font-size:13px}
-.msg-file a{color:#53bdeb;text-decoration:none}
 .chat-login{padding:30px 20px;text-align:center;flex:1;display:flex;flex-direction:column;justify-content:center}
 .chat-login h3{color:white;margin-bottom:4px;font-size:16px}
 .chat-login p{color:#8696a0;font-size:12px;margin-bottom:20px}
-.chat-login input{width:100%;background:#2a3942;border:2px solid transparent;padding:10px 14px;border-radius:8px;color:white;font-size:14px;margin-bottom:10px;outline:none;transition:border 0.2s}
+.chat-login input{width:100%;background:#2a3942;border:2px solid transparent;padding:10px 14px;border-radius:8px;color:white;font-size:14px;margin-bottom:10px;outline:none}
 .chat-login input:focus{border-color:#00a884}
 .chat-login button{width:100%;background:#00a884;color:white;border:none;padding:12px;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px}
 .chat-login button:hover{background:#06cf9c}
@@ -255,8 +261,7 @@ body{font-family:'Inter',sans-serif;background:#09090b;color:#e5e5e5;min-height:
 @media(max-width:640px){.chat-window{width:100%;max-width:100%;bottom:0;right:0;border-radius:12px 12px 0 0;height:100%;max-height:100%}}
 </style>
 </head>
-<body class="min-h-screen">
-
+<body>
 <header class="fixed top-0 left-0 right-0 z-40 glass border-b border-white/5">
 <div class="max-w-5xl mx-auto px-3">
 <div class="flex items-center justify-between h-12">
@@ -272,11 +277,8 @@ ${coverSongs.length > 0 ? '<a href="#music" class="px-2 py-1 text-xs text-gray-4
 </div>
 </div>
 </header>
-
 <main class="pt-14 pb-24">
 <div class="max-w-5xl mx-auto px-3">
-
-<!-- Profile -->
 <section class="text-center py-6">
 <div class="relative inline-block mb-3">
 <img src="${DATA.celebrity.photo}" alt="" class="w-20 h-20 rounded-full border-3 border-green-500 object-cover mx-auto verified-glow" onerror="this.style.display='none'">
@@ -300,8 +302,6 @@ ${coverSongs.length > 0 ? '<a href="#music" class="px-2 py-1 text-xs text-gray-4
 <a href="${DATA.realAccounts[1].url}" target="_blank" class="inline-flex items-center gap-1.5 px-4 py-2 glass rounded-full text-xs font-semibold hover:border-green-500/50">Facebook</a>
 </div>
 </section>
-
-<!-- Official -->
 <section id="official" class="py-4">
 <div class="flex items-center gap-2 mb-3">
 <div class="w-7 h-7 rounded-lg bg-green-500/15 flex items-center justify-center verified-glow">
@@ -332,8 +332,6 @@ ${acc.screenshot ? `<img src="${acc.screenshot}" alt="" class="w-12 h-12 rounded
 </div>
 </div>
 </section>
-
-<!-- Fake -->
 <section id="fake" class="py-4">
 <div class="flex items-center gap-2 mb-3">
 <div class="w-7 h-7 rounded-lg bg-red-500/15 flex items-center justify-center danger-glow">
@@ -371,7 +369,6 @@ ${a.screenshot ? `<img src="${a.screenshot}" alt="" class="w-full opacity-90">` 
 </div>
 <audio id="fakeVoice" src="${VOICE.fakeAlert}" preload="none"></audio>
 </section>
-
 ${coverSongs.length > 0 ? `
 <section id="music" class="py-4">
 <div class="flex items-center gap-2 mb-3">
@@ -391,18 +388,14 @@ ${coverSongs.map((s, i) => `
 </div>
 <audio id="coverAudio" preload="none"></audio>
 </section>` : ''}
-
 </div>
 </main>
-
-<!-- ============ CHAT WIDGET ============ -->
 <div class="chat-widget">
 <button class="chat-btn" onclick="toggleChat()" id="chatBtn">
 <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
 </button>
 <div class="chat-badge" id="chatBadge">0</div>
 </div>
-
 <div class="chat-window" id="chatWindow">
 <div class="chat-header">
 <div class="chat-avatar">H<div class="chat-online"></div></div>
@@ -412,7 +405,6 @@ ${coverSongs.map((s, i) => `
 </div>
 <button class="chat-close" onclick="toggleChat()">✕</button>
 </div>
-
 <div id="chatLogin" class="chat-login">
 <h3>💬 Chat with Hammad</h3>
 <p>Enter your details to start</p>
@@ -420,7 +412,6 @@ ${coverSongs.map((s, i) => `
 <input type="text" id="userContact" placeholder="Phone Number or Email">
 <button onclick="registerChat()">Start Chat</button>
 </div>
-
 <div id="chatUI" style="display:none;flex:1;flex-direction:column">
 <div class="chat-messages" id="chatMessages">
 <div style="text-align:center;color:#8696a0;font-size:12px;padding:10px">🔒 Messages are secure</div>
@@ -440,277 +431,498 @@ ${coverSongs.map((s, i) => `
 </div>
 </div>
 </div>
-
 <audio id="welcomeVoice" src="${VOICE.welcome}" preload="none"></audio>
-
 <script>
-// Welcome voice
-setTimeout(()=>{const v=document.getElementById('welcomeVoice');if(v&&!sessionStorage.getItem('vp')){v.play().catch(()=>{});sessionStorage.setItem('vp','1')}},2000);
-
-// Music player
-function playSong(url,title){const a=document.getElementById('coverAudio');a.src=url;a.play().catch(()=>{});if(title)document.title=title}
-
-// ============ CHAT SYSTEM WITH MEDIA ============
+let socket = io();
 let chatToken = localStorage.getItem('chatToken');
 let chatId = null;
-let pollInterval = null;
-let unreadCount = 0;
 let mediaRecorder = null;
 let audioChunks = [];
 
-// Auto login if token exists
-if(chatToken){
-    verifyToken();
-}
+setTimeout(()=>{const v=document.getElementById('welcomeVoice');if(v&&!sessionStorage.getItem('vp')){v.play().catch(()=>{});sessionStorage.setItem('vp','1')}},2000);
+
+function playSong(url,title){const a=document.getElementById('coverAudio');a.src=url;a.play().catch(()=>{});if(title)document.title=title}
+
+if(chatToken){verifyToken();}
 
 async function verifyToken(){
     try{
-        const r = await fetch('/api/chat/verify?token=' + encodeURIComponent(chatToken));
-        const d = await r.json();
-        if(d.success){
-            chatId = d.chatId;
-            showChatUI();
-            loadMessages();
-            startPolling();
-        } else {
-            localStorage.removeItem('chatToken');
-            chatToken = null;
-        }
+        const r=await fetch('/api/chat/verify?token='+encodeURIComponent(chatToken));
+        const d=await r.json();
+        if(d.success){chatId=d.chatId;showChatUI();loadMessages();} 
+        else {localStorage.removeItem('chatToken');chatToken=null;}
     }catch(e){}
 }
 
 function toggleChat(){
-    const w = document.getElementById('chatWindow');
+    const w=document.getElementById('chatWindow');
     w.classList.toggle('open');
-    if(w.classList.contains('open') && chatToken){
-        loadMessages();
-        document.getElementById('chatBadge').style.display = 'none';
-    }
+    if(w.classList.contains('open')&&chatToken){loadMessages();document.getElementById('chatBadge').style.display='none';}
 }
 
 function showChatUI(){
-    document.getElementById('chatLogin').style.display = 'none';
-    document.getElementById('chatUI').style.display = 'flex';
+    document.getElementById('chatLogin').style.display='none';
+    document.getElementById('chatUI').style.display='flex';
 }
 
 async function registerChat(){
-    const name = document.getElementById('userName').value.trim();
-    const contact = document.getElementById('userContact').value.trim();
-    
+    const name=document.getElementById('userName').value.trim();
+    const contact=document.getElementById('userContact').value.trim();
     if(!name){alert('Please enter your name');return}
     if(!contact){alert('Please enter phone or email');return}
-    
     try{
-        const r = await fetch('/api/chat/register', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({name, phoneEmail:contact})
-        });
-        const d = await r.json();
-        
-        if(d.success){
-            chatToken = d.token;
-            chatId = d.chatId;
-            localStorage.setItem('chatToken', chatToken);
-            showChatUI();
-            loadMessages();
-            startPolling();
-        } else {
-            alert(d.error || 'Registration failed');
-        }
-    }catch(e){
-        alert('Connection error. Please try again.');
-    }
-}
-
-function startPolling(){
-    if(pollInterval) clearInterval(pollInterval);
-    pollInterval = setInterval(loadMessages, 2000);
+        const r=await fetch('/api/chat/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phoneEmail:contact})});
+        const d=await r.json();
+        if(d.success){chatToken=d.token;chatId=d.chatId;localStorage.setItem('chatToken',chatToken);showChatUI();loadMessages();} 
+        else alert(d.error||'Registration failed');
+    }catch(e){alert('Connection error');}
 }
 
 async function loadMessages(){
-    if(!chatToken) return;
+    if(!chatToken)return;
     try{
-        const r = await fetch('/api/chat/messages?token=' + encodeURIComponent(chatToken) + '&t=' + Date.now());
-        const d = await r.json();
-        
+        const r=await fetch('/api/chat/messages?token='+encodeURIComponent(chatToken)+'&t='+Date.now());
+        const d=await r.json();
         if(d.success){
-            const container = document.getElementById('chatMessages');
-            const wasAtBottom = container.scrollHeight - container.scrollTop <= 100;
-            
-            container.innerHTML = '';
-            
-            d.messages.forEach(m => {
-                const isUser = m.sender === 'user';
-                const div = document.createElement('div');
-                
-                let mediaHTML = '';
-                if(m.mediaUrl && m.mediaType){
-                    if(m.mediaType === 'image'){
-                        mediaHTML = \`<div class="msg-media"><img src="\${m.mediaUrl}" onclick="window.open('\${m.mediaUrl}','_blank')" loading="lazy"></div>\`;
-                    } else if(m.mediaType === 'audio'){
-                        mediaHTML = \`<div class="msg-media"><audio controls src="\${m.mediaUrl}"></audio></div>\`;
-                    } else if(m.mediaType === 'video'){
-                        mediaHTML = \`<div class="msg-media"><video controls src="\${m.mediaUrl}"></video></div>\`;
-                    } else if(m.mediaType === 'file'){
-                        const fileName = m.mediaUrl.split('/').pop();
-                        mediaHTML = \`<div class="msg-file">📎 <a href="\${m.mediaUrl}" target="_blank">\${decodeURIComponent(fileName)}</a></div>\`;
-                    }
+            const container=document.getElementById('chatMessages');
+            container.innerHTML='';
+            d.messages.forEach(m=>{
+                const isUser=m.sender==='user';
+                const div=document.createElement('div');
+                let mediaHTML='';
+                if(m.mediaUrl&&m.mediaType){
+                    if(m.mediaType==='image')mediaHTML='<div class="msg-media"><img src="'+m.mediaUrl+'" onclick="window.open(\''+m.mediaUrl+'\',\'_blank\')" loading="lazy"></div>';
+                    else if(m.mediaType==='audio')mediaHTML='<div class="msg-media"><audio controls src="'+m.mediaUrl+'"></audio></div>';
+                    else if(m.mediaType==='video')mediaHTML='<div class="msg-media"><video controls src="'+m.mediaUrl+'"></video></div>';
+                    else mediaHTML='<div class="msg-file">📎 <a href="'+m.mediaUrl+'" target="_blank">'+decodeURIComponent(m.mediaUrl.split('/').pop())+'</a></div>';
                 }
-                
-                div.innerHTML = 
-                    '<div class="msg ' + (isUser ? 'msg-out' : 'msg-in') + '">' +
-                    (mediaHTML) +
-                    (m.message ? m.message : '') +
-                    '<span class="msg-time">' + new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) + (isUser?' ✓✓':'') + '</span>' +
-                    '</div>';
+                div.innerHTML='<div class="msg '+(isUser?'msg-out':'msg-in')+'">'+mediaHTML+(m.message?m.message:'')+'<span class="msg-time">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+(isUser?' ✓✓':'')+'</span></div>';
                 container.appendChild(div);
             });
-            
-            if(wasAtBottom || container.scrollTop > container.scrollHeight - 200){
-                container.scrollTop = container.scrollHeight;
-            }
-        } else {
-            clearInterval(pollInterval);
-            localStorage.removeItem('chatToken');
-            chatToken = null;
-            document.getElementById('chatLogin').style.display = 'flex';
-            document.getElementById('chatUI').style.display = 'none';
+            container.scrollTop=container.scrollHeight;
+        }else{
+            localStorage.removeItem('chatToken');chatToken=null;
+            document.getElementById('chatLogin').style.display='flex';
+            document.getElementById('chatUI').style.display='none';
         }
     }catch(e){}
 }
 
 async function sendMessage(){
-    const input = document.getElementById('msgInput');
-    const msg = input.value.trim();
-    if(!msg || !chatToken) return;
-    
-    input.value = '';
-    
+    const input=document.getElementById('msgInput');
+    const msg=input.value.trim();
+    if(!msg||!chatToken)return;
+    input.value='';
     try{
-        const r = await fetch('/api/chat/send', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({token:chatToken, message:msg})
-        });
-        const d = await r.json();
-        if(d.success){
-            loadMessages();
-        }
+        await fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:chatToken,message:msg})});
     }catch(e){}
 }
 
 async function sendFile(input){
-    const file = input.files[0];
-    if(!file || !chatToken) return;
-    
-    const formData = new FormData();
-    formData.append('token', chatToken);
-    formData.append('file', file);
-    
+    const file=input.files[0];
+    if(!file||!chatToken)return;
+    const formData=new FormData();
+    formData.append('token',chatToken);
+    formData.append('file',file);
     try{
-        const r = await fetch('/api/chat/upload', {
-            method:'POST',
-            body:formData
-        });
-        const d = await r.json();
-        if(d.success){
-            loadMessages();
-        } else {
-            alert('Upload failed: ' + (d.error || 'Unknown error'));
-        }
-    }catch(e){
-        alert('Upload error');
-    }
-    input.value = '';
+        await fetch('/api/chat/upload',{method:'POST',body:formData});
+    }catch(e){alert('Upload error');}
+    input.value='';
 }
 
 async function startVoiceRecording(){
-    const btn = document.getElementById('voiceBtn');
-    
-    if(mediaRecorder && mediaRecorder.state === 'recording'){
-        mediaRecorder.stop();
-        btn.textContent = '🎤';
-        return;
+    const btn=document.getElementById('voiceBtn');
+    if(mediaRecorder&&mediaRecorder.state==='recording'){
+        mediaRecorder.stop();btn.textContent='🎤';return;
     }
-    
     try{
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
-        
-        mediaRecorder.ondataavailable = event => {
-            audioChunks.push(event.data);
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        mediaRecorder=new MediaRecorder(stream);
+        audioChunks=[];
+        mediaRecorder.ondataavailable=event=>audioChunks.push(event.data);
+        mediaRecorder.onstop=async()=>{
+            const audioBlob=new Blob(audioChunks,{type:'audio/webm'});
+            const formData=new FormData();
+            formData.append('token',chatToken);
+            formData.append('file',audioBlob,'voice.webm');
+            try{await fetch('/api/chat/upload',{method:'POST',body:formData});}catch(e){}
+            stream.getTracks().forEach(t=>t.stop());
+            btn.textContent='🎤';
         };
-        
-        mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            const formData = new FormData();
-            formData.append('token', chatToken);
-            formData.append('file', audioBlob, 'voice.webm');
-            
-            try{
-                const r = await fetch('/api/chat/upload', {
-                    method:'POST',
-                    body:formData
-                });
-                const d = await r.json();
-                if(d.success){
-                    loadMessages();
-                }
-            }catch(e){}
-            
-            stream.getTracks().forEach(t => t.stop());
-            btn.textContent = '🎤';
-        };
-        
-        mediaRecorder.start();
-        btn.textContent = '⏹️';
-        
-        setTimeout(() => {
-            if(mediaRecorder && mediaRecorder.state === 'recording'){
-                mediaRecorder.stop();
-                btn.textContent = '🎤';
-            }
-        }, 60000); // Max 60 seconds
-    }catch(e){
-        alert('Microphone access denied');
-    }
+        mediaRecorder.start();btn.textContent='⏹️';
+        setTimeout(()=>{if(mediaRecorder&&mediaRecorder.state==='recording'){mediaRecorder.stop();btn.textContent='🎤';}},60000);
+    }catch(e){alert('Microphone access denied');}
 }
+
+socket.on('new_message',(msg)=>{
+    if(msg.chatId===chatId)loadMessages();
+});
+
+socket.on('typing',(data)=>{
+    const typingDiv=document.getElementById('typingDiv');
+    if(data.chatId===chatId&&data.isTyping){
+        typingDiv.style.display='block';
+        setTimeout(()=>{typingDiv.style.display='none';},3000);
+    }else{
+        typingDiv.style.display='none';
+    }
+});
 </script>
 </body>
 </html>`;
 }
 
-// ==================== ADMIN HTML ====================
-function getAdminLoginHTML(error = '') {
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-950 flex items-center justify-center min-h-screen"><div class="bg-gray-900 p-8 rounded-2xl w-full max-w-sm border border-gray-800"><h2 class="text-xl font-bold text-white text-center mb-6">Admin Login</h2>${error?`<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-4 text-sm text-center">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="mb-4"><label class="block text-gray-400 text-sm mb-1">Username</label><input type="text" name="username" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" required></div><div class="mb-5"><label class="block text-gray-400 text-sm mb-1">Password</label><input type="password" name="password" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" required></div><button type="submit" class="w-full py-3 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700">Sign In</button></form><div class="text-center mt-5"><a href="/" class="text-sm text-gray-500 hover:text-white">Back</a></div></div></body></html>`;
-}
-
-async function getAdminPanelHTML(photos = [], msg = '', err = '') {
-    const chatList = await getAdminChatList();
-    
-    const photoHTML = photos.map(p => `
-<div class="glass-card overflow-hidden">
-<img src="${p.path}" class="w-full h-40 object-cover">
-<div class="p-3">${p.caption?`<p class="text-sm text-gray-300">${p.caption}</p>`:''}<p class="text-xs text-gray-500 mt-1">${new Date(p.uploadedAt).toLocaleDateString()}</p></div>
-<form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="w-full py-2 bg-red-500/10 text-red-400 text-sm font-bold hover:bg-red-500/20" onclick="return confirm('Delete?')">Delete</button></form>
-</div>`).join('');
-
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel</title>
+function getAdminHTML() {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Messenger Admin</title>
+<script src="/socket.io/socket.io.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
-<style>.glass-card{background:rgba(24,24,28,0.85);border:1px solid rgba(255,255,255,0.06);border-radius:12px}body{background:#09090b;color:#e5e5e5;font-family:sans-serif}</style></head>
-<body class="min-h-screen">
-<header class="glass-card sticky top-0 z-50 p-4 mb-6"><div class="max-w-6xl mx-auto flex justify-between items-center"><h1 class="text-lg font-bold text-purple-400">Admin Panel</h1><div class="flex gap-2"><a href="/admin/chat" class="px-3 py-1.5 bg-purple-600 rounded-lg text-xs hover:bg-purple-700">Chat Panel</a><a href="/" class="px-3 py-1.5 bg-gray-800 rounded-lg text-xs">Site</a><a href="/admin/logout" class="px-3 py-1.5 bg-gray-800 rounded-lg text-xs">Logout</a></div></div></header>
-<div class="max-w-6xl mx-auto px-4">
-${msg?`<div class="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-xl mb-4 text-sm">${msg}</div>`:''}
-${err?`<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-4 text-sm">${err}</div>`:''}
-<h2 class="text-lg font-bold text-white mb-4">Gallery (${photos.length})</h2>
-${photos.length?`<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">${photoHTML}</div>`:'<p class="text-gray-500 text-center py-12">No photos yet</p>'}
-</div></body></html>`;
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#0a0a0f;color:#e5e5e5;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+#app{display:flex;height:100vh;width:100%;overflow:hidden;position:relative}
+.sidebar{width:360px;min-width:360px;background:#111118;border-right:1px solid #1a1a24;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.sidebar-header{padding:16px 16px 12px;background:#0d0d14;border-bottom:1px solid #1a1a24}
+.sidebar-header h1{font-size:20px;font-weight:700;background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sidebar-search{padding:8px 16px}
+.sidebar-search input{width:100%;background:#1a1a24;border:none;border-radius:24px;padding:10px 16px;color:white;font-size:14px;outline:none}
+.sidebar-search input:focus{background:#222233}
+.sidebar-search input::placeholder{color:#666}
+.conversation-list{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 0}
+.conversation-item{padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:0.15s;border-bottom:1px solid #111118;position:relative}
+.conversation-item:hover{background:#1a1a24}
+.conversation-item.active{background:#1a1a2e;border-left:3px solid #667eea}
+.conversation-item .avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;flex-shrink:0;position:relative}
+.conversation-item .avatar .online-dot{width:12px;height:12px;background:#31a24c;border-radius:50%;position:absolute;bottom:0;right:0;border:2px solid #111118}
+.conversation-item .info{flex:1;min-width:0}
+.conversation-item .info .name{font-weight:600;font-size:15px;color:white;display:flex;justify-content:space-between}
+.conversation-item .info .name .time{font-weight:400;font-size:11px;color:#666}
+.conversation-item .info .preview{font-size:13px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conversation-item .unread-badge{background:#0084ff;color:white;border-radius:50%;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;padding:0 6px}
+.main-chat{flex:1;display:flex;flex-direction:column;height:100vh;background:#0d0d14;position:relative}
+.chat-header{background:#0d0d14;border-bottom:1px solid #1a1a24;padding:12px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.chat-header .back-btn{display:none;background:none;border:none;color:white;font-size:24px;cursor:pointer;padding:4px}
+.chat-header .avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px}
+.chat-header .info .name{font-weight:600;color:white;font-size:16px}
+.chat-header .info .status{font-size:12px;color:#31a24c}
+.chat-header .actions{display:flex;gap:8px;margin-left:auto}
+.chat-header .actions button{background:none;border:none;color:#888;font-size:20px;cursor:pointer;padding:6px;border-radius:50%;transition:0.2s}
+.chat-header .actions button:hover{background:#1a1a24;color:white}
+.messages-container{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:2px}
+.message-row{display:flex;margin-bottom:2px;animation:fadeIn 0.2s}
+.message-row.user{justify-content:flex-start}
+.message-row.admin{justify-content:flex-end}
+.message-bubble{max-width:70%;padding:8px 14px;border-radius:12px;font-size:14px;line-height:1.5;word-wrap:break-word;position:relative}
+.message-row.user .message-bubble{background:#1a1a2e;color:white;border-bottom-left-radius:4px}
+.message-row.admin .message-bubble{background:#0084ff;color:white;border-bottom-right-radius:4px}
+.message-bubble .time{font-size:10px;color:rgba(255,255,255,0.5);margin-top:4px;display:block;text-align:right}
+.message-bubble .media{margin-bottom:4px;max-width:100%}
+.message-bubble .media img{max-width:200px;border-radius:8px;max-height:200px;object-fit:cover;cursor:pointer}
+.message-bubble .media audio{width:180px;height:32px;border-radius:20px}
+.message-bubble .media video{max-width:200px;border-radius:8px;max-height:200px}
+.message-bubble .file-link{color:#60a5fa;text-decoration:underline}
+.date-divider{text-align:center;color:#666;font-size:12px;padding:8px 0;position:relative}
+.date-divider span{background:#0d0d14;padding:0 12px;position:relative;z-index:1}
+.date-divider::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:#1a1a24}
+.chat-input{background:#0d0d14;border-top:1px solid #1a1a24;padding:12px 16px;display:flex;align-items:flex-end;gap:8px;flex-shrink:0}
+.chat-input .input-wrapper{flex:1;display:flex;align-items:center;background:#1a1a24;border-radius:24px;padding:4px 16px;gap:8px}
+.chat-input .input-wrapper input{flex:1;background:none;border:none;padding:10px 0;color:white;font-size:15px;outline:none;min-height:24px;max-height:120px;resize:none}
+.chat-input .input-wrapper input::placeholder{color:#666}
+.chat-input .input-wrapper .tools{display:flex;gap:4px}
+.chat-input .input-wrapper .tools button{background:none;border:none;color:#666;font-size:18px;cursor:pointer;padding:4px;border-radius:50%;transition:0.2s}
+.chat-input .input-wrapper .tools button:hover{color:white;background:#222}
+.chat-input .send-btn{background:#0084ff;color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:0.2s;flex-shrink:0}
+.chat-input .send-btn:hover{background:#0099ff}
+.chat-input .send-btn:disabled{opacity:0.3;cursor:not-allowed}
+.typing-indicator{padding:4px 20px;font-size:13px;color:#666;min-height:28px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.empty-state{flex:1;display:flex;align-items:center;justify-content:center;color:#444;font-size:16px;flex-direction:column;gap:12px}
+.empty-state .icon{font-size:64px;opacity:0.3}
+@media(max-width:768px){
+.sidebar{position:absolute;left:0;top:0;bottom:0;z-index:10;width:100%;min-width:100%;transition:transform 0.3s;transform:translateX(0)}
+.sidebar.hidden{transform:translateX(-100%)}
+.main-chat .chat-header .back-btn{display:block}
+.chat-header .info .name{font-size:14px}
+.message-bubble{max-width:85%}
+}
+@media(max-width:480px){
+.sidebar{width:100%;min-width:100%}
+.message-bubble{max-width:92%;font-size:13px}
+.chat-input{padding:8px 12px}
+.chat-input .input-wrapper{padding:2px 12px}
+.chat-input .input-wrapper input{padding:8px 0;font-size:14px}
+.messages-container{padding:12px}
+}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#2a2a3a;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#3a3a4a}
+</style>
+</head>
+<body>
+<div id="app">
+<div class="sidebar" id="sidebar">
+<div class="sidebar-header">
+<h1>💬 Messages</h1>
+</div>
+<div class="sidebar-search">
+<input type="text" id="searchInput" placeholder="🔍 Search conversations..." oninput="filterConversations(this.value)">
+</div>
+<div class="conversation-list" id="conversationList"></div>
+</div>
+<div class="main-chat">
+<div class="chat-header">
+<button class="back-btn" onclick="toggleSidebar()">←</button>
+<div class="avatar" id="chatAvatar">?</div>
+<div class="info">
+<div class="name" id="chatName">Select a chat</div>
+<div class="status" id="chatStatus">No conversation selected</div>
+</div>
+<div class="actions">
+<button onclick="alert('Coming soon')" title="More">⋯</button>
+</div>
+</div>
+<div class="messages-container" id="messagesContainer">
+<div class="empty-state">
+<div class="icon">💬</div>
+<div>Select a conversation to start messaging</div>
+</div>
+</div>
+<div class="typing-indicator" id="typingIndicator"></div>
+<div class="chat-input">
+<div class="input-wrapper">
+<input type="text" id="msgInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAdminMessage()}">
+<div class="tools">
+<button onclick="document.getElementById('adminFileInput').click()" title="Attach">📎</button>
+<button onclick="startAdminVoice()" title="Voice" id="adminVoiceBtn">🎤</button>
+<input type="file" id="adminFileInput" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt" style="display:none" onchange="sendAdminFile(this)">
+</div>
+</div>
+<button class="send-btn" onclick="sendAdminMessage()">➤</button>
+</div>
+</div>
+</div>
+<script>
+let socket=io();
+let currentChatId=null;
+let currentUser=null;
+let adminSession=null;
+let mediaRecorder=null;
+let audioChunks=[];
+
+async function checkAdmin(){
+    try{
+        const r=await fetch('/api/admin/check');
+        const d=await r.json();
+        if(!d.loggedIn){window.location.href='/admin/login';return;}
+        adminSession=d.session;
+        loadConversations();
+    }catch(e){window.location.href='/admin/login';}
 }
 
-// ==================== SERVER ====================
+function toggleSidebar(){
+    document.getElementById('sidebar').classList.toggle('hidden');
+}
+
+async function loadConversations(){
+    try{
+        const r=await fetch('/api/admin/conversations');
+        const d=await r.json();
+        if(d.success){
+            renderConversations(d.conversations);
+            if(d.conversations.length>0&&!currentChatId){
+                selectConversation(d.conversations[0].chatId);
+            }
+        }
+    }catch(e){console.error(e);}
+}
+
+function renderConversations(conversations){
+    const list=document.getElementById('conversationList');
+    list.innerHTML=conversations.map(c=>`
+        <div class="conversation-item ${c.chatId===currentChatId?'active':''}" onclick="selectConversation('${c.chatId}')" data-chatid="${c.chatId}">
+            <div class="avatar">
+                ${c.name.charAt(0).toUpperCase()}
+                ${c.online?'<div class="online-dot"></div>':''}
+            </div>
+            <div class="info">
+                <div class="name">
+                    ${c.name}
+                    <span class="time">${c.lastMessage?new Date(c.lastMessage.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):''}</span>
+                </div>
+                <div class="preview">${c.lastMessage?c.lastMessage.message||'📎 Media':''}</div>
+            </div>
+            ${c.unread>0?`<div class="unread-badge">${c.unread}</div>`:''}
+        </div>
+    `).join('');
+}
+
+function filterConversations(query){
+    const items=document.querySelectorAll('.conversation-item');
+    items.forEach(item=>{
+        const name=item.querySelector('.name').textContent.toLowerCase();
+        const preview=item.querySelector('.preview')?.textContent?.toLowerCase()||'';
+        const match=name.includes(query.toLowerCase())||preview.includes(query.toLowerCase());
+        item.style.display=match?'flex':'none';
+    });
+}
+
+async function selectConversation(chatId){
+    currentChatId=chatId;
+    const items=document.querySelectorAll('.conversation-item');
+    items.forEach(item=>item.classList.toggle('active',item.dataset.chatid===chatId));
+    if(window.innerWidth<=768)document.getElementById('sidebar').classList.add('hidden');
+    await loadMessages(chatId);
+    await fetch('/api/admin/mark-read?chatId='+chatId);
+    const user=await fetchUserInfo(chatId);
+    if(user){
+        currentUser=user;
+        document.getElementById('chatName').textContent=user.name;
+        document.getElementById('chatAvatar').textContent=user.name.charAt(0).toUpperCase();
+        document.getElementById('chatStatus').textContent=user.online?'🟢 Online':'Last seen: '+new Date(user.lastSeen).toLocaleString();
+    }
+}
+
+async function fetchUserInfo(chatId){
+    try{
+        const r=await fetch('/api/admin/user-info?chatId='+chatId);
+        const d=await r.json();
+        return d.success?d.user:null;
+    }catch(e){return null;}
+}
+
+async function loadMessages(chatId, before=null){
+    try{
+        let url='/api/admin/messages?chatId='+chatId;
+        if(before)url+='&before='+before;
+        const r=await fetch(url);
+        const d=await r.json();
+        if(d.success){
+            renderMessages(d.messages);
+        }
+    }catch(e){console.error(e);}
+}
+
+function renderMessages(messages){
+    const container=document.getElementById('messagesContainer');
+    if(!messages||messages.length===0){
+        container.innerHTML='<div class="empty-state"><div class="icon">💬</div><div>No messages yet</div></div>';
+        return;
+    }
+    let html='';
+    let lastDate=null;
+    messages.reverse().forEach(m=>{
+        const date=new Date(m.createdAt);
+        const dateStr=date.toDateString();
+        if(dateStr!==lastDate){
+            html+=`<div class="date-divider"><span>${date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</span></div>`;
+            lastDate=dateStr;
+        }
+        let mediaHTML='';
+        if(m.mediaUrl&&m.mediaType){
+            if(m.mediaType==='image')mediaHTML=`<div class="media"><img src="${m.mediaUrl}" onclick="window.open('${m.mediaUrl}','_blank')"></div>`;
+            else if(m.mediaType==='audio')mediaHTML=`<div class="media"><audio controls src="${m.mediaUrl}"></audio></div>`;
+            else if(m.mediaType==='video')mediaHTML=`<div class="media"><video controls src="${m.mediaUrl}"></video></div>`;
+            else mediaHTML=`<div class="media"><a href="${m.mediaUrl}" target="_blank" class="file-link">📎 Download</a></div>`;
+        }
+        const isUser=m.sender==='user';
+        html+=`
+            <div class="message-row ${isUser?'user':'admin'}">
+                <div class="message-bubble">
+                    ${mediaHTML}
+                    ${m.message||''}
+                    <span class="time">${date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} ${m.read?'✓✓':'✓'}</span>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML=html;
+    container.scrollTop=container.scrollHeight;
+}
+
+async function sendAdminMessage(){
+    const input=document.getElementById('msgInput');
+    const msg=input.value.trim();
+    if(!msg||!currentChatId)return;
+    input.value='';
+    try{
+        await fetch('/api/admin/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:currentChatId,message:msg})});
+    }catch(e){console.error(e);}
+}
+
+async function sendAdminFile(input){
+    const file=input.files[0];
+    if(!file||!currentChatId)return;
+    const formData=new FormData();
+    formData.append('chatId',currentChatId);
+    formData.append('file',file);
+    try{
+        await fetch('/api/admin/upload',{method:'POST',body:formData});
+    }catch(e){alert('Upload error');}
+    input.value='';
+}
+
+async function startAdminVoice(){
+    const btn=document.getElementById('adminVoiceBtn');
+    if(mediaRecorder&&mediaRecorder.state==='recording'){
+        mediaRecorder.stop();btn.textContent='🎤';return;
+    }
+    try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        mediaRecorder=new MediaRecorder(stream);
+        audioChunks=[];
+        mediaRecorder.ondataavailable=e=>audioChunks.push(e.data);
+        mediaRecorder.onstop=async()=>{
+            const blob=new Blob(audioChunks,{type:'audio/webm'});
+            const formData=new FormData();
+            formData.append('chatId',currentChatId);
+            formData.append('file',blob,'voice.webm');
+            try{await fetch('/api/admin/upload',{method:'POST',body:formData});}catch(e){}
+            stream.getTracks().forEach(t=>t.stop());
+            btn.textContent='🎤';
+        };
+        mediaRecorder.start();btn.textContent='⏹️';
+        setTimeout(()=>{if(mediaRecorder&&mediaRecorder.state==='recording'){mediaRecorder.stop();btn.textContent='🎤';}},60000);
+    }catch(e){alert('Microphone access denied');}
+}
+
+socket.on('new_message',(msg)=>{
+    if(msg.chatId===currentChatId){
+        loadMessages(currentChatId);
+    }
+    if(msg.chatId!==currentChatId){
+        document.querySelector(`.conversation-item[data-chatid="${msg.chatId}"] .unread-badge`)?.remove();
+        const badge=document.createElement('div');
+        badge.className='unread-badge';
+        badge.textContent='1';
+        document.querySelector(`.conversation-item[data-chatid="${msg.chatId}"]`)?.appendChild(badge);
+    }
+    loadConversations();
+});
+
+socket.on('messages_read',(chatId)=>{
+    document.querySelector(`.conversation-item[data-chatid="${chatId}"] .unread-badge`)?.remove();
+});
+
+socket.on('typing',(data)=>{
+    const indicator=document.getElementById('typingIndicator');
+    if(data.chatId===currentChatId&&data.isTyping){
+        indicator.textContent='User is typing...';
+    }else{
+        indicator.textContent='';
+    }
+});
+
+checkAdmin();
+</script>
+</body>
+</html>`;
+}
+
 const server = http.createServer(async (req, res) => {
     const parsedUrl = url.parse(req.url, true);
     const pathname = parsedUrl.pathname;
@@ -721,367 +933,278 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+    if(method==='OPTIONS'){res.writeHead(204);res.end();return;}
 
-    // Static assets
-    if (pathname.startsWith('/assets/')) {
-        const assetPath = path.join(__dir, decodeURIComponent(pathname));
-        if (!assetPath.startsWith(ASSETS_DIR)) { res.writeHead(403); res.end(); return; }
-        if (fs.existsSync(assetPath)) {
-            const ext = path.extname(assetPath).toLowerCase();
-            const types = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac','.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.txt':'text/plain','.webm':'video/webm','.mp4':'video/mp4' };
-            res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' });
+    if(pathname.startsWith('/assets/')){
+        const assetPath=path.join(__dir,decodeURIComponent(pathname));
+        if(!assetPath.startsWith(ASSETS_DIR)){res.writeHead(403);res.end();return;}
+        if(fs.existsSync(assetPath)){
+            const ext=path.extname(assetPath).toLowerCase();
+            const types={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac','.pdf':'application/pdf','.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.txt':'text/plain','.webm':'video/webm','.mp4':'video/mp4'};
+            res.writeHead(200,{'Content-Type':types[ext]||'application/octet-stream','Cache-Control':'public,max-age=86400'});
             fs.createReadStream(assetPath).pipe(res);
-        } else { res.writeHead(404); res.end(); }
+        }else{res.writeHead(404);res.end();}
         return;
     }
 
-    // ==================== CHAT API ====================
-    if (pathname === '/api/chat/register' && method === 'POST') {
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            try {
-                const { name, phoneEmail } = JSON.parse(body);
-                if (!name || !phoneEmail) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'All fields required' })); return; }
-                
-                const user = await createOrGetChatUser(name, phoneEmail);
-                if (!user) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Failed to create user' })); return; }
-                
-                const token = await createChatSession(user.chatId);
-                
-                const messages = await getChatMessages(user.chatId);
-                if (messages.length === 0) {
-                    await saveChatMessage(user.chatId, 'admin', 'Hello! 👋 Welcome to the chat. How can I help you today?');
-                }
-                
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, chatId: user.chatId, token, name: user.name }));
-            } catch (e) {
-                console.error('Register error:', e);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: 'Server error' }));
-            }
+    if(pathname==='/api/chat/register'&&method==='POST'){
+        let body='';
+        req.on('data',c=>body+=c);
+        req.on('end',async()=>{
+            try{
+                const{name,phoneEmail}=JSON.parse(body);
+                if(!name||!phoneEmail){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:'All fields required'}));return;}
+                const user=await createOrGetChatUser(name,phoneEmail);
+                if(!user){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:'Failed to create user'}));return;}
+                const token=await createChatSession(user.chatId);
+                const messages=await getChatMessages(user.chatId);
+                if(messages.length===0){await saveChatMessage(user.chatId,'admin','Hello! 👋 Welcome to the chat. How can I help you today?');}
+                res.writeHead(200,{'Content-Type':'application/json'});
+                res.end(JSON.stringify({success:true,chatId:user.chatId,token,name:user.name}));
+            }catch(e){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:'Server error'}));}
         });
         return;
     }
 
-    if (pathname === '/api/chat/verify' && method === 'GET') {
-        const token = parsedUrl.query.token;
-        const user = await getChatUserByToken(token);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: !!user, chatId: user ? user.chatId : null }));
+    if(pathname==='/api/chat/verify'&&method==='GET'){
+        const token=parsedUrl.query.token;
+        const user=await getChatUserByToken(token);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({success:!!user,chatId:user?user.chatId:null}));
         return;
     }
 
-    if (pathname === '/api/chat/messages' && method === 'GET') {
-        const token = parsedUrl.query.token;
-        if (!token) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
-        
-        const user = await getChatUserByToken(token);
-        if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Invalid token' })); return; }
-        
-        const messages = await getChatMessages(user.chatId);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, messages }));
+    if(pathname==='/api/chat/messages'&&method==='GET'){
+        const token=parsedUrl.query.token;
+        if(!token){res.writeHead(401,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false}));return;}
+        const user=await getChatUserByToken(token);
+        if(!user){res.writeHead(401,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:'Invalid token'}));return;}
+        const messages=await getChatMessages(user.chatId);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({success:true,messages}));
         return;
     }
 
-    if (pathname === '/api/chat/send' && method === 'POST') {
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            try {
-                const { token, message } = JSON.parse(body);
-                if (!token || !message) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
-                
-                const user = await getChatUserByToken(token);
-                if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Invalid token' })); return; }
-                
-                await saveChatMessage(user.chatId, 'user', message);
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true }));
-            } catch (e) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false }));
-            }
+    if(pathname==='/api/chat/send'&&method==='POST'){
+        let body='';
+        req.on('data',c=>body+=c);
+        req.on('end',async()=>{
+            try{
+                const{token,message}=JSON.parse(body);
+                if(!token||!message){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false}));return;}
+                const user=await getChatUserByToken(token);
+                if(!user){res.writeHead(401,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:'Invalid token'}));return;}
+                await saveChatMessage(user.chatId,'user',message);
+                res.writeHead(200,{'Content-Type':'application/json'});
+                res.end(JSON.stringify({success:true}));
+            }catch(e){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false}));}
         });
         return;
     }
 
-    if (pathname === '/api/chat/upload' && method === 'POST') {
-        const form = new formidable.IncomingForm({ uploadDir: CHAT_MEDIA_DIR, keepExtensions: true, maxFileSize: 20 * 1024 * 1024 });
-        form.parse(req, async (err, fields, files) => {
-            if (err) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: err.message })); return; }
-            
-            const token = Array.isArray(fields.token) ? fields.token[0] : fields.token;
-            const user = await getChatUserByToken(token);
-            if (!user) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Invalid token' })); return; }
-            
-            const file = Array.isArray(files.file) ? files.file[0] : files.file;
-            if (!file || !file.originalFilename) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'No file' })); return; }
-            
-            const ext = path.extname(file.originalFilename).toLowerCase();
-            const fn = Date.now() + '_' + crypto.randomBytes(8).toString('hex') + ext;
-            const filePath = path.join(CHAT_MEDIA_DIR, fn);
-            
-            try {
-                fs.renameSync(file.filepath, filePath);
-                
-                let mediaType = 'file';
-                const imageExts = ['.jpg','.jpeg','.png','.gif','.webp','.bmp','.svg'];
-                const audioExts = ['.mp3','.wav','.ogg','.m4a','.aac','.flac','.webm'];
-                const videoExts = ['.mp4','.webm','.avi','.mov','.mkv'];
-                
-                if(imageExts.includes(ext)) mediaType = 'image';
-                else if(audioExts.includes(ext)) mediaType = 'audio';
-                else if(videoExts.includes(ext)) mediaType = 'video';
-                
-                const mediaUrl = '/assets/chatmedia/' + encodeURIComponent(fn);
-                await saveChatMessage(user.chatId, 'user', '', mediaUrl, mediaType);
-                
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true }));
-            } catch (e) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: e.message }));
-            }
+    if(pathname==='/api/chat/upload'&&method==='POST'){
+        const form=new formidable.IncomingForm({uploadDir:CHAT_MEDIA_DIR,keepExtensions:true,maxFileSize:20*1024*1024});
+        form.parse(req,async(err,fields,files)=>{
+            if(err){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:err.message}));return;}
+            const token=Array.isArray(fields.token)?fields.token[0]:fields.token;
+            const user=await getChatUserByToken(token);
+            if(!user){res.writeHead(401,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:'Invalid token'}));return;}
+            const file=Array.isArray(files.file)?files.file[0]:files.file;
+            if(!file||!file.originalFilename){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:'No file'}));return;}
+            const ext=path.extname(file.originalFilename).toLowerCase();
+            const fn=Date.now()+'_'+crypto.randomBytes(8).toString('hex')+ext;
+            const filePath=path.join(CHAT_MEDIA_DIR,fn);
+            try{
+                fs.renameSync(file.filepath,filePath);
+                let mediaType='file';
+                const imageExts=['.jpg','.jpeg','.png','.gif','.webp','.bmp','.svg'];
+                const audioExts=['.mp3','.wav','.ogg','.m4a','.aac','.flac','.webm'];
+                const videoExts=['.mp4','.webm','.avi','.mov','.mkv'];
+                if(imageExts.includes(ext))mediaType='image';
+                else if(audioExts.includes(ext))mediaType='audio';
+                else if(videoExts.includes(ext))mediaType='video';
+                const mediaUrl='/assets/chatmedia/'+encodeURIComponent(fn);
+                await saveChatMessage(user.chatId,'user','',mediaUrl,mediaType);
+                res.writeHead(200,{'Content-Type':'application/json'});
+                res.end(JSON.stringify({success:true}));
+            }catch(e){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:e.message}));}
         });
         return;
     }
 
-    // ==================== ADMIN ROUTES ====================
-    if (pathname === '/admin/chat' && method === 'GET') {
-        const s = getSession(cookies.sessionId);
-        if (!s) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
-        
-        const chatId = parsedUrl.query.chatId;
-        const chatList = await getAdminChatList();
-        let messages = [];
-        
-        if (chatId) {
-            messages = await getChatMessages(chatId);
-            await markMessagesRead(chatId);
-        }
-        
-        const userList = chatList.map(c => `
-<div class="p-3 hover:bg-gray-800 cursor-pointer border-b border-gray-800 ${c.chatId === chatId ? 'bg-purple-600/20 border-l-2 border-purple-500' : ''}" onclick="location.href='/admin/chat?chatId=${c.chatId}'">
-<div class="flex justify-between items-center">
-<div><div class="text-sm font-semibold text-white">${c.name}</div><div class="text-xs text-gray-400">${c.phoneEmail}</div></div>
-${c.unread > 0 ? `<span class="bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">${c.unread}</span>` : ''}
-</div>
-${c.lastMessage ? `<div class="text-xs text-gray-500 mt-1 truncate">${c.lastMessage.message || '📎 Media'}</div>` : ''}
-</div>`).join('');
-
-        const msgHTML = messages.map(m => {
-            let mediaHTML = '';
-            if(m.mediaUrl && m.mediaType){
-                if(m.mediaType === 'image'){
-                    mediaHTML = `<img src="${m.mediaUrl}" class="max-w-xs rounded-lg mt-1">`;
-                } else if(m.mediaType === 'audio'){
-                    mediaHTML = `<audio controls src="${m.mediaUrl}" class="w-48"></audio>`;
-                } else if(m.mediaType === 'video'){
-                    mediaHTML = `<video controls src="${m.mediaUrl}" class="max-w-xs rounded-lg"></video>`;
-                } else {
-                    mediaHTML = `<a href="${m.mediaUrl}" target="_blank" class="text-blue-400 underline">📎 Download</a>`;
-                }
-            }
-            return `
-<div class="flex ${m.sender === 'user' ? 'justify-start' : 'justify-end'} mb-3">
-<div class="max-w-[70%] px-4 py-2 rounded-lg text-sm ${m.sender === 'user' ? 'bg-gray-800 text-white rounded-bl-sm' : 'bg-green-600 text-white rounded-br-sm'}">
-${mediaHTML}
-${m.message}
-<div class="text-xs text-gray-400 mt-1 text-right">${new Date(m.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
-</div>
-</div>`;
-        }).join('');
-
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Chat Panel</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>body{background:#111b21;color:#e5e5e5;font-family:sans-serif;height:100vh;display:flex;margin:0}
-.sidebar{width:350px;background:#111b21;border-right:1px solid #2a3942;display:flex;flex-direction:column}
-.main{flex:1;display:flex;flex-direction:column}
-.header{background:#202c33;padding:12px 16px;font-weight:600}
-.messages{flex:1;overflow-y:auto;padding:16px;background:#0b141a}
-.input-area{background:#202c33;padding:10px 16px;display:flex;gap:8px}
-.input-area input{flex:1;background:#2a3942;border:none;padding:10px 16px;border-radius:24px;color:white;outline:none}
-.input-area button{background:#00a884;color:white;border:none;padding:10px 20px;border-radius:24px;cursor:pointer;font-weight:600}
-</style></head>
-<body>
-<div class="sidebar">
-<div class="header flex justify-between items-center"><span>💬 Chats</span><a href="/admin" class="text-xs text-gray-400 hover:text-white">← Admin</a></div>
-<div class="flex-1 overflow-y-auto">${userList}</div>
-</div>
-<div class="main">
-${chatId ? `
-<div class="header">Chat with ${chatList.find(c=>c.chatId===chatId)?.name || 'User'}</div>
-<div class="messages" id="msgContainer">${msgHTML || '<div class="text-gray-500 text-center py-8">No messages</div>'}</div>
-<div class="input-area">
-<input type="text" id="adminMsg" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendAdminMsg()">
-<button onclick="sendAdminMsg()">Send</button>
-</div>
-<script>
-let cid = '${chatId}';
-async function loadMsgs(){
-    try{
-        const r = await fetch('/api/admin/messages?chatId=' + cid);
-        const d = await r.json();
-        if(d.success){
-            document.getElementById('msgContainer').innerHTML = d.messages.map(m => {
-                let mediaHTML = '';
-                if(m.mediaUrl && m.mediaType){
-                    if(m.mediaType === 'image') mediaHTML = '<img src="' + m.mediaUrl + '" class="max-w-xs rounded-lg mt-1">';
-                    else if(m.mediaType === 'audio') mediaHTML = '<audio controls src="' + m.mediaUrl + '" class="w-48"></audio>';
-                    else if(m.mediaType === 'video') mediaHTML = '<video controls src="' + m.mediaUrl + '" class="max-w-xs rounded-lg"></video>';
-                    else mediaHTML = '<a href="' + m.mediaUrl + '" target="_blank" class="text-blue-400 underline">📎 Download</a>';
-                }
-                return '<div class="flex ' + (m.sender==='user'?'justify-start':'justify-end') + ' mb-3">' +
-                '<div class="max-w-[70%] px-4 py-2 rounded-lg text-sm ' + (m.sender==='user'?'bg-gray-800 text-white rounded-bl-sm':'bg-green-600 text-white rounded-br-sm') + '">' +
-                mediaHTML + m.message + '<div class="text-xs text-gray-400 mt-1 text-right">' + new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) + '</div></div></div>';
-            }).join('');
-            const c = document.getElementById('msgContainer');
-            c.scrollTop = c.scrollHeight;
-        }
-    }catch(e){}
-}
-async function sendAdminMsg(){
-    const input = document.getElementById('adminMsg');
-    const msg = input.value.trim();
-    if(!msg) return;
-    input.value = '';
-    try{
-        await fetch('/api/admin/send', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:cid, message:msg})});
-        loadMsgs();
-    }catch(e){}
-}
-setInterval(loadMsgs, 2000);
-</script>` : '<div class="flex-1 flex items-center justify-center text-gray-500">Select a conversation</div>'}
-</div>
-</body></html>`);
+    if(pathname==='/api/admin/check'&&method==='GET'){
+        const s=getSession(cookies.sessionId);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({loggedIn:!!s,session:s}));
         return;
     }
 
-    if (pathname === '/api/admin/messages' && method === 'GET') {
-        const s = getSession(cookies.sessionId);
-        if (!s) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
-        
-        const chatId = parsedUrl.query.chatId;
-        const messages = await getChatMessages(chatId);
+    if(pathname==='/api/admin/conversations'&&method==='GET'){
+        const s=getSession(cookies.sessionId);
+        if(!s){res.writeHead(401,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false}));return;}
+        const list=await getAdminChatList();
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({success:true,conversations:list}));
+        return;
+    }
+
+    if(pathname==='/api/admin/user-info'&&method==='GET'){
+        const s=getSession(cookies.sessionId);
+        if(!s){res.writeHead(401,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false}));return;}
+        const chatId=parsedUrl.query.chatId;
+        const user=await db.collection('chat_users').findOne({chatId});
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({success:true,user}));
+        return;
+    }
+
+    if(pathname==='/api/admin/messages'&&method==='GET'){
+        const s=getSession(cookies.sessionId);
+        if(!s){res.writeHead(401,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false}));return;}
+        const chatId=parsedUrl.query.chatId;
+        const before=parsedUrl.query.before;
+        const messages=await getChatMessages(chatId,50,before);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({success:true,messages}));
+        return;
+    }
+
+    if(pathname==='/api/admin/send'&&method==='POST'){
+        const s=getSession(cookies.sessionId);
+        if(!s){res.writeHead(401,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false}));return;}
+        let body='';
+        req.on('data',c=>body+=c);
+        req.on('end',async()=>{
+            const{chatId,message}=JSON.parse(body);
+            await saveChatMessage(chatId,'admin',message);
+            res.writeHead(200,{'Content-Type':'application/json'});
+            res.end(JSON.stringify({success:true}));
+        });
+        return;
+    }
+
+    if(pathname==='/api/admin/upload'&&method==='POST'){
+        const s=getSession(cookies.sessionId);
+        if(!s){res.writeHead(401,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false}));return;}
+        const form=new formidable.IncomingForm({uploadDir:CHAT_MEDIA_DIR,keepExtensions:true,maxFileSize:20*1024*1024});
+        form.parse(req,async(err,fields,files)=>{
+            if(err){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:err.message}));return;}
+            const chatId=Array.isArray(fields.chatId)?fields.chatId[0]:fields.chatId;
+            const file=Array.isArray(files.file)?files.file[0]:files.file;
+            if(!file||!file.originalFilename){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:'No file'}));return;}
+            const ext=path.extname(file.originalFilename).toLowerCase();
+            const fn=Date.now()+'_'+crypto.randomBytes(8).toString('hex')+ext;
+            const filePath=path.join(CHAT_MEDIA_DIR,fn);
+            try{
+                fs.renameSync(file.filepath,filePath);
+                let mediaType='file';
+                const imageExts=['.jpg','.jpeg','.png','.gif','.webp','.bmp','.svg'];
+                const audioExts=['.mp3','.wav','.ogg','.m4a','.aac','.flac','.webm'];
+                const videoExts=['.mp4','.webm','.avi','.mov','.mkv'];
+                if(imageExts.includes(ext))mediaType='image';
+                else if(audioExts.includes(ext))mediaType='audio';
+                else if(videoExts.includes(ext))mediaType='video';
+                const mediaUrl='/assets/chatmedia/'+encodeURIComponent(fn);
+                await saveChatMessage(chatId,'admin','',mediaUrl,mediaType);
+                res.writeHead(200,{'Content-Type':'application/json'});
+                res.end(JSON.stringify({success:true}));
+            }catch(e){res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false,error:e.message}));}
+        });
+        return;
+    }
+
+    if(pathname==='/api/admin/mark-read'&&method==='GET'){
+        const s=getSession(cookies.sessionId);
+        if(!s){res.writeHead(401,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false}));return;}
+        const chatId=parsedUrl.query.chatId;
         await markMessagesRead(chatId);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, messages }));
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({success:true}));
         return;
     }
 
-    if (pathname === '/api/admin/send' && method === 'POST') {
-        const s = getSession(cookies.sessionId);
-        if (!s) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
-        
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            const { chatId, message } = JSON.parse(body);
-            await saveChatMessage(chatId, 'admin', message);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
+    if(pathname==='/api/admin/typing'&&method==='POST'){
+        const s=getSession(cookies.sessionId);
+        if(!s){res.writeHead(401,{'Content-Type':'application/json'});res.end(JSON.stringify({success:false}));return;}
+        let body='';
+        req.on('data',c=>body+=c);
+        req.on('end',async()=>{
+            const{chatId,isTyping}=JSON.parse(body);
+            await updateTyping(chatId,isTyping);
+            res.writeHead(200,{'Content-Type':'application/json'});
+            res.end(JSON.stringify({success:true}));
         });
         return;
     }
 
-    if (pathname === '/admin' && method === 'GET') {
-        const s = getSession(cookies.sessionId);
-        if (s) {
-            const p = await getGalleryPhotos();
-            res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-            res.end(await getAdminPanelHTML(p));
+    if(pathname==='/admin'&&method==='GET'){
+        const s=getSession(cookies.sessionId);
+        if(s){
+            res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'});
+            res.end(getAdminHTML());
             return;
         }
-        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-        res.end(getAdminLoginHTML());
-        return;
-    }
-
-    if (pathname === '/admin/login' && method === 'POST') {
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            const params = new URLSearchParams(body);
-            if (await verifyAdmin(params.get('username'), params.get('password'))) {
-                const sid = createSession(params.get('username'));
-                res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': `sessionId=${sid};HttpOnly;Path=/;Max-Age=7200;SameSite=Lax` });
-                res.end();
-            } else {
-                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-                res.end(getAdminLoginHTML('Invalid credentials'));
-            }
-        });
-        return;
-    }
-
-    if (pathname === '/admin/logout') {
-        sessions.delete(cookies.sessionId);
-        res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': 'sessionId=;HttpOnly;Path=/;Max-Age=0' });
+        res.writeHead(302,{'Location':'/admin/login'});
         res.end();
         return;
     }
 
-    if (pathname === '/admin/upload' && method === 'POST') {
-        if (!getSession(cookies.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
-        const form = new formidable.IncomingForm({ uploadDir: GALLERY_DIR, keepExtensions: true, maxFileSize: 10 * 1024 * 1024 });
-        form.parse(req, async (err, fields, files) => {
-            if (err) { const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p, '', 'Upload error')); return; }
-            const pf = Array.isArray(files.photo) ? files.photo[0] : files.photo;
-            if (!pf || !pf.originalFilename) { const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p, '', 'No file')); return; }
-            const fn = Date.now() + '_' + pf.originalFilename.replace(/[^a-zA-Z0-9.]/g, '_');
-            try {
-                fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
-                await savePhoto({ path: '/assets/gallery/' + fn, caption: fields.caption ? (Array.isArray(fields.caption) ? fields.caption[0] : fields.caption) : '' });
-                const p = await getGalleryPhotos();
-                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-                res.end(await getAdminPanelHTML(p, 'Uploaded'));
-            } catch (e) { const p = await getGalleryPhotos(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(p, '', 'Save error')); }
+    if(pathname==='/admin/login'&&method==='GET'){
+        res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'});
+        res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-950 flex items-center justify-center min-h-screen"><div class="bg-gray-900 p-8 rounded-2xl w-full max-w-sm border border-gray-800"><h2 class="text-xl font-bold text-white text-center mb-6">Admin Login</h2><form method="POST" action="/admin/login"><div class="mb-4"><label class="block text-gray-400 text-sm mb-1">Username</label><input type="text" name="username" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" required></div><div class="mb-5"><label class="block text-gray-400 text-sm mb-1">Password</label><input type="password" name="password" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" required></div><button type="submit" class="w-full py-3 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700">Sign In</button></form></div></body></html>`);
+        return;
+    }
+
+    if(pathname==='/admin/login'&&method==='POST'){
+        let body='';
+        req.on('data',c=>body+=c);
+        req.on('end',async()=>{
+            const params=new URLSearchParams(body);
+            if(await verifyAdmin(params.get('username'),params.get('password'))){
+                const sid=createSession(params.get('username'));
+                res.writeHead(302,{'Location':'/admin','Set-Cookie':`sessionId=${sid};HttpOnly;Path=/;Max-Age=7200;SameSite=Lax`});
+                res.end();
+            }else{
+                res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'});
+                res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-950 flex items-center justify-center min-h-screen"><div class="bg-gray-900 p-8 rounded-2xl w-full max-w-sm border border-gray-800"><h2 class="text-xl font-bold text-white text-center mb-6">Admin Login</h2><div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl mb-4 text-sm text-center">Invalid credentials</div><form method="POST" action="/admin/login"><div class="mb-4"><label class="block text-gray-400 text-sm mb-1">Username</label><input type="text" name="username" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" required></div><div class="mb-5"><label class="block text-gray-400 text-sm mb-1">Password</label><input type="password" name="password" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" required></div><button type="submit" class="w-full py-3 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700">Sign In</button></form></div></body></html>`);
+            }
         });
         return;
     }
 
-    if (pathname === '/admin/delete' && method === 'POST') {
-        if (!getSession(cookies.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
-        let body = '';
-        req.on('data', c => body += c);
-        req.on('end', async () => {
-            const params = new URLSearchParams(body);
-            try {
-                const photo = await db.collection('gallery_photos').findOne({ _id: new ObjectId(params.get('photoId')) });
-                if (photo) { const fp = path.join(__dir, photo.path); if (fs.existsSync(fp)) fs.unlinkSync(fp); }
-                await deletePhoto(params.get('photoId'));
-            } catch (e) { }
-            const p = await getGalleryPhotos();
-            res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-            res.end(await getAdminPanelHTML(p, 'Deleted'));
-        });
+    if(pathname==='/admin/logout'){
+        sessions.delete(cookies.sessionId);
+        res.writeHead(302,{'Location':'/admin/login','Set-Cookie':'sessionId=;HttpOnly;Path=/;Max-Age=0'});
+        res.end();
         return;
     }
 
-    // Home page
-    if (pathname === '/' || pathname === '/index.html') {
-        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+    if(pathname==='/'||pathname==='/index.html'){
+        res.writeHead(200,{'Content-Type':'text/html;charset=utf-8','Cache-Control':'public,max-age=3600'});
         res.end(getMainHTML());
         return;
     }
 
-    res.writeHead(404, { 'Content-Type': 'text/html;charset=utf-8' });
+    res.writeHead(404,{'Content-Type':'text/html;charset=utf-8'});
     res.end('404');
 });
 
-async function start() {
+io = socketIo(server);
+
+io.on('connection',(socket)=>{
+    socket.join('admin');
+    socket.on('typing',(data)=>{
+        io.to('admin').emit('typing',data);
+    });
+});
+
+async function start(){
     await connectDB();
-    server.listen(PORT, () => {
-        console.log('🚀 Server running on port', PORT);
-        console.log('📍 Admin Panel: http://localhost:' + PORT + '/admin');
+    server.listen(PORT,()=>{
+        console.log('🚀 Server running on port',PORT);
+        console.log('📍 Admin Panel: http://localhost:'+PORT+'/admin');
         console.log('🔑 Admin Login: admin / admin123');
-        console.log('💬 Chat supports: Text, Photos, Voice, Videos, Files');
-        console.log('📱 Like Facebook Lite Messenger');
+        console.log('💬 Real-time messaging with Socket.IO');
     });
 }
 
