@@ -16,31 +16,55 @@ const __dir = path.resolve();
 const ASSETS_DIR = path.join(__dir, 'assets');
 const GALLERY_DIR = path.join(__dir, 'assets', 'gallery');
 const COVER_MUSIC_DIR = path.join(__dir, 'assets', 'covermusic');
+const CHATX_SOUNDS_DIR = path.join(__dir, 'assets', 'sounds');
 
-[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR].forEach(dir => {
+[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR, CHATX_SOUNDS_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
 const IMAGES = {
     profile: "/assets/tiktok_video_Aj2NO.jpeg",
-    official: "/assets/1785276289604.png",
+    official: "/assets/orginalss.png",
+    realIdSS: "/assets/real-id-ss.png",
     fraud: "/assets/hammadfams.png",
     danger: "/assets/baillamach.png",
-    fakeDetect: "/assets/Fakedetect.png",
+    fakeDetect: "/assets/Fakedetect .png",
     tiktokIcon: "/assets/tiktokicon.png",
     messageIcon: "/assets/messageicon.gif",
     reportIcon: "/assets/report.png",
-    blueTick: "/assets/bluetick.png",
-    fbFlag: "/assets/flag.png",
+    blueTick: "/assets/social-media.png",
     voiceMic: "/assets/microphone-in-hand.gif",
-    communication: "/assets/communication.png",
+    facebookIcon: "/assets/communication.png",
     socialMedia: "/assets/social-media.png",
     musicIcon: "/assets/music-icon.png"
 };
 
 const VOICE = {
-    welcome: "/assets/my%20user%20name.mp3",
-    fakeAlert: "/assets/7%20lak%20like%20but%20its%20fake.mp3"
+    welcome: "/assets/realvoice.mp3",
+    fakeAlert: "/assets/7 lak like but its fake.mp3"
+};
+
+const CHATX_CONFIG = {
+    primaryColor: '#8b5cf6',
+    position: 'right',
+    greetingTitle: 'Hi there 👋',
+    greetingSubtitle: 'Ask us anything, or share your valuable feedback.',
+    startButtonText: 'Start Live Chat',
+    chatCardTitle: 'Start a new chat',
+    chatCardText: 'Our team typically replies in a few seconds.',
+    headerBgColor: '#8b5cf6',
+    headerTextColor: '#ffffff',
+    agentBubbleBgColor: '#1a1a35',
+    agentBubbleTextColor: '#f0f0ff',
+    visitorBubbleBgColor: '#8b5cf6',
+    visitorBubbleTextColor: '#ffffff',
+    sendButtonBgColor: '#8b5cf6',
+    sendButtonTextColor: '#ffffff',
+    launcherBgColor: '#8b5cf6',
+    launcherIconColor: '#ffffff',
+    popupTitle: 'Live Chat Online',
+    popupText: 'Click here and start chatting with us!',
+    isEnabled: true
 };
 
 const adminPresence = { isOnline: false, lastSeen: null };
@@ -74,19 +98,69 @@ async function connectDB() {
         mongoClient = new MongoClient(MONGO_URI);
         await mongoClient.connect();
         db = mongoClient.db(DB_NAME);
-        const collections = ['admin_users', 'gallery_photos', 'chat_users', 'chat_messages', 'chat_sessions'];
+        const collections = [
+            'admin_users', 'gallery_photos', 'chat_users', 'chat_messages', 'chat_sessions',
+            'chatx_visitors', 'chatx_chats', 'chatx_messages', 'chatx_departments', 'chatx_agents', 'chatx_bans', 'chatx_settings'
+        ];
         const existing = await db.listCollections().toArray();
         const names = existing.map(c => c.name);
-        for (const col of collections) { if (!names.includes(col)) await db.createCollection(col); }
+        for (const col of collections) { 
+            if (!names.includes(col)) await db.createCollection(col); 
+        }
         await db.collection('chat_messages').createIndex({ chatId: 1, createdAt: -1 });
         await db.collection('chat_users').createIndex({ phoneEmail: 1 }, { sparse: true });
         await db.collection('chat_sessions').createIndex({ token: 1 });
+        await db.collection('chatx_messages').createIndex({ chatId: 1, createdAt: -1 });
+        await db.collection('chatx_visitors').createIndex({ sessionId: 1 });
+        await db.collection('chatx_chats').createIndex({ visitorId: 1 });
+        await db.collection('chatx_chats').createIndex({ status: 1 });
+        
         const admins = db.collection('admin_users');
         if (!await admins.findOne({ username: 'admin' })) {
             await admins.insertOne({ username: 'admin', password: await bcrypt.hash('admin123', 10), createdAt: new Date() });
         }
+
+        const depts = db.collection('chatx_departments');
+        if (await depts.countDocuments() === 0) {
+            await depts.insertMany([
+                { id: 'support', name: 'Support', online: true, agents: [
+                    { id: 'agent1', name: 'Hammad Bin Amir', avatar: IMAGES.profile, status: 'online' }
+                ]},
+                { id: 'sales', name: 'Sales', online: true, agents: [] },
+                { id: 'billing', name: 'Billing', online: false, agents: [] }
+            ]);
+        }
+
+        const settings = db.collection('chatx_settings');
+        if (await settings.countDocuments() === 0) {
+            await settings.insertOne({
+                company: 'Default Company',
+                organizationId: 'org_default',
+                logoUrl: IMAGES.profile,
+                primaryColor: CHATX_CONFIG.primaryColor,
+                headerBgColor: CHATX_CONFIG.headerBgColor,
+                headerTextColor: CHATX_CONFIG.headerTextColor,
+                agentBubbleBgColor: CHATX_CONFIG.agentBubbleBgColor,
+                agentBubbleTextColor: CHATX_CONFIG.agentBubbleTextColor,
+                visitorBubbleBgColor: CHATX_CONFIG.visitorBubbleBgColor,
+                visitorBubbleTextColor: CHATX_CONFIG.visitorBubbleTextColor,
+                sendButtonBgColor: CHATX_CONFIG.sendButtonBgColor,
+                sendButtonTextColor: CHATX_CONFIG.sendButtonTextColor,
+                launcherBgColor: CHATX_CONFIG.launcherBgColor,
+                launcherIconColor: CHATX_CONFIG.launcherIconColor,
+                position: CHATX_CONFIG.position,
+                greetingTitle: CHATX_CONFIG.greetingTitle,
+                greetingSubtitle: CHATX_CONFIG.greetingSubtitle,
+                startButtonText: CHATX_CONFIG.startButtonText,
+                chatCardTitle: CHATX_CONFIG.chatCardTitle,
+                chatCardText: CHATX_CONFIG.chatCardText,
+                popupTitle: CHATX_CONFIG.popupTitle,
+                popupText: CHATX_CONFIG.popupText,
+                isEnabled: true
+            });
+        }
         return true;
-    } catch (e) { return false; }
+    } catch (e) { console.error('DB Error:', e); return false; }
 }
 
 async function getGalleryPhotos() { if (!db) return []; try { return await db.collection('gallery_photos').find({}).sort({ uploadedAt: -1 }).toArray(); } catch (e) { return []; } }
@@ -141,11 +215,81 @@ async function getAdminChatList() {
 }
 async function markMessagesRead(chatId) { await db.collection('chat_messages').updateMany({ chatId, sender: 'user', read: false }, { $set: { read: true } }); }
 
+// ChatX Widget Functions
+async function getChatXSettings(company) {
+    if (!db) return CHATX_CONFIG;
+    const settings = await db.collection('chatx_settings').findOne({ company: company || 'Default Company' });
+    return settings || CHATX_CONFIG;
+}
+
+async function getChatXDepartments() {
+    if (!db) return [];
+    return await db.collection('chatx_departments').find({}).toArray();
+}
+
+async function getChatXAgents() {
+    if (!db) return [];
+    const depts = await db.collection('chatx_departments').find({}).toArray();
+    const agents = [];
+    depts.forEach(d => { if (d.agents) agents.push(...d.agents); });
+    return agents;
+}
+
+async function createChatXVisitor(sessionId, data) {
+    const visitor = {
+        sessionId,
+        currentPage: data.currentPage || '',
+        referrer: data.referrer || '',
+        userAgent: data.userAgent || '',
+        connectedAt: new Date(),
+        lastSeen: new Date()
+    };
+    await db.collection('chatx_visitors').updateOne({ sessionId }, { $set: visitor }, { upsert: true });
+    return visitor;
+}
+
+async function getChatXVisitor(sessionId) {
+    return await db.collection('chatx_visitors').findOne({ sessionId });
+}
+
+async function createChatXChat(data) {
+    const chat = {
+        visitorId: data.visitorId,
+        visitorName: data.name,
+        visitorEmail: data.email,
+        department: data.department || 'support',
+        status: 'pending',
+        createdAt: new Date(),
+        agent: null,
+        agentJoinEvents: []
+    };
+    const result = await db.collection('chatx_chats').insertOne(chat);
+    return { ...chat, _id: result.insertedId };
+}
+
+async function getChatXChat(chatId) {
+    return await db.collection('chatx_chats').findOne({ _id: new ObjectId(chatId) });
+}
+
+async function getChatXChatsByVisitor(visitorId) {
+    return await db.collection('chatx_chats').find({ visitorId, status: { $ne: 'closed' } }).toArray();
+}
+
+async function getChatXMessages(chatId) {
+    return await db.collection('chatx_messages').find({ chatId }).sort({ createdAt: 1 }).toArray();
+}
+
+async function saveChatXMessage(data) {
+    const msg = { ...data, createdAt: new Date(), isRead: false };
+    await db.collection('chatx_messages').insertOne(msg);
+    return msg;
+}
+
 const DATA = {
     celebrity: { name: "Baiilla Maach", fullName: "Baiilla Maach Official", photo: IMAGES.profile, bio: "Official Entertainment Profile | Bangladesh", tiktokFollowers: "5,000", tiktokFollowing: "0", tiktokLikes: "50K", location: "Dhaka, Bangladesh" },
     realAccounts: [
-        { platform: "TikTok", username: "@baiillamaach_official", url: "https://tiktok.com/@baiillamaach_official", icon: IMAGES.tiktokIcon, screenshot: IMAGES.official, verified: true, followers: "5,000", verifiedIcon: IMAGES.socialMedia },
-        { platform: "Facebook", username: "Baiilla Maach Official", url: "https://www.facebook.com/profile.php?id=61575202118828", icon: IMAGES.communication, screenshot: null, verified: true, followers: "Growing", verifiedIcon: IMAGES.socialMedia }
+        { platform: "TikTok", username: "@baiillamaach_official", url: "https://tiktok.com/@baiillamaach_official", icon: IMAGES.tiktokIcon, screenshot: IMAGES.official, verified: true, followers: "5,000", verifiedIcon: IMAGES.blueTick },
+        { platform: "Facebook", username: "Baiilla Maach Official", url: "https://www.facebook.com/profile.php?id=61575202118828", icon: IMAGES.facebookIcon, screenshot: IMAGES.realIdSS, verified: true, followers: "Growing", verifiedIcon: IMAGES.blueTick }
     ],
     fakeAccounts: [
         { platform: "TikTok", username: "@baiilla_mach", profileUrl: "https://tiktok.com/@baiilla_mach", icon: IMAGES.tiktokIcon, screenshot: IMAGES.danger, reason: "Copies official content and logo to deceive followers.", threatLevel: "Critical", reportedCount: 156 },
@@ -184,6 +328,7 @@ function getMainHTML(galleryPhotos = []) {
 <meta name="theme-color" content="#0f0f1a">
 <title>Baiilla Maach | Verification Hub</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 :root {
@@ -210,12 +355,22 @@ function getMainHTML(galleryPhotos = []) {
     --glow-blue: 0 0 40px rgba(59,130,246,0.3);
     --glow-green: 0 0 30px rgba(16,185,129,0.3);
     --glow-red: 0 0 30px rgba(239,68,68,0.3);
+    --glow-yellow: 0 0 30px rgba(234,179,8,0.3);
     --radius-sm: 12px;
     --radius-md: 18px;
     --radius-lg: 24px;
     --radius-xl: 32px;
-    --sa: env(safe-area-inset-top);
-    --sb: env(safe-area-inset-bottom);
+    --chatx-primary: #8b5cf6;
+    --chatx-header-bg: #8b5cf6;
+    --chatx-header-text: #ffffff;
+    --chatx-agent-bubble-bg: #1a1a35;
+    --chatx-agent-bubble-text: #f0f0ff;
+    --chatx-visitor-bubble-bg: #8b5cf6;
+    --chatx-visitor-bubble-text: #ffffff;
+    --chatx-send-btn-bg: #8b5cf6;
+    --chatx-send-btn-text: #ffffff;
+    --chatx-launcher-bg: #8b5cf6;
+    --chatx-launcher-icon: #ffffff;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -230,7 +385,6 @@ body {
     letter-spacing: -0.01em;
 }
 
-/* Animated Stars Background */
 .stars-bg {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -251,7 +405,6 @@ body {
     50% { opacity: 0.8; transform: scale(1.5); }
 }
 
-/* Floating Orbs */
 .orb {
     position: fixed;
     border-radius: 50%;
@@ -270,7 +423,6 @@ body {
 
 main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 16px; }
 
-/* Glass Card Premium */
 .glass-card {
     background: var(--surface);
     border: 1px solid var(--glass-border);
@@ -296,9 +448,9 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
 }
 .glass-card.danger-card { border-left: 3px solid var(--red); }
 .glass-card.success-card { border-left: 3px solid var(--green); }
+.glass-card.warning-card { border-left: 3px solid var(--yellow); }
 .glass-card.music-card { background: linear-gradient(135deg, #1a1a3e 0%, #0f0f28 100%); }
 
-/* Buttons */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -337,7 +489,6 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
 .btn-outline:hover { border-color: var(--purple); color: var(--purple2); background: rgba(139,92,246,0.1); }
 .btn-sm { padding: 6px 14px; font-size: 11px; border-radius: 40px; }
 
-/* Badge */
 .badge {
     display: inline-flex;
     align-items: center;
@@ -351,8 +502,8 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
 .badge-red { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
 .badge-green { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
 .badge-purple { background: rgba(139,92,246,0.15); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.3); }
+.badge-yellow { background: rgba(234,179,8,0.15); color: #fde047; border: 1px solid rgba(234,179,8,0.3); }
 
-/* Header */
 .main-header {
     background: rgba(10,10,20,0.8);
     backdrop-filter: blur(30px);
@@ -408,7 +559,6 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
 .nav-purple { color: #c4b5fd; background: rgba(139,92,246,0.1); }
 .nav-purple:hover { background: rgba(139,92,246,0.2); }
 
-/* Profile */
 .profile-section { text-align: center; padding: 30px 0 20px; }
 .profile-pic-wrap { position: relative; display: inline-block; margin-bottom: 12px; }
 .profile-pic {
@@ -444,7 +594,7 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
     margin-top: 8px;
 }
 .profile-bio { color: var(--text2); font-size: 13px; margin-top: 6px; }
-.stats-row { display: flex; justify-content: center; gap: 16px; margin: 20px 0; }
+.stats-row { display: flex; justify-content: center; gap: 16px; margin: 20px 0; flex-wrap: wrap; }
 .stat-card {
     background: var(--surface2);
     border: 1px solid var(--glass-border);
@@ -457,7 +607,6 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
 .stat-value { font-size: 22px; font-weight: 700; color: var(--purple2); }
 .stat-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px; }
 
-/* Section Header */
 .section-header {
     display: flex;
     align-items: center;
@@ -478,10 +627,10 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
 .icon-red { background: rgba(239,68,68,0.15); }
 .icon-green { background: rgba(16,185,129,0.15); }
 .icon-purple { background: rgba(139,92,246,0.15); }
+.icon-yellow { background: rgba(234,179,8,0.15); }
 .section-title { font-size: 18px; font-weight: 700; color: var(--text); }
 .section-subtitle { font-size: 11px; color: var(--text3); margin-top: 2px; }
 
-/* Fake Cards */
 .fake-card {
     background: rgba(239,68,68,0.05);
     border: 1px solid rgba(239,68,68,0.2);
@@ -520,7 +669,6 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
     flex-shrink: 0;
 }
 
-/* Official Cards */
 .official-card {
     background: rgba(16,185,129,0.05);
     border: 1px solid rgba(16,185,129,0.2);
@@ -534,7 +682,20 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
 }
 .official-card:hover { border-color: rgba(16,185,129,0.4); box-shadow: 0 8px 30px rgba(16,185,129,0.1); }
 
-/* Music Player Ultra Premium */
+.warning-image-container {
+    text-align: center;
+    padding: 20px;
+    background: rgba(234,179,8,0.05);
+    border: 1px solid rgba(234,179,8,0.2);
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+}
+.warning-image-container img {
+    max-width: 100%;
+    border-radius: 16px;
+    box-shadow: var(--glow-yellow);
+}
+
 .music-player {
     background: linear-gradient(180deg, #1a1040 0%, #0d0d28 50%, #0a0a1a 100%);
     border-radius: var(--radius-xl);
@@ -647,7 +808,6 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
 }
 .progress-bar:hover .progress-thumb { opacity: 1; }
 
-/* Song List */
 .song-list { max-height: 220px; overflow-y: auto; margin-top: 18px; }
 .song-list::-webkit-scrollbar { width: 3px; }
 .song-list::-webkit-scrollbar-track { background: transparent; }
@@ -663,98 +823,232 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
 .song-item:hover { background: rgba(255,255,255,0.04); }
 .song-item.active { background: rgba(29,185,84,0.15); border: 1px solid rgba(29,185,84,0.3); }
 
-/* Chat Widget */
-.chat-widget { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
-.chat-btn {
-    width: 60px; height: 60px;
+/* ChatX Widget */
+#chatx-widget {
+    font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+    position: fixed;
+    z-index: 999998;
+}
+
+.chatx-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #8b5cf6, #ec4899);
+    background: var(--chatx-launcher-bg, #8b5cf6);
+    color: var(--chatx-launcher-icon, white);
     border: none;
     cursor: pointer;
-    box-shadow: 0 10px 40px rgba(139,92,246,0.4);
-    transition: all 0.3s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15), 0 0 30px rgba(139,92,246,0.4);
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55), box-shadow 0.3s ease;
+    z-index: 999998;
+    animation: chatx-button-entrance 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
-.chat-btn:hover { transform: scale(1.1); box-shadow: 0 15px 50px rgba(236,72,153,0.5); }
-.chat-btn img { width: 30px; height: 30px; border-radius: 50%; }
-.chat-window {
+.chatx-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.25), 0 0 50px rgba(139,92,246,0.6);
+}
+.chatx-button:active { transform: scale(0.95); }
+.chatx-button svg { width: 28px; height: 28px; transition: transform 0.3s ease, opacity 0.2s ease; }
+.chatx-button .chatx-icon-default { display: block; }
+.chatx-button .chatx-icon-hover { display: none; }
+.chatx-button .chatx-icon-close { display: none; }
+.chatx-button:hover .chatx-icon-default { display: none; }
+.chatx-button:hover .chatx-icon-hover { display: block; }
+.chatx-button.chatx-open .chatx-icon-default,
+.chatx-button.chatx-open .chatx-icon-hover { display: none; }
+.chatx-button.chatx-open .chatx-icon-close { display: block; }
+
+@keyframes chatx-button-entrance {
+    0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.chatx-window {
     position: fixed;
-    bottom: 100px; right: 24px;
-    width: 380px; max-width: calc(100vw - 32px);
-    height: 540px; max-height: calc(100vh - 150px);
-    background: var(--surface);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+    bottom: 90px;
+    right: 20px;
+    width: 400px;
+    height: min(680px, calc(100vh - 120px));
+    background: #13132b;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     display: none;
     flex-direction: column;
-    animation: chatIn 0.4s cubic-bezier(0.4,0,0.2,1);
+    overflow: hidden;
+    z-index: 999999;
+    animation: chatx-window-slide-up 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
-@keyframes chatIn { from { opacity: 0; transform: translateY(30px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
-.chat-window.open { display: flex; }
-.chat-header {
-    background: linear-gradient(135deg, #1a1040, #2d1b69);
-    padding: 16px;
+.chatx-window.open { display: flex; }
+
+@keyframes chatx-window-slide-up {
+    0% { transform: scale(0.9) translateY(20px); opacity: 0; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.chatx-header {
+    background: linear-gradient(135deg, var(--chatx-header-bg, #8b5cf6), var(--chatx-header-bg, #6d28d9));
+    color: var(--chatx-header-text, white);
+    padding: 16px 20px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    border-bottom: 1px solid var(--glass-border);
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
 }
-.chat-header-avatar {
-    width: 42px; height: 42px;
+.chatx-header-info { display: flex; align-items: center; flex: 1; min-width: 0; }
+.chatx-header-avatar {
+    width: 40px; height: 40px;
     border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
     overflow: hidden;
-    border: 2px solid var(--purple);
     flex-shrink: 0;
-    position: relative;
 }
-.chat-header-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.chat-online { width: 10px; height: 10px; border-radius: 50%; position: absolute; bottom: 0; right: 0; border: 2px solid #2d1b69; }
-.chat-online.on { background: #10b981; box-shadow: 0 0 8px rgba(16,185,129,0.6); }
-.chat-online.off { background: #64748b; }
-.chat-messages { flex: 1; overflow-y: auto; padding: 16px; background: var(--bg); }
-.msg { max-width: 80%; padding: 10px 15px; margin-bottom: 6px; border-radius: 20px; font-size: 13px; line-height: 1.5; animation: msgPop 0.3s ease; }
-@keyframes msgPop { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-.msg-out { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: #fff; margin-left: auto; border-bottom-right-radius: 6px; }
-.msg-in { background: var(--surface2); color: var(--text); margin-right: auto; border-bottom-left-radius: 6px; border: 1px solid var(--glass-border); }
-.chat-login { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 30px; text-align: center; }
-.chat-login input {
-    width: 100%; padding: 12px 16px;
-    background: var(--surface2);
-    border: 1px solid var(--glass-border);
-    border-radius: 12px;
-    color: var(--text);
+.chatx-header-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.chatx-header-title { font-weight: 600; font-size: 16px; }
+.chatx-header-status { font-size: 12px; opacity: 0.8; }
+.chatx-close {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 8px;
+    opacity: 0.8;
+    font-size: 20px;
+}
+.chatx-close:hover { opacity: 1; }
+
+.chatx-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    background: #0a0a14;
+}
+.chatx-message {
+    margin-bottom: 16px;
+    display: flex;
+    align-items: flex-start;
+    animation: chatx-message-slide-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.chatx-message.visitor { justify-content: flex-end; }
+.chatx-message-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+.chatx-message-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.chatx-message-content { max-width: 75%; }
+.chatx-message-sender { font-size: 12px; font-weight: 600; color: var(--chatx-primary, #8b5cf6); margin-bottom: 4px; }
+.chatx-message-bubble {
+    padding: 10px 14px;
+    border-radius: 16px;
+    word-wrap: break-word;
     font-size: 13px;
-    margin-bottom: 8px;
-    outline: none;
+    line-height: 1.5;
 }
-.chat-login input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(139,92,246,0.15); }
-.chat-login button {
-    width: 100%; padding: 13px;
-    background: linear-gradient(135deg, #8b5cf6, #ec4899);
-    border: none; border-radius: 12px;
-    color: #fff; font-weight: 600; cursor: pointer;
+.chatx-message.agent .chatx-message-bubble {
+    background: var(--chatx-agent-bubble-bg, #1a1a35);
+    color: var(--chatx-agent-bubble-text, #f0f0ff);
+    border-top-left-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.chatx-message.visitor .chatx-message-bubble {
+    background: var(--chatx-visitor-bubble-bg, #8b5cf6);
+    color: var(--chatx-visitor-bubble-text, white);
+    border-top-right-radius: 4px;
+}
+.chatx-message-time { font-size: 10px; opacity: 0.5; margin-top: 4px; }
+
+@keyframes chatx-message-slide-in {
+    0% { transform: translateX(-20px); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+}
+
+.chatx-input-area {
+    padding: 12px 16px;
+    background: #13132b;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+.chatx-input {
+    flex: 1;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-size: 13px;
+    outline: none;
+    resize: none;
+    max-height: 100px;
+    font-family: inherit;
+    background: #1a1a35;
+    color: #f0f0ff;
+}
+.chatx-input:focus { border-color: var(--chatx-primary, #8b5cf6); }
+.chatx-send {
+    background: var(--chatx-send-btn-bg, #8b5cf6);
+    color: var(--chatx-send-btn-text, white);
+    border: none;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+.chatx-send:hover { opacity: 0.9; transform: scale(1.05); }
+.chatx-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.chatx-powered {
+    padding: 8px 20px;
+    text-align: center;
+    background: #0a0a14;
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+@media (max-width: 480px) {
+    .chatx-window {
+        width: calc(100% - 20px);
+        height: calc(100vh - 120px);
+        bottom: 80px;
+        right: 10px;
+        border-radius: 16px;
+    }
+    .chatx-button { bottom: 15px; right: 15px; width: 56px; height: 56px; }
+}
+
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.gallery-item {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
     transition: all 0.3s;
 }
-.chat-input-area { padding: 12px 14px; background: var(--surface); border-top: 1px solid var(--glass-border); display: flex; gap: 8px; }
-.chat-input-area input {
-    flex: 1; padding: 10px 16px;
-    background: var(--surface2);
-    border: 1px solid var(--glass-border);
-    border-radius: 25px;
-    color: var(--text); font-size: 13px; outline: none;
-}
-.chat-input-area input:focus { border-color: var(--purple); }
-.chat-send-btn {
-    width: 38px; height: 38px; border-radius: 50%;
-    background: linear-gradient(135deg, #8b5cf6, #ec4899);
-    border: none; color: #fff; font-size: 15px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-}
+.gallery-item:hover { transform: translateY(-4px); border-color: var(--purple); box-shadow: var(--glow-purple); }
+.gallery-item img { width: 100%; height: 130px; object-fit: cover; }
+
 .toast {
     position: fixed; top: 20px; right: 20px; z-index: 99999;
     background: var(--surface2); border: 1px solid var(--glass-border);
@@ -767,20 +1061,7 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
 .toast.error { border-left: 3px solid var(--red); }
 .toast.success { border-left: 3px solid var(--green); }
 
-/* Gallery */
-.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.gallery-item {
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    border: 1px solid var(--glass-border);
-    transition: all 0.3s;
-}
-.gallery-item:hover { transform: translateY(-4px); border-color: var(--purple); box-shadow: var(--glow-purple); }
-.gallery-item img { width: 100%; height: 130px; object-fit: cover; }
-
 @media (max-width: 640px) {
-    .chat-window { width: 100%; max-width: 100%; bottom: 0; right: 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0; height: 85vh; max-height: 85vh; }
-    .chat-widget { bottom: 16px; right: 16px; }
     .header-nav { display: none; }
 }
 </style>
@@ -803,6 +1084,7 @@ main { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding
 <nav class="header-nav">
 <a href="#fake" class="nav-red">⚠ Fakes</a>
 ${coverSongs.length > 0 ? '<a href="#music" class="nav-purple">🎵 Music</a>' : ''}
+<a href="#warning" class="nav-purple">🔍 Detection</a>
 <a href="#official" class="nav-green">✓ Official</a>
 <a href="#gallery" class="nav-purple">📸 Gallery</a>
 </nav>
@@ -841,7 +1123,7 @@ ${coverSongs.length > 0 ? '<a href="#music" class="nav-purple">🎵 Music</a>' :
 ${DATA.fakeAccounts.map((a, i) => `
 <div class="fake-card">
 <div class="fake-card-body">
-${a.screenshot ? `<img src="${a.screenshot}" class="fake-card-img" alt="Fake">` : '<div class="fake-card-placeholder">⚠️</div>'}
+${a.screenshot ? `<img src="${a.screenshot}" class="fake-card-img" alt="Fake" onerror="this.parentElement.innerHTML='<div class=\\'fake-card-placeholder\\'>⚠️</div>'">` : '<div class="fake-card-placeholder">⚠️</div>'}
 <div style="flex:1;min-width:0">
 <div style="font-weight:700;color:#fca5a5;font-size:14px;margin-bottom:4px">${a.username}</div>
 <div style="font-size:11px;color:#f87171;margin-bottom:6px">⚠ ${a.reason}</div>
@@ -892,6 +1174,16 @@ ${coverSongs.map((s, i) => `
 <audio id="coverAudio" preload="none"></audio>
 </section>` : ''}
 
+<section id="warning" class="warning-image-container">
+<img src="${IMAGES.fakeDetect}" alt="Fake Detection Warning" onerror="this.parentElement.style.display='none'">
+<div style="margin-top: 16px;">
+<span class="badge badge-yellow">🔍 Fake Account Detection Guide</span>
+</div>
+<p style="color: var(--text2); font-size: 13px; margin-top: 12px; line-height: 1.6;">
+Always check for the verified badge before interacting. Report suspicious accounts immediately.
+</p>
+</section>
+
 <section id="official" class="glass-card success-card">
 <div class="section-header">
 <div class="icon-circle icon-green">✓</div>
@@ -928,51 +1220,214 @@ ${galleryPhotos.length === 0 ? '<p style="color:var(--text3);text-align:center;p
 
 </main>
 
-<div class="chat-widget">
-<button class="chat-btn" onclick="toggleChat()">
-<img src="${IMAGES.messageIcon}" alt="Chat" onerror="this.outerHTML='💬'" style="width:30px;height:30px">
-</button>
-<div class="chat-window" id="chatWindow">
-<div class="chat-header">
-<div class="chat-header-avatar">
-<img src="${profilePic}" alt="Admin">
-<div class="chat-online ${isOnline ? 'on' : 'off'}"></div>
-</div>
-<div style="flex:1">
-<div style="font-weight:600;font-size:15px">Hammad Bin Amir <img src="${IMAGES.socialMedia}" style="width:12px;height:12px;vertical-align:middle" onerror="this.style.display='none'"></div>
-<div style="font-size:10px;opacity:0.7">${statusText}</div>
-</div>
-<button onclick="toggleChat()" style="background:rgba(255,255,255,0.1);border:none;color:#fff;width:28px;height:28px;border-radius:8px;cursor:pointer">✕</button>
-</div>
-<div id="chatLogin" class="chat-login">
-<div style="font-size:50px;margin-bottom:16px">💬</div>
-<div style="font-weight:700;font-size:18px;margin-bottom:6px">Chat with Support</div>
-<div style="font-size:12px;color:var(--text3);margin-bottom:20px">Enter your details to start</div>
-<input type="text" id="userName" placeholder="Your Name">
-<input type="text" id="userContact" placeholder="Email or Phone">
-<button onclick="registerChat()">Start Conversation</button>
-</div>
-<div id="chatUI" style="display:none;flex:1;flex-direction:column">
-<div class="chat-messages" id="chatMessages"></div>
-<div class="chat-input-area">
-<input type="text" id="msgInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
-<button class="chat-send-btn" onclick="sendMessage()">➤</button>
-</div>
-</div>
-</div>
-</div>
-
-<audio id="welcomeVoice" src="${VOICE.welcome}" preload="none"></audio>
+<!-- ChatX Widget -->
+<div id="chatx-widget"></div>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+(function() {
+    'use strict';
+    
+    const WIDGET_ID = 'chatx-widget';
+    const SERVER_URL = window.location.origin;
+    const PRIMARY_COLOR = '${CHATX_CONFIG.primaryColor}';
+    const COMPANY_NAME = 'Default Company';
+    
+    let socket = null;
+    let visitorId = null;
+    let chatId = null;
+    let sessionId = localStorage.getItem('chatx_session') || ('v_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9));
+    localStorage.setItem('chatx_session', sessionId);
+    let isOpen = false;
+    let isConnected = false;
+    let messages = [];
+    
+    const widgetHTML = `
+        <button class="chatx-button" id="chatx-toggle" style="background:${PRIMARY_COLOR}">
+            <svg class="chatx-icon-default" xmlns="http://www.w3.org/2000/svg" height="28" width="28" viewBox="0 0 24 24" fill="white">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
+            </svg>
+            <svg class="chatx-icon-hover" xmlns="http://www.w3.org/2000/svg" height="28" width="28" viewBox="0 0 24 24" fill="white">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                <circle cx="8" cy="10" r="1.5" fill="${PRIMARY_COLOR}"/>
+                <circle cx="12" cy="10" r="1.5" fill="${PRIMARY_COLOR}"/>
+                <circle cx="16" cy="10" r="1.5" fill="${PRIMARY_COLOR}"/>
+            </svg>
+            <svg class="chatx-icon-close" xmlns="http://www.w3.org/2000/svg" height="28" width="28" viewBox="0 0 24 24" fill="white">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+        </button>
+        <div class="chatx-window" id="chatx-window">
+            <div class="chatx-header" style="background:linear-gradient(135deg, ${PRIMARY_COLOR}, ${PRIMARY_COLOR})">
+                <div class="chatx-header-info">
+                    <div class="chatx-header-avatar">
+                        <img src="${IMAGES.profile}" alt="Support" onerror="this.innerHTML='<svg xmlns=\\'http://www.w3.org/2000/svg\\' height=\\'24\\' viewBox=\\'0 -960 960 960\\' width=\\'24\\' fill=\\'white\\'><path d=\\'M234-276q51-39 114-61.5T480-360q69 0 132 22.5T726-276q35-41 54.5-93T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 59 19.5 111t54.5 93Zm246-164q-59 0-99.5-40.5T340-580q0-59 40.5-99.5T480-720q59 0 99.5 40.5T620-580q0 59-40.5 99.5T480-440Z\\'/></svg>'">
+                    </div>
+                    <div>
+                        <div class="chatx-header-title">Chat Support</div>
+                        <div class="chatx-header-status" id="chatx-status">We're here to help</div>
+                    </div>
+                </div>
+                <button class="chatx-close" id="chatx-close">✕</button>
+            </div>
+            <div class="chatx-messages" id="chatx-messages"></div>
+            <div class="chatx-input-area">
+                <input type="text" class="chatx-input" id="chatx-input" placeholder="Type a message..." onkeypress="if(event.key==='Enter')window.chatxSendMessage()">
+                <button class="chatx-send" id="chatx-send" style="background:${PRIMARY_COLOR}" onclick="window.chatxSendMessage()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="chatx-powered">Powered by ChatX</div>
+        </div>
+    `;
+    
+    const container = document.getElementById(WIDGET_ID);
+    container.innerHTML = widgetHTML;
+    
+    document.getElementById('chatx-toggle').addEventListener('click', function() {
+        const window = document.getElementById('chatx-window');
+        if (window.classList.contains('open')) {
+            window.classList.remove('open');
+            this.classList.remove('chatx-open');
+            isOpen = false;
+        } else {
+            window.classList.add('open');
+            this.classList.add('chatx-open');
+            isOpen = true;
+            if (chatId) scrollToBottom();
+        }
+    });
+    
+    document.getElementById('chatx-close').addEventListener('click', function() {
+        document.getElementById('chatx-window').classList.remove('open');
+        document.getElementById('chatx-toggle').classList.remove('chatx-open');
+        isOpen = false;
+    });
+    
+    function addMessage(msg, isVisitor) {
+        const container = document.getElementById('chatx-messages');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'chatx-message ' + (isVisitor ? 'visitor' : 'agent');
+        
+        const time = new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        msgDiv.innerHTML = `
+            ${!isVisitor ? '<div class="chatx-message-avatar"><img src="${IMAGES.profile}" alt="Agent" onerror="this.innerHTML=\\'<svg xmlns=\\\'http://www.w3.org/2000/svg\\\' height=\\\'18\\\' viewBox=\\\'0 -960 960 960\\\' width=\\\'18\\\' fill=\\\'white\\\'><path d=\\\'M234-276q51-39 114-61.5T480-360q69 0 132 22.5T726-276q35-41 54.5-93T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 59 19.5 111t54.5 93Z\\\'/></svg>\\'"></div>' : ''}
+            <div class="chatx-message-content">
+                ${!isVisitor ? '<div class="chatx-message-sender">Hammad Bin Amir</div>' : ''}
+                <div class="chatx-message-bubble">${msg.content || msg.message}</div>
+                <div class="chatx-message-time">${time}</div>
+            </div>
+        `;
+        
+        container.appendChild(msgDiv);
+        scrollToBottom();
+    }
+    
+    function scrollToBottom() {
+        const container = document.getElementById('chatx-messages');
+        setTimeout(() => { container.scrollTop = container.scrollHeight; }, 100);
+    }
+    
+    window.chatxSendMessage = function() {
+        const input = document.getElementById('chatx-input');
+        const message = input.value.trim();
+        if (!message) return;
+        
+        if (!chatId) {
+            startChat(message);
+        } else if (socket && isConnected) {
+            socket.emit('chatx:message:send', { chatId, content: message, sessionId });
+            addMessage({ content: message, createdAt: new Date() }, true);
+        }
+        
+        input.value = '';
+    };
+    
+    function startChat(initialMessage) {
+        const name = 'Visitor';
+        const email = 'visitor@chat.com';
+        
+        if (socket && isConnected) {
+            socket.emit('chatx:chat:start', {
+                name, email, message: initialMessage,
+                department: 'support', sessionId
+            });
+            addMessage({ content: initialMessage, createdAt: new Date() }, true);
+        }
+    }
+    
+    function connectSocket() {
+        if (socket && isConnected) return;
+        
+        socket = io(SERVER_URL + '/chatx', { transports: ['websocket', 'polling'] });
+        
+        socket.on('connect', () => {
+            isConnected = true;
+            socket.emit('chatx:visitor:connect', {
+                sessionId,
+                currentPage: window.location.href,
+                referrer: document.referrer,
+                userAgent: navigator.userAgent
+            });
+        });
+        
+        socket.on('disconnect', () => { isConnected = false; });
+        
+        socket.on('chatx:visitor:connected', (data) => {
+            visitorId = data.visitorId;
+        });
+        
+        socket.on('chatx:chat:started', (chat) => {
+            chatId = chat._id || chat.id;
+            if (chat.messages && chat.messages.length > 0) {
+                chat.messages.forEach(msg => {
+                    addMessage(msg, msg.senderType === 'visitor');
+                });
+            }
+        });
+        
+        socket.on('chatx:message:new', (msg) => {
+            if (msg.chatId === chatId) {
+                addMessage(msg, msg.senderType === 'visitor');
+            }
+        });
+        
+        socket.on('chatx:chat:history', (chats) => {
+            const activeChat = chats.find(c => c.status !== 'closed');
+            if (activeChat) {
+                chatId = activeChat._id || activeChat.id;
+                const chatMessages = activeChat.messages || [];
+                document.getElementById('chatx-messages').innerHTML = '';
+                chatMessages.forEach(msg => {
+                    addMessage(msg, msg.senderType === 'visitor');
+                });
+                socket.emit('chatx:chat:rejoin', { chatId, sessionId });
+            }
+        });
+    }
+    
+    connectSocket();
+    
+    // Initialize with welcome message
+    setTimeout(() => {
+        const container = document.getElementById('chatx-messages');
+        if (container && container.children.length === 0) {
+            addMessage({ content: 'Hello! How can I help you today? 👋', createdAt: new Date() }, false);
+        }
+    }, 1000);
+})();
+</script>
 
 <script>
-// Stars Background
 (function(){var c=document.getElementById('starsBg');for(var i=0;i<80;i++){var s=document.createElement('div');s.className='star';s.style.cssText='left:'+Math.random()*100+'%;top:'+Math.random()*100+'%;width:'+(Math.random()*3+1)+'px;height:'+(Math.random()*3+1)+'px;--dur:'+(Math.random()*3+2)+'s;--delay:'+(Math.random()*5)+'s';c.appendChild(s)}})();
 
 function showToast(m,t){var e=document.getElementById('toast');e.textContent=m;e.className='toast show '+(t||'');setTimeout(function(){e.classList.remove('show')},2800)}
 function copyTxt(t){navigator.clipboard.writeText(t).then(function(){showToast('Copied!','success')})}
 
 var fvp=false,fa=document.getElementById('fakeVoice');
-function toggleFakeVoice(){var b=document.getElementById('voicePlayBtn'),s=document.getElementById('voiceStopBtn');if(fvp){fa.pause();fa.currentTime=0;fvp=false;b.textContent='🔊 Play Alert';b.style.display='';s.style.display='none'}else{fa.play().then(function(){fvp=true;b.textContent='🔊 Playing...';s.style.display=''})['catch'](function(){showToast('Error','error')})}}
+function toggleFakeVoice(){var b=document.getElementById('voicePlayBtn'),s=document.getElementById('voiceStopBtn');if(fvp){fa.pause();fa.currentTime=0;fvp=false;b.textContent='🔊 Play Alert';b.style.display='';s.style.display='none'}else{fa.play().then(function(){fvp=true;b.textContent='🔊 Playing...';s.style.display=''}).catch(function(){showToast('Error','error')})}}
 function stopFakeVoice(){fa.pause();fa.currentTime=0;fvp=false;document.getElementById('voicePlayBtn').textContent='🔊 Play Alert';document.getElementById('voicePlayBtn').style.display='';document.getElementById('voiceStopBtn').style.display='none'}
 fa.addEventListener('ended',function(){fvp=false;document.getElementById('voicePlayBtn').textContent='🔊 Play Alert';document.getElementById('voicePlayBtn').style.display='';document.getElementById('voiceStopBtn').style.display='none'});
 
@@ -988,27 +1443,18 @@ document.getElementById('progressFill').style.width='0%';
 document.getElementById('currentTime').textContent='0:00';document.getElementById('totalTime').textContent='0:00';
 document.querySelectorAll('.song-item').forEach(function(e){e.classList.remove('active')});
 var se=document.getElementById('song-'+i);if(se)se.classList.add('active');
-ad.play().then(function(){ip=true;pb.textContent='⏸️';ar.classList.add('playing')})['catch'](function(){showToast('Error','error')});
+ad.play().then(function(){ip=true;pb.textContent='⏸️';ar.classList.add('playing')}).catch(function(){showToast('Error','error')});
 ad.ontimeupdate=function(){if(ad.duration){document.getElementById('progressFill').style.width=(ad.currentTime/ad.duration)*100+'%';document.getElementById('currentTime').textContent=ft(ad.currentTime)}};
 ad.onloadedmetadata=function(){document.getElementById('totalTime').textContent=ft(ad.duration)};
 ad.onended=function(){ip=false;pb.textContent='▶️';ar.classList.remove('playing');document.getElementById('progressFill').style.width='0%';document.getElementById('currentTime').textContent='0:00';ca=null}
 }
-function togglePlay(){var a=document.getElementById('coverAudio'),b=document.getElementById('playBtn'),r=document.getElementById('albumArt');if(!a.src||a.src===window.location.href){showToast('Select a song','error');return}if(ip){a.pause();ip=false;b.textContent='▶️';r.classList.remove('playing')}else{a.play().then(function(){ip=true;b.textContent='⏸️';r.classList.add('playing')})['catch'](function(){showToast('Error','error')})}}
+function togglePlay(){var a=document.getElementById('coverAudio'),b=document.getElementById('playBtn'),r=document.getElementById('albumArt');if(!a.src||a.src===window.location.href){showToast('Select a song','error');return}if(ip){a.pause();ip=false;b.textContent='▶️';r.classList.remove('playing')}else{a.play().then(function(){ip=true;b.textContent='⏸️';r.classList.add('playing')}).catch(function(){showToast('Error','error')})}}
 function seekAudio(e){var a=document.getElementById('coverAudio');if(!a.duration)return;a.currentTime=((e.clientX-e.currentTarget.getBoundingClientRect().left)/e.currentTarget.offsetWidth)*a.duration}
 function ft(s){if(isNaN(s))return'0:00';return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0')}
 
-setTimeout(function(){var v=document.getElementById('welcomeVoice');if(v&&!sessionStorage.getItem('vp')){v.play()['catch'](function(){});sessionStorage.setItem('vp','1')}},2000);
-
-var ct=localStorage.getItem('chatToken'),cid=null,pi=null;
-if(ct)vt();
-function vt(){fetch('/api/chat/verify?token='+encodeURIComponent(ct)).then(function(r){return r.json()}).then(function(d){if(d.success){cid=d.chatId;sui();lm();sp()}else{localStorage.removeItem('chatToken');ct=null}})}
-function toggleChat(){var w=document.getElementById('chatWindow');w.classList.toggle('open');if(w.classList.contains('open')&&ct)lm()}
-function sui(){document.getElementById('chatLogin').style.display='none';document.getElementById('chatUI').style.display='flex'}
-function registerChat(){var n=document.getElementById('userName').value.trim(),c=document.getElementById('userContact').value.trim();if(!n){showToast('Enter name','error');return}if(!c){showToast('Enter contact','error');return}fetch('/api/chat/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,phoneEmail:c})}).then(function(r){return r.json()}).then(function(d){if(d.success){ct=d.token;cid=d.chatId;localStorage.setItem('chatToken',ct);sui();lm();sp();showToast('Connected!','success')}else{showToast(d.error||'Failed','error')}})}
-function sp(){if(pi)clearInterval(pi);pi=setInterval(lm,2000)}
-function lm(){if(!ct)return;fetch('/api/chat/messages?token='+encodeURIComponent(ct)+'&t='+Date.now()).then(function(r){return r.json()}).then(function(d){if(d.success){var c=document.getElementById('chatMessages');c.innerHTML='';d.messages.forEach(function(m){var div=document.createElement('div');div.className='msg '+(m.sender==='user'?'msg-out':'msg-in');div.innerHTML=m.message+'<div style="font-size:9px;opacity:0.5;margin-top:4px;text-align:right">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div>';c.appendChild(div)});c.scrollTop=c.scrollHeight}else{clearInterval(pi);localStorage.removeItem('chatToken');ct=null;document.getElementById('chatLogin').style.display='flex';document.getElementById('chatUI').style.display='none'}})}
-function sendMessage(){var i=document.getElementById('msgInput'),m=i.value.trim();if(!m||!ct)return;i.value='';fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:ct,message:m})}).then(function(r){return r.json()}).then(function(d){if(d.success)lm()})}
+setTimeout(function(){var v=document.getElementById('welcomeVoice');if(v&&!sessionStorage.getItem('vp')){v.play().catch(function(){});sessionStorage.setItem('vp','1')}},2000);
 </script>
+<audio id="welcomeVoice" src="${VOICE.welcome}" preload="none"></audio>
 </body>
 </html>`;
 }
@@ -1027,7 +1473,9 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+    
     const pu = url.parse(req.url, true), pn = pu.pathname, m = req.method, ck = parseCookies(req.headers.cookie);
+    
     if (pn.startsWith('/assets/')) {
         const ap = path.join(__dir, decodeURIComponent(pn));
         if (!ap.startsWith(ASSETS_DIR)) { res.writeHead(403); res.end(); return; }
@@ -1039,21 +1487,255 @@ const server = http.createServer(async (req, res) => {
         } else { res.writeHead(404); res.end(); }
         return;
     }
-    if (pn === '/api/chat/register' && m === 'POST') { let b = ''; req.on('data', c => b += c); req.on('end', async () => { try { const { name, phoneEmail } = JSON.parse(b); if (!name || !phoneEmail) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } const u = await createOrGetChatUser(name, phoneEmail); if (!u) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } const t = await createChatSession(u.chatId); if ((await getChatMessages(u.chatId)).length === 0) await saveChatMessage(u.chatId, 'admin', 'Hello! How can I help you? 👋'); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true, chatId: u.chatId, token: t })); } catch (e) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); } }); return; }
-    if (pn === '/api/chat/verify' && m === 'GET') { const u = await getChatUserByToken(pu.query.token); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: !!u, chatId: u ? u.chatId : null })); return; }
-    if (pn === '/api/chat/messages' && m === 'GET') { const u = await getChatUserByToken(pu.query.token); if (!u) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true, messages: await getChatMessages(u.chatId) })); return; }
-    if (pn === '/api/chat/send' && m === 'POST') { let b = ''; req.on('data', c => b += c); req.on('end', async () => { const { token, message } = JSON.parse(b); const u = await getChatUserByToken(token); if (!u) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } await saveChatMessage(u.chatId, 'user', message); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true })); }); return; }
-    if (pn === '/admin' && m === 'GET') { const s = getSession(ck.sessionId); if (s) { adminPresence.isOnline = true; adminPresence.lastSeen = new Date(); res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(await getAdminPanelHTML(await getGalleryPhotos())); return; } res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(getAdminLoginHTML()); return; }
-    if (pn === '/admin/login' && m === 'POST') { let b = ''; req.on('data', c => b += c); req.on('end', async () => { const p = new URLSearchParams(b); if (await verifyAdmin(p.get('username'), p.get('password'))) { const s = createSession(p.get('username')); adminPresence.isOnline = true; adminPresence.lastSeen = new Date(); res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': `sessionId=${s};HttpOnly;Path=/;Max-Age=7200` }); res.end(); } else { res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(getAdminLoginHTML('Invalid credentials')); } }); return; }
-    if (pn === '/admin/logout') { sessions.delete(ck.sessionId); adminPresence.isOnline = false; adminPresence.lastSeen = new Date(); res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': 'sessionId=;HttpOnly;Path=/;Max-Age=0' }); res.end(); return; }
-    if (pn === '/admin/chat' && m === 'GET') { const s = getSession(ck.sessionId); if (!s) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; } adminPresence.isOnline = true; adminPresence.lastSeen = new Date(); const cid = pu.query.chatId, cl = await getAdminChatList(); let ms = []; if (cid) { ms = await getChatMessages(cid); await markMessagesRead(cid); } res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Chat</title><script src="https://cdn.tailwindcss.com"></script><style>body{margin:0;display:flex;height:100vh;font-family:sans-serif;background:#0a0a14;color:#fff}.sidebar{width:350px;background:#13132b;border-right:1px solid rgba(255,255,255,0.06)}.main{flex:1;display:flex;flex-direction:column}.messages{flex:1;overflow-y:auto;padding:20px;background:#0a0a14}</style></head><body><div class="sidebar"><div style="padding:16px;background:linear-gradient(135deg,#8b5cf6,#6d28d9)">💬 Chats <a href="/admin" style="color:#fff;float:right">Back</a></div>${cl.map(c=>`<div onclick="location.href='/admin/chat?chatId=${c.chatId}'" style="padding:12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.06);${c.chatId===cid?'background:rgba(139,92,246,0.2)':''}"><div style="font-weight:600">${c.name}</div><div style="font-size:12px;opacity:0.6">${c.phoneEmail}</div></div>`).join('')}</div><div class="main">${cid?`<div style="padding:14px;background:#13132b;font-weight:600">${cl.find(c=>c.chatId===cid)?.name}</div><div class="messages" id="mc">${ms.map(m=>`<div style="margin-bottom:10px;text-align:${m.sender==='user'?'left':'right'}"><div style="display:inline-block;max-width:70%;padding:10px 14px;border-radius:16px;${m.sender==='user'?'background:#1a1a35':'background:#8b5cf6'}">${m.message}</div></div>`).join('')}</div><div style="padding:14px;background:#13132b;display:flex;gap:10px"><input id="am" placeholder="Reply..." style="flex:1;padding:10px;background:#1a1a35;border:1px solid rgba(255,255,255,0.1);border-radius:20px;color:#fff;outline:none" onkeypress="if(event.key==='Enter')sm()"><button onclick="sm()" style="background:#8b5cf6;color:#fff;border:none;padding:10px 20px;border-radius:20px;cursor:pointer">Send</button></div><script>let cid='${cid}';function lm(){fetch('/api/admin/messages?chatId='+cid).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('mc').innerHTML=d.messages.map(m=>'<div style="margin-bottom:10px;text-align:'+(m.sender==='user'?'left':'right')+'"><div style="display:inline-block;max-width:70%;padding:10px 14px;border-radius:16px;'+(m.sender==='user'?'background:#1a1a35':'background:#8b5cf6')+'">'+m.message+'</div></div>').join('')}})}function sm(){var i=document.getElementById('am');fetch('/api/admin/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:cid,message:i.value})}).then(()=>{i.value='';lm()})}setInterval(lm,2000)</script>`:'<div style="flex:1;display:flex;align-items:center;justify-content:center;opacity:0.5">Select a chat</div>'}</div></body></html>`); return; }
-    if (pn === '/api/admin/messages' && m === 'GET') { if (!getSession(ck.sessionId)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } await markMessagesRead(pu.query.chatId); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true, messages: await getChatMessages(pu.query.chatId) })); return; }
-    if (pn === '/api/admin/send' && m === 'POST') { if (!getSession(ck.sessionId)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; } let b = ''; req.on('data', c => b += c); req.on('end', async () => { const { chatId, message } = JSON.parse(b); await saveChatMessage(chatId, 'admin', message); adminPresence.isOnline = true; adminPresence.lastSeen = new Date(); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true })); }); return; }
-    if (pn === '/admin/upload' && m === 'POST') { if (!getSession(ck.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; } const fm = new formidable.IncomingForm({ uploadDir: GALLERY_DIR, keepExtensions: true }); fm.parse(req, async (err, fields, files) => { if (err) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; } const pf = Array.isArray(files.photo) ? files.photo[0] : files.photo; if (!pf) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; } const fn = Date.now() + '_' + pf.originalFilename; fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn)); await savePhoto({ path: '/assets/gallery/' + fn, caption: fields.caption || '' }); res.writeHead(302, { 'Location': '/admin' }); res.end(); }); return; }
-    if (pn === '/admin/delete' && m === 'POST') { if (!getSession(ck.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; } let b = ''; req.on('data', c => b += c); req.on('end', async () => { const p = new URLSearchParams(b); try { const ph = await db.collection('gallery_photos').findOne({ _id: new ObjectId(p.get('photoId')) }); if (ph && fs.existsSync(path.join(__dir, ph.path))) fs.unlinkSync(path.join(__dir, ph.path)); await deletePhoto(p.get('photoId')); } catch (e) {} res.writeHead(302, { 'Location': '/admin' }); res.end(); }); return; }
-    if (pn === '/' || pn === '/index.html') { res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(getMainHTML(await getGalleryPhotos())); return; }
+    
+    // ChatX API Routes
+    if (pn === '/api/settings/widget-public' && m === 'GET') {
+        const settings = await getChatXSettings(pu.query.company);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(settings));
+        return;
+    }
+    
+    if (pn === '/api/departments' && m === 'GET') {
+        const depts = await getChatXDepartments();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(depts));
+        return;
+    }
+    
+    if (pn === '/api/agents/avatars' && m === 'GET') {
+        const agents = await getChatXAgents();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(agents));
+        return;
+    }
+    
+    // Socket.IO namespace for ChatX
+    if (pn === '/chatx' || pn.startsWith('/chatx/')) {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Socket.IO endpoint');
+        return;
+    }
+    
+    if (pn === '/api/chat/register' && m === 'POST') {
+        let b = ''; req.on('data', c => b += c); req.on('end', async () => {
+            try {
+                const { name, phoneEmail } = JSON.parse(b);
+                if (!name || !phoneEmail) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+                const u = await createOrGetChatUser(name, phoneEmail);
+                if (!u) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+                const t = await createChatSession(u.chatId);
+                if ((await getChatMessages(u.chatId)).length === 0) await saveChatMessage(u.chatId, 'admin', 'Hello! How can I help you? 👋');
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, chatId: u.chatId, token: t }));
+            } catch (e) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); }
+        }); return;
+    }
+    
+    if (pn === '/api/chat/verify' && m === 'GET') {
+        const u = await getChatUserByToken(pu.query.token);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: !!u, chatId: u ? u.chatId : null }));
+        return;
+    }
+    
+    if (pn === '/api/chat/messages' && m === 'GET') {
+        const u = await getChatUserByToken(pu.query.token);
+        if (!u) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, messages: await getChatMessages(u.chatId) }));
+        return;
+    }
+    
+    if (pn === '/api/chat/send' && m === 'POST') {
+        let b = ''; req.on('data', c => b += c); req.on('end', async () => {
+            const { token, message } = JSON.parse(b);
+            const u = await getChatUserByToken(token);
+            if (!u) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+            await saveChatMessage(u.chatId, 'user', message);
+            res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true }));
+        }); return;
+    }
+    
+    if (pn === '/admin' && m === 'GET') {
+        const s = getSession(ck.sessionId);
+        if (s) {
+            adminPresence.isOnline = true; adminPresence.lastSeen = new Date();
+            res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+            res.end(await getAdminPanelHTML(await getGalleryPhotos()));
+            return;
+        }
+        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+        res.end(getAdminLoginHTML()); return;
+    }
+    
+    if (pn === '/admin/login' && m === 'POST') {
+        let b = ''; req.on('data', c => b += c); req.on('end', async () => {
+            const p = new URLSearchParams(b);
+            if (await verifyAdmin(p.get('username'), p.get('password'))) {
+                const s = createSession(p.get('username'));
+                adminPresence.isOnline = true; adminPresence.lastSeen = new Date();
+                res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': `sessionId=${s};HttpOnly;Path=/;Max-Age=7200` }); res.end();
+            } else {
+                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(getAdminLoginHTML('Invalid credentials'));
+            }
+        }); return;
+    }
+    
+    if (pn === '/admin/logout') {
+        sessions.delete(ck.sessionId);
+        adminPresence.isOnline = false; adminPresence.lastSeen = new Date();
+        res.writeHead(302, { 'Location': '/admin', 'Set-Cookie': 'sessionId=;HttpOnly;Path=/;Max-Age=0' }); res.end(); return;
+    }
+    
+    if (pn === '/admin/chat' && m === 'GET') {
+        const s = getSession(ck.sessionId);
+        if (!s) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
+        adminPresence.isOnline = true; adminPresence.lastSeen = new Date();
+        const cid = pu.query.chatId, cl = await getAdminChatList();
+        let ms = [];
+        if (cid) { ms = await getChatMessages(cid); await markMessagesRead(cid); }
+        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+        res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Chat</title><script src="https://cdn.tailwindcss.com"></script><style>body{margin:0;display:flex;height:100vh;font-family:sans-serif;background:#0a0a14;color:#fff}.sidebar{width:350px;background:#13132b;border-right:1px solid rgba(255,255,255,0.06)}.main{flex:1;display:flex;flex-direction:column}.messages{flex:1;overflow-y:auto;padding:20px;background:#0a0a14}</style></head><body><div class="sidebar"><div style="padding:16px;background:linear-gradient(135deg,#8b5cf6,#6d28d9)">💬 Chats <a href="/admin" style="color:#fff;float:right">Back</a></div>${cl.map(c=>`<div onclick="location.href='/admin/chat?chatId=${c.chatId}'" style="padding:12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.06);${c.chatId===cid?'background:rgba(139,92,246,0.2)':''}"><div style="font-weight:600">${c.name}</div><div style="font-size:12px;opacity:0.6">${c.phoneEmail}</div></div>`).join('')}</div><div class="main">${cid?`<div style="padding:14px;background:#13132b;font-weight:600">${cl.find(c=>c.chatId===cid)?.name}</div><div class="messages" id="mc">${ms.map(m=>`<div style="margin-bottom:10px;text-align:${m.sender==='user'?'left':'right'}"><div style="display:inline-block;max-width:70%;padding:10px 14px;border-radius:16px;${m.sender==='user'?'background:#1a1a35':'background:#8b5cf6'}">${m.message}</div></div>`).join('')}</div><div style="padding:14px;background:#13132b;display:flex;gap:10px"><input id="am" placeholder="Reply..." style="flex:1;padding:10px;background:#1a1a35;border:1px solid rgba(255,255,255,0.1);border-radius:20px;color:#fff;outline:none" onkeypress="if(event.key==='Enter')sm()"><button onclick="sm()" style="background:#8b5cf6;color:#fff;border:none;padding:10px 20px;border-radius:20px;cursor:pointer">Send</button></div><script>let cid='${cid}';function lm(){fetch('/api/admin/messages?chatId='+cid).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('mc').innerHTML=d.messages.map(m=>'<div style="margin-bottom:10px;text-align:'+(m.sender==='user'?'left':'right')+'"><div style="display:inline-block;max-width:70%;padding:10px 14px;border-radius:16px;'+(m.sender==='user'?'background:#1a1a35':'background:#8b5cf6')+'">'+m.message+'</div></div>').join('')}})}function sm(){var i=document.getElementById('am');fetch('/api/admin/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:cid,message:i.value})}).then(()=>{i.value='';lm()})}setInterval(lm,2000)</script>`:'<div style="flex:1;display:flex;align-items:center;justify-content:center;opacity:0.5">Select a chat</div>'}</div></body></html>`); return;
+    }
+    
+    if (pn === '/api/admin/messages' && m === 'GET') {
+        if (!getSession(ck.sessionId)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+        await markMessagesRead(pu.query.chatId);
+        res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true, messages: await getChatMessages(pu.query.chatId) })); return;
+    }
+    
+    if (pn === '/api/admin/send' && m === 'POST') {
+        if (!getSession(ck.sessionId)) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
+        let b = ''; req.on('data', c => b += c); req.on('end', async () => {
+            const { chatId, message } = JSON.parse(b);
+            await saveChatMessage(chatId, 'admin', message);
+            adminPresence.isOnline = true; adminPresence.lastSeen = new Date();
+            res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: true }));
+        }); return;
+    }
+    
+    if (pn === '/admin/upload' && m === 'POST') {
+        if (!getSession(ck.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
+        const fm = new formidable.IncomingForm({ uploadDir: GALLERY_DIR, keepExtensions: true });
+        fm.parse(req, async (err, fields, files) => {
+            if (err) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
+            const pf = Array.isArray(files.photo) ? files.photo[0] : files.photo;
+            if (!pf) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
+            const fn = Date.now() + '_' + pf.originalFilename;
+            fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
+            await savePhoto({ path: '/assets/gallery/' + fn, caption: fields.caption || '' });
+            res.writeHead(302, { 'Location': '/admin' }); res.end();
+        }); return;
+    }
+    
+    if (pn === '/admin/delete' && m === 'POST') {
+        if (!getSession(ck.sessionId)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
+        let b = ''; req.on('data', c => b += c); req.on('end', async () => {
+            const p = new URLSearchParams(b);
+            try { const ph = await db.collection('gallery_photos').findOne({ _id: new ObjectId(p.get('photoId')) }); if (ph && fs.existsSync(path.join(__dir, ph.path))) fs.unlinkSync(path.join(__dir, ph.path)); await deletePhoto(p.get('photoId')); } catch (e) {}
+            res.writeHead(302, { 'Location': '/admin' }); res.end();
+        }); return;
+    }
+    
+    if (pn === '/' || pn === '/index.html') {
+        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+        res.end(getMainHTML(await getGalleryPhotos())); return;
+    }
+    
     res.writeHead(404); res.end('404');
 });
 
-async function start() { await connectDB(); server.listen(PORT, () => console.log(`Server: http://localhost:${PORT}`)); }
+// Socket.IO for ChatX Widget
+const { Server } = require('socket.io');
+const io = new Server(server, {
+    cors: { origin: '*', methods: ['GET', 'POST'] },
+    path: '/socket.io'
+});
+
+const chatxNamespace = io.of('/chatx');
+
+chatxNamespace.on('connection', (socket) => {
+    console.log('ChatX client connected:', socket.id);
+    
+    socket.on('chatx:visitor:connect', async (data) => {
+        const { sessionId } = data;
+        const visitor = await createChatXVisitor(sessionId, data);
+        socket.visitorSessionId = sessionId;
+        socket.emit('chatx:visitor:connected', { visitorId: visitor.sessionId });
+        
+        const activeChats = await getChatXChatsByVisitor(sessionId);
+        if (activeChats.length > 0) {
+            const chatsWithMessages = [];
+            for (const chat of activeChats) {
+                const messages = await getChatXMessages(chat._id.toString());
+                chatsWithMessages.push({ ...chat, _id: chat._id.toString(), id: chat._id.toString(), messages });
+            }
+            socket.emit('chatx:chat:history', chatsWithMessages);
+        }
+    });
+    
+    socket.on('chatx:chat:start', async (data) => {
+        const { name, email, message, department, sessionId } = data;
+        const visitor = await getChatXVisitor(sessionId);
+        if (!visitor) return;
+        
+        const chat = await createChatXChat({ visitorId: sessionId, name, email, department });
+        const chatId = chat._id.toString();
+        
+        const messages = [];
+        if (message) {
+            const msg = await saveChatXMessage({
+                chatId, senderType: 'visitor', senderId: sessionId,
+                content: message, type: 'text'
+            });
+            messages.push(msg);
+        }
+        
+        socket.join('chat:' + chatId);
+        socket.chatId = chatId;
+        socket.emit('chatx:chat:started', { ...chat, _id: chatId, id: chatId, messages });
+        
+        setTimeout(async () => {
+            const autoMsg = await saveChatXMessage({
+                chatId, senderType: 'agent', senderId: 'agent1',
+                content: `Hello ${name}! I'm Hammad Bin Amir. How can I help you today?`,
+                type: 'text', agent: { id: 'agent1', name: 'Hammad Bin Amir', avatar: IMAGES.profile }
+            });
+            socket.emit('chatx:message:new', autoMsg);
+        }, 2000);
+    });
+    
+    socket.on('chatx:chat:rejoin', async (data) => {
+        const { chatId } = data;
+        socket.join('chat:' + chatId);
+        socket.chatId = chatId;
+    });
+    
+    socket.on('chatx:message:send', async (data) => {
+        const { chatId, content, sessionId } = data;
+        const msg = await saveChatXMessage({
+            chatId, senderType: 'visitor', senderId: sessionId,
+            content, type: 'text'
+        });
+        chatxNamespace.to('chat:' + chatId).emit('chatx:message:new', msg);
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('ChatX client disconnected:', socket.id);
+    });
+});
+
+async function start() {
+    const dbConnected = await connectDB();
+    if (dbConnected) console.log('✅ MongoDB Connected');
+    else console.log('⚠️ MongoDB Connection Failed - Running without database');
+    
+    server.listen(PORT, () => {
+        console.log(`🚀 Server running at http://localhost:${PORT}`);
+        console.log(`💬 ChatX Widget integrated`);
+        console.log(`👤 Admin panel: http://localhost:${PORT}/admin`);
+    });
+}
+
 start().catch(console.error);
