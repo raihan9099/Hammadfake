@@ -1,24 +1,32 @@
 {
-  "name": "bailla-maach-verification-hub",
+  "name": "verification-hub",
   "version": "2.0.0",
-  "description": "Baiilla Maach Official Verification Hub with ChatX Widget",
+  "description": "Baiilla Maach Official Verification Hub - Premium Chat & Verification System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
-  },
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "formidable": "^2.1.2",
-    "mongodb": "^6.3.0",
-    "socket.io": "^4.7.4"
+    "dev": "node server.js",
+    "prod": "NODE_ENV=production node server.js"
   },
   "keywords": [
     "verification",
     "tiktok",
-    "celebrity",
-    "chat"
+    "chat",
+    "authentication",
+    "celebrity"
   ],
-  "author": "Baiilla Maach",
-  "license": "MIT"
+  "author": "Baiilla Maach Official",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "formidable": "^3.5.1",
+    "mongodb": "^6.3.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/verification-hub.git"
+  }
 }
