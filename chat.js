@@ -40,6 +40,170 @@ function getChatPageHTML() {
             overflow: hidden;
         }
         
+        /* Registration Screen */
+        .registration-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #0a0a14 0%, #1a1040 50%, #0a0a1a 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        
+        .registration-card {
+            background: rgba(19, 19, 43, 0.8);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 32px;
+            padding: 40px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(139, 92, 246, 0.1);
+            animation: slideUp 0.5s ease;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .registration-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .registration-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid var(--purple);
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.4);
+            margin-bottom: 16px;
+            object-fit: cover;
+        }
+        
+        .registration-title {
+            font-size: 24px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #c4b5fd, #f9a8d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        
+        .registration-subtitle {
+            color: var(--text3);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-label {
+            display: block;
+            color: var(--text2);
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .input-field {
+            width: 100%;
+            padding: 14px 18px;
+            background: rgba(26, 26, 53, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            outline: none;
+            transition: all 0.3s;
+        }
+        
+        .input-field:focus {
+            border-color: var(--purple);
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+            background: rgba(26, 26, 53, 1);
+        }
+        
+        .input-field::placeholder {
+            color: var(--text3);
+        }
+        
+        .start-chat-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            margin-top: 8px;
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.3);
+        }
+        
+        .start-chat-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(236, 72, 153, 0.4);
+        }
+        
+        .start-chat-btn:active {
+            transform: translateY(0);
+        }
+        
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            text-align: center;
+            margin-bottom: 16px;
+            display: none;
+        }
+        
+        .error-message.show {
+            display: block;
+            animation: shake 0.5s ease;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        /* Chat Interface */
+        .chat-interface {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .chat-interface.hidden {
+            display: none;
+        }
+        
         .chat-header {
             background: linear-gradient(135deg, #8b5cf6, #ec4899);
             padding: 16px;
@@ -64,6 +228,7 @@ function getChatPageHTML() {
             align-items: center;
             justify-content: center;
             transition: all 0.3s;
+            text-decoration: none;
         }
         
         .back-btn:hover {
@@ -115,6 +280,13 @@ function getChatPageHTML() {
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
+        }
+        
+        .user-id-display {
+            font-size: 10px;
+            opacity: 0.7;
+            margin-top: 2px;
+            color: rgba(255, 255, 255, 0.9);
         }
         
         .chat-messages {
@@ -337,82 +509,6 @@ function getChatPageHTML() {
             box-shadow: 0 6px 20px rgba(236, 72, 153, 0.5);
         }
         
-        .registration-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            backdrop-filter: blur(10px);
-        }
-        
-        .registration-form {
-            background: var(--surface);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 30px;
-            width: 90%;
-            max-width: 400px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-        }
-        
-        .registration-form h2 {
-            font-size: 24px;
-            margin-bottom: 8px;
-            background: linear-gradient(135deg, #c4b5fd, #f9a8d4);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        .registration-form p {
-            color: var(--text3);
-            font-size: 13px;
-            margin-bottom: 24px;
-        }
-        
-        .form-input {
-            width: 100%;
-            padding: 14px 18px;
-            background: var(--surface2);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            color: var(--text);
-            font-size: 14px;
-            margin-bottom: 16px;
-            outline: none;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            transition: all 0.3s;
-        }
-        
-        .form-input:focus {
-            border-color: var(--purple);
-            box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
-        }
-        
-        .form-submit {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #8b5cf6, #ec4899);
-            color: white;
-            border: none;
-            border-radius: 16px;
-            font-weight: 600;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-        
-        .form-submit:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4);
-        }
-        
         .image-preview-overlay {
             position: fixed;
             top: 0;
@@ -433,40 +529,11 @@ function getChatPageHTML() {
             border-radius: 12px;
         }
         
-        .typing-indicator {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 12px 16px;
-            background: var(--surface2);
-            border-radius: 20px;
-            border-bottom-left-radius: 4px;
-            width: fit-content;
-            margin-bottom: 16px;
-        }
-        
-        .typing-dot {
-            width: 8px;
-            height: 8px;
-            background: var(--purple);
-            border-radius: 50%;
-            animation: typingBounce 1.4s infinite;
-        }
-        
-        .typing-dot:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-        
-        .typing-dot:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-        
-        @keyframes typingBounce {
-            0%, 60%, 100% { transform: translateY(0); }
-            30% { transform: translateY(-8px); }
-        }
-        
         @media (max-width: 640px) {
+            .registration-card {
+                padding: 30px 20px;
+            }
+            
             .chat-messages {
                 padding: 12px;
             }
@@ -483,61 +550,82 @@ function getChatPageHTML() {
     </style>
 </head>
 <body>
-    <div id="registrationOverlay" class="registration-overlay">
-        <div class="registration-form">
-            <h2>💬 Start Chat</h2>
-            <p>Enter your details to start chatting with Baiilla Maach</p>
-            <input type="text" id="regName" class="form-input" placeholder="Your Name" autocomplete="off">
-            <input type="text" id="regContact" class="form-input" placeholder="Phone or Email" autocomplete="off">
-            <button onclick="registerUser()" class="form-submit">Start Chatting</button>
-        </div>
-    </div>
-
-    <div class="chat-header">
-        <button class="back-btn" onclick="window.close()">←</button>
-        <img src="/assets/tiktok_video_Aj2NO.jpeg" class="chat-avatar" alt="Baiilla Maach">
-        <div class="chat-header-info">
-            <div class="chat-header-name">
-                Baiilla Maach Official
-                <img src="/assets/social-media.png" class="verified-badge" alt="Verified">
+    <!-- Registration Screen -->
+    <div class="registration-screen" id="registrationScreen">
+        <div class="registration-card">
+            <div class="registration-header">
+                <img src="/assets/tiktok_video_Aj2NO.jpeg" class="registration-avatar" alt="Baiilla Maach">
+                <div class="registration-title">Start Chatting</div>
+                <div class="registration-subtitle">Enter your details to connect with Baiilla Maach Official</div>
             </div>
-            <div class="chat-header-status">
-                <span class="online-dot"></span>
-                Online
+            
+            <div class="error-message" id="errorMessage"></div>
+            
+            <div class="input-group">
+                <label class="input-label">Your Name</label>
+                <input type="text" id="regName" class="input-field" placeholder="Enter your full name" autocomplete="off">
+            </div>
+            
+            <div class="input-group">
+                <label class="input-label">Phone Number or Email</label>
+                <input type="text" id="regContact" class="input-field" placeholder="Enter phone number or email" autocomplete="off">
+            </div>
+            
+            <button onclick="registerUser()" class="start-chat-btn">
+                💬 Start Chat Now
+            </button>
+        </div>
+    </div>
+
+    <!-- Chat Interface -->
+    <div class="chat-interface hidden" id="chatInterface">
+        <div class="chat-header">
+            <a href="/" class="back-btn">←</a>
+            <img src="/assets/tiktok_video_Aj2NO.jpeg" class="chat-avatar" alt="Baiilla Maach">
+            <div class="chat-header-info">
+                <div class="chat-header-name">
+                    Baiilla Maach Official
+                    <img src="/assets/social-media.png" class="verified-badge" alt="Verified">
+                </div>
+                <div class="chat-header-status">
+                    <span class="online-dot"></span>
+                    Online
+                </div>
+                <div class="user-id-display" id="userIdDisplay"></div>
             </div>
         </div>
-    </div>
 
-    <div class="chat-messages" id="chatMessages">
-        <div style="text-align: center; color: var(--text3); padding: 30px; font-size: 13px;">
-            <div style="font-size: 40px; margin-bottom: 10px;">💬</div>
-            <div>Start your conversation</div>
-            <div style="font-size: 11px; margin-top: 5px; opacity: 0.6;">Messages are end-to-end encrypted</div>
+        <div class="chat-messages" id="chatMessages">
+            <div style="text-align: center; color: var(--text3); padding: 30px; font-size: 13px;">
+                <div style="font-size: 40px; margin-bottom: 10px;">💬</div>
+                <div>Start your conversation</div>
+                <div style="font-size: 11px; margin-top: 5px; opacity: 0.6;">Your messages are secure</div>
+            </div>
         </div>
-    </div>
 
-    <div class="chat-input-area">
-        <input type="file" id="fileInput" accept="image/*" style="display: none" onchange="handleFileUpload(event)">
-        <button class="action-btn attach-btn" onclick="document.getElementById('fileInput').click()" title="Attach Photo">
-            📎
-        </button>
-        
-        <input type="text" id="messageInput" class="chat-input" placeholder="Type a message..." 
-               onkeypress="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }">
-        
-        <button class="action-btn voice-btn" id="voiceRecordBtn" 
-                onmousedown="startRecording()" 
-                onmouseup="stopRecording()" 
-                onmouseleave="stopRecording()"
-                ontouchstart="startRecording()"
-                ontouchend="stopRecording()"
-                title="Hold to record voice">
-            🎤
-        </button>
-        
-        <button class="action-btn send-btn" onclick="sendMessage()" title="Send Message">
-            ➤
-        </button>
+        <div class="chat-input-area">
+            <input type="file" id="fileInput" accept="image/*" style="display: none" onchange="handleFileUpload(event)">
+            <button class="action-btn attach-btn" onclick="document.getElementById('fileInput').click()" title="Attach Photo">
+                📎
+            </button>
+            
+            <input type="text" id="messageInput" class="chat-input" placeholder="Type a message..." 
+                   onkeypress="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }">
+            
+            <button class="action-btn voice-btn" id="voiceRecordBtn" 
+                    onmousedown="startRecording()" 
+                    onmouseup="stopRecording()" 
+                    onmouseleave="stopRecording()"
+                    ontouchstart="startRecording()"
+                    ontouchend="stopRecording()"
+                    title="Hold to record voice">
+                🎤
+            </button>
+            
+            <button class="action-btn send-btn" onclick="sendMessage()" title="Send Message">
+                ➤
+            </button>
+        </div>
     </div>
 
     <audio id="audioPlayer" style="display: none"></audio>
@@ -550,21 +638,19 @@ function getChatPageHTML() {
         let chatToken = localStorage.getItem('chatToken');
         let chatId = localStorage.getItem('chatId');
         let userName = localStorage.getItem('userName');
+        let userContact = localStorage.getItem('userContact');
         let isRecording = false;
         let mediaRecorder;
         let audioChunks = [];
         
-        // Check if user is already registered
+        // Check if user is already logged in
         async function checkSession() {
-            if (chatToken) {
+            if (chatToken && chatId) {
                 try {
                     const response = await fetch('/api/chat/verify?token=' + chatToken);
                     const data = await response.json();
                     if (data.success) {
-                        chatId = data.chatId;
-                        document.getElementById('registrationOverlay').style.display = 'none';
-                        loadMessages();
-                        setInterval(loadMessages, 3000);
+                        showChatInterface();
                         return;
                     }
                 } catch (e) {
@@ -572,16 +658,46 @@ function getChatPageHTML() {
                 }
             }
             // Show registration if not authenticated
-            document.getElementById('registrationOverlay').style.display = 'flex';
+            showRegistrationScreen();
+        }
+        
+        function showRegistrationScreen() {
+            document.getElementById('registrationScreen').style.display = 'flex';
+            document.getElementById('chatInterface').classList.add('hidden');
+        }
+        
+        function showChatInterface() {
+            document.getElementById('registrationScreen').style.display = 'none';
+            document.getElementById('chatInterface').classList.remove('hidden');
+            document.getElementById('userIdDisplay').textContent = 'ID: ' + chatId + ' | ' + userName;
+            loadMessages();
+            setInterval(loadMessages, 3000);
         }
         
         // Register new user
         async function registerUser() {
             const name = document.getElementById('regName').value.trim();
             const contact = document.getElementById('regContact').value.trim();
+            const errorDiv = document.getElementById('errorMessage');
             
-            if (!name || !contact) {
-                alert('Please fill in all fields');
+            // Validation
+            if (!name) {
+                showError('Please enter your name');
+                return;
+            }
+            
+            if (!contact) {
+                showError('Please enter your phone number or email');
+                return;
+            }
+            
+            if (name.length < 2) {
+                showError('Name must be at least 2 characters');
+                return;
+            }
+            
+            if (contact.length < 5) {
+                showError('Please enter a valid phone number or email');
                 return;
             }
             
@@ -589,7 +705,10 @@ function getChatPageHTML() {
                 const response = await fetch('/api/chat/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: name, phoneEmail: contact })
+                    body: JSON.stringify({ 
+                        name: name, 
+                        phoneEmail: contact 
+                    })
                 });
                 
                 const data = await response.json();
@@ -598,21 +717,31 @@ function getChatPageHTML() {
                     chatToken = data.token;
                     chatId = data.chatId;
                     userName = data.name;
+                    userContact = data.phoneEmail;
                     
+                    // Save to localStorage
                     localStorage.setItem('chatToken', chatToken);
                     localStorage.setItem('chatId', chatId);
                     localStorage.setItem('userName', userName);
+                    localStorage.setItem('userContact', userContact);
                     
-                    document.getElementById('registrationOverlay').style.display = 'none';
-                    loadMessages();
-                    setInterval(loadMessages, 3000);
+                    showChatInterface();
                 } else {
-                    alert('Registration failed: ' + data.error);
+                    showError(data.error || 'Registration failed. Please try again.');
                 }
             } catch (e) {
-                alert('Connection error. Please try again.');
+                showError('Connection error. Please check your internet and try again.');
                 console.error('Registration error:', e);
             }
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 3000);
         }
         
         // Load messages
@@ -640,6 +769,7 @@ function getChatPageHTML() {
                 html = '<div style="text-align: center; color: var(--text3); padding: 30px; font-size: 13px;">' +
                        '<div style="font-size: 40px; margin-bottom: 10px;">💬</div>' +
                        '<div>No messages yet</div>' +
+                       '<div style="font-size: 11px; margin-top: 5px; opacity: 0.6;">Send a message to start the conversation</div>' +
                        '</div>';
             } else {
                 messages.forEach(msg => {
@@ -723,7 +853,6 @@ function getChatPageHTML() {
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Send as image message
                     await fetch('/api/chat/send', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -789,7 +918,6 @@ function getChatPageHTML() {
                         console.error('Voice upload error:', e);
                     }
                     
-                    // Stop all tracks
                     stream.getTracks().forEach(track => track.stop());
                 };
                 
@@ -797,7 +925,6 @@ function getChatPageHTML() {
                 isRecording = true;
                 document.getElementById('voiceRecordBtn').classList.add('recording');
                 
-                // Auto stop after 60 seconds
                 setTimeout(() => {
                     if (isRecording) stopRecording();
                 }, 60000);
@@ -854,8 +981,10 @@ function getChatPageHTML() {
             
             if (diff < 60000) return 'Just now';
             if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+            if (diff < 86400000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + 
+                   date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
         
         // Escape HTML
@@ -864,6 +993,13 @@ function getChatPageHTML() {
             div.textContent = text;
             return div.innerHTML;
         }
+        
+        // Allow Enter key to submit registration
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && document.getElementById('registrationScreen').style.display !== 'none') {
+                registerUser();
+            }
+        });
         
         // Initialize
         checkSession();
