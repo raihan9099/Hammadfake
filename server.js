@@ -23,6 +23,7 @@ const IMAGES_DIR = path.join(__dir, 'uploads', 'images');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
+// Corrected image paths
 const IMAGES = {
     profile: "/assets/tiktok_video_Aj2NO.jpeg",
     official: "/assets/orginalss.png",
@@ -33,10 +34,12 @@ const IMAGES = {
     communication: "/assets/communication.png",
     realId: "/assets/real-id-ss.png",
     report: "/assets/report.png",
-    socialMedia: "/assets/social-media.png",
+    tiktokBlueTick: "/assets/check-mark.png", // TikTok blue tick
+    fbBlueTick: "/assets/social-media.png", // Facebook blue tick
     tiktokIcon: "/assets/tiktokicon.png",
     messageIcon: "/assets/messageicon.gif",
-    microphone: "/assets/microphone-in-hand.gif"
+    microphone: "/assets/microphone-in-hand.gif",
+    fbProfile: "/assets/fb_profile.jpg" // Facebook profile
 };
 
 const VOICE = {
@@ -145,27 +148,15 @@ function getCoverSongs() {
         if (!fs.existsSync(COVER_MUSIC_DIR)) return [];
         const files = fs.readdirSync(COVER_MUSIC_DIR);
         const audioExts = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'];
-        const coverExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
-        const groups = {};
+        const songs = files.filter(f => audioExts.includes(path.extname(f).toLowerCase()));
         
-        files.forEach(f => {
-            const ext = path.extname(f).toLowerCase();
-            const base = path.basename(f, ext);
-            if (!groups[base]) groups[base] = { audio: null, cover: null };
-            if (audioExts.includes(ext)) groups[base].audio = f;
-            if (coverExts.includes(ext)) groups[base].cover = f;
-        });
-        
-        return Object.entries(groups)
-            .filter(([_, v]) => v.audio)
-            .map(([base, v]) => ({
-                id: base.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
-                title: base.replace(/[-_#]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()).trim(),
-                artist: 'Cover Song',
-                audioUrl: `/assets/covermusic/${encodeURIComponent(v.audio)}`,
-                coverUrl: v.cover ? `/assets/covermusic/${encodeURIComponent(v.cover)}` : null
-            }))
-            .sort((a, b) => a.title.localeCompare(b.title));
+        return songs.map((f, i) => ({
+            id: 'song_' + (i + 1),
+            title: `Cover Song #${i + 1}`,
+            artist: 'Baiilla Maach',
+            audioUrl: `/assets/covermusic/${encodeURIComponent(f)}`,
+            coverUrl: null
+        })).sort((a, b) => a.title.localeCompare(b.title));
     } catch (e) { return []; }
 }
 
@@ -190,15 +181,17 @@ const DATA = {
             verified: true,
             followers: "5,000",
             following: "0",
-            likes: "50K"
+            likes: "50K",
+            tickIcon: IMAGES.tiktokBlueTick
         },
         {
             platform: "Facebook",
             username: "Baiilla Maach Official",
             url: "https://www.facebook.com/profile.php?id=61575202118828",
-            screenshot: null,
+            screenshot: IMAGES.fbProfile,
             verified: true,
-            followers: "Growing"
+            followers: "Growing",
+            tickIcon: IMAGES.fbBlueTick
         }
     ],
     fakeAccounts: [
@@ -223,7 +216,7 @@ const DATA = {
     ]
 };
 
-// Generate Main HTML with White Light Mode Premium Theme
+// Generate Main HTML with fixed alignment and responsive design
 function getMainHTML() {
     const coverSongs = getCoverSongs();
     const totalFake = DATA.fakeAccounts.length;
@@ -231,13 +224,15 @@ function getMainHTML() {
     const fakeAcc = DATA.fakeAccounts;
 
     return `<!DOCTYPE html>
-<html lang="en" class="light">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
-<title>Baiilla Maach Official | Premium Verification Hub</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Baiilla Maach Official | Verification Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config={
@@ -245,58 +240,25 @@ tailwind.config={
     extend:{
       colors:{
         primary:{
-          50:'#f0f7ff',
-          100:'#e0effe',
-          200:'#b9dffd',
-          300:'#7cc5fc',
-          400:'#36aaf8',
-          500:'#0c8ee9',
-          600:'#0070c7',
-          700:'#0159a1',
-          800:'#064b85',
-          900:'#0b3f6e'
-        },
-        premium:{
-          gold:'#f59e0b',
-          silver:'#94a3b8',
-          platinum:'#8b5cf6'
-        },
-        surface:{
-          50:'#fafafa',
-          100:'#f4f4f5',
-          200:'#e4e4e7',
-          300:'#d4d4d8',
-          400:'#a1a1aa',
-          500:'#71717a',
-          600:'#52525b',
-          700:'#3f3f46',
-          800:'#27272a',
-          900:'#18181b'
+          50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a'
         }
       },
       fontFamily:{
-        sans:['Inter','sans-serif'],
-        display:['Plus Jakarta Sans','sans-serif']
+        sans:['Inter','sans-serif']
       },
       animation:{
         'fade-in':'fadeIn 0.5s ease-out',
-        'slide-up':'slideUp 0.5s ease-out',
+        'slide-up':'slideUp 0.4s ease-out',
         'bounce-in':'bounceIn 0.5s',
         'typing-dot':'typingDot 1.4s infinite',
-        'pulse-rec':'pulseRec 1s infinite',
-        'float':'float 3s ease-in-out infinite',
-        'shimmer':'shimmer 2s infinite',
-        'glow-pulse':'glowPulse 2s ease-in-out infinite'
+        'pulse-rec':'pulseRec 1s infinite'
       },
       keyframes:{
         fadeIn:{'0%':{opacity:'0'},'100%':{opacity:'1'}},
-        slideUp:{'0%':{transform:'translateY(20px)',opacity:'0'},'100%':{transform:'translateY(0)',opacity:'1'}},
+        slideUp:{'0%':{transform:'translateY(16px)',opacity:'0'},'100%':{transform:'translateY(0)',opacity:'1'}},
         bounceIn:{'0%':{transform:'scale(0.3)',opacity:'0'},'50%':{transform:'scale(1.05)'},'70%':{transform:'scale(0.9)'},'100%':{transform:'scale(1)',opacity:'1'}},
         typingDot:{'0%,60%,100%':{transform:'translateY(0)'},'30%':{transform:'translateY(-10px)'}},
-        pulseRec:{'0%,100%':{opacity:'1'},'50%':{opacity:'0.5'}},
-        float:{'0%,100%':{transform:'translateY(0)'},'50%':{transform:'translateY(-10px)'}},
-        shimmer:{'0%':{backgroundPosition:'-200% center'},'100%':{backgroundPosition:'200% center'}},
-        glowPulse:{'0%,100%':{boxShadow:'0 0 20px rgba(12,142,233,0.3)'},'50%':{boxShadow:'0 0 40px rgba(12,142,233,0.6)'}}
+        pulseRec:{'0%,100%':{opacity:'1'},'50%':{opacity:'0.5'}}
       }
     }
   }
@@ -306,154 +268,293 @@ tailwind.config={
 *{margin:0;padding:0;box-sizing:border-box}
 body{
   font-family:'Inter',sans-serif;
-  background: linear-gradient(135deg, #fafafa 0%, #f0f7ff 50%, #fafafa 100%);
-  color:#18181b;
+  background:linear-gradient(135deg,#f8fafc 0%,#eff6ff 50%,#f8fafc 100%);
+  color:#1e293b;
   min-height:100vh;
   overflow-x:hidden;
-  line-height:1.6;
+  line-height:1.5;
+  -webkit-text-size-adjust:100%;
+  -ms-text-size-adjust:100%;
 }
 
-/* Premium Scrollbar */
-::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-track{background:#f4f4f5;border-radius:10px}
-::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#0c8ee9,#8b5cf6);border-radius:10px}
-::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,#0070c7,#7c3aed)}
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#f1f5f9;border-radius:8px}
+::-webkit-scrollbar-thumb{background:#3b82f6;border-radius:8px}
 
-/* Premium Cards */
+/* Premium Card */
 .premium-card{
   background:white;
-  border:1px solid rgba(12,142,233,0.1);
-  border-radius:20px;
-  box-shadow:0 4px 6px -1px rgba(0,0,0,0.05),0 2px 4px -2px rgba(0,0,0,0.05),0 0 0 1px rgba(12,142,233,0.05);
-  transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border:1px solid rgba(59,130,246,0.1);
+  border-radius:16px;
+  box-shadow:0 1px 3px rgba(0,0,0,0.05),0 1px 2px rgba(0,0,0,0.03);
+  transition:all 0.3s ease;
 }
 .premium-card:hover{
-  transform:translateY(-2px);
-  box-shadow:0 20px 25px -5px rgba(0,0,0,0.08),0 8px 10px -6px rgba(0,0,0,0.05),0 0 0 1px rgba(12,142,233,0.1);
+  box-shadow:0 10px 25px rgba(0,0,0,0.08);
 }
 
-/* Glass Effect */
-.glass-white{
-  background:rgba(255,255,255,0.8);
-  backdrop-filter:blur(20px);
-  -webkit-backdrop-filter:blur(20px);
-  border:1px solid rgba(255,255,255,0.9);
+/* Glass Header */
+.glass-header{
+  background:rgba(255,255,255,0.95);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(0,0,0,0.06);
 }
 
 /* Gradient Text */
 .gradient-text{
-  background:linear-gradient(135deg,#0c8ee9 0%,#8b5cf6 50%,#f59e0b 100%);
-  background-size:200% auto;
+  background:linear-gradient(135deg,#2563eb 0%,#7c3aed 100%);
   -webkit-background-clip:text;
   background-clip:text;
   color:transparent;
-  animation:gradientShift 3s ease infinite;
-}
-@keyframes gradientShift{
-  0%,100%{background-position:left center}
-  50%{background-position:right center}
+  display:inline-block;
 }
 
-/* Verified Badge */
-.verified-badge{
-  background:linear-gradient(135deg,#0c8ee9,#0070c7);
-  color:white;
-  padding:4px 10px;
-  border-radius:20px;
-  font-size:12px;
-  font-weight:600;
-  display:inline-flex;
-  align-items:center;
-  gap:4px;
-  box-shadow:0 4px 12px rgba(12,142,233,0.3);
-}
-
-/* Blue Tick */
-.blue-tick{
+/* Blue Tick - Fixed alignment */
+.blue-tick-inline{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width:20px;
-  height:20px;
-  background:linear-gradient(135deg,#0c8ee9,#0070c7);
-  border-radius:50%;
+  vertical-align:middle;
+  flex-shrink:0;
   margin-left:6px;
-  box-shadow:0 0 10px rgba(12,142,233,0.4);
 }
-.blue-tick svg{
-  width:12px;
-  height:12px;
-  fill:white;
+.blue-tick-inline img{
+  width:18px;
+  height:18px;
+  display:block;
+  object-fit:contain;
 }
 
-/* Premium Buttons */
-.btn-premium{
-  background:linear-gradient(135deg,#0c8ee9,#0070c7);
+.blue-tick-sm{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  vertical-align:middle;
+  flex-shrink:0;
+  margin-left:4px;
+}
+.blue-tick-sm img{
+  width:14px;
+  height:14px;
+  display:block;
+  object-fit:contain;
+}
+
+.blue-tick-lg{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  vertical-align:middle;
+  flex-shrink:0;
+  margin-left:8px;
+}
+.blue-tick-lg img{
+  width:22px;
+  height:22px;
+  display:block;
+  object-fit:contain;
+}
+
+/* Name with tick container - prevents misalignment */
+.name-with-tick{
+  display:inline-flex;
+  align-items:center;
+  flex-wrap:nowrap;
+  white-space:nowrap;
+}
+
+/* Buttons */
+.btn-primary{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:linear-gradient(135deg,#2563eb,#1d4ed8);
   color:white;
-  border:none;
-  padding:12px 24px;
+  padding:10px 20px;
   border-radius:12px;
   font-weight:600;
-  cursor:pointer;
-  transition:all 0.3s ease;
-  box-shadow:0 4px 12px rgba(12,142,233,0.2);
-}
-.btn-premium:hover{
-  transform:translateY(-2px);
-  box-shadow:0 8px 20px rgba(12,142,233,0.3);
-}
-
-/* Animations */
-.animate-float{
-  animation:float 3s ease-in-out infinite;
-}
-
-/* Input Fields */
-.input-premium{
-  width:100%;
-  padding:12px 16px;
-  border:2px solid #e4e4e7;
-  border-radius:12px;
   font-size:14px;
+  text-decoration:none;
   transition:all 0.3s ease;
-  background:white;
+  border:none;
+  cursor:pointer;
+  white-space:nowrap;
 }
-.input-premium:focus{
-  outline:none;
-  border-color:#0c8ee9;
-  box-shadow:0 0 0 3px rgba(12,142,233,0.1);
+.btn-primary:hover{
+  transform:translateY(-1px);
+  box-shadow:0 8px 20px rgba(37,99,235,0.3);
+}
+.btn-primary:active{
+  transform:translateY(0);
 }
 
-/* WhatsApp Widget - Light Theme */
-.whatsapp-widget{position:fixed;bottom:24px;right:24px;z-index:9999}
+.btn-outline{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:white;
+  color:#2563eb;
+  padding:10px 20px;
+  border-radius:12px;
+  font-weight:600;
+  font-size:14px;
+  text-decoration:none;
+  transition:all 0.3s ease;
+  border:1.5px solid #bfdbfe;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.btn-outline:hover{
+  border-color:#3b82f6;
+  background:#eff6ff;
+}
+
+/* Tags */
+.tag{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:5px 12px;
+  border-radius:20px;
+  font-size:12px;
+  font-weight:600;
+  white-space:nowrap;
+}
+.tag-verified{
+  background:#dbeafe;
+  color:#1d4ed8;
+}
+.tag-creator{
+  background:#ede9fe;
+  color:#6d28d9;
+}
+.tag-danger{
+  background:#fee2e2;
+  color:#dc2626;
+}
+
+/* Profile Section */
+.profile-img-wrapper{
+  position:relative;
+  display:inline-block;
+}
+.profile-img{
+  width:80px;
+  height:80px;
+  border-radius:50%;
+  border:3px solid white;
+  box-shadow:0 4px 16px rgba(0,0,0,0.1);
+  object-fit:cover;
+}
+.verified-badge-circle{
+  position:absolute;
+  bottom:4px;
+  right:4px;
+  width:24px;
+  height:24px;
+  background:#2563eb;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border:2.5px solid white;
+}
+.verified-badge-circle img{
+  width:12px;
+  height:12px;
+  object-fit:contain;
+}
+
+/* Stats */
+.stat-box{
+  background:white;
+  border-radius:14px;
+  padding:14px 10px;
+  text-align:center;
+  box-shadow:0 1px 3px rgba(0,0,0,0.05);
+}
+.stat-number{
+  font-size:22px;
+  font-weight:700;
+  color:#1e293b;
+  line-height:1.2;
+}
+.stat-label{
+  font-size:11px;
+  color:#64748b;
+  font-weight:500;
+  margin-top:2px;
+}
+
+/* Section Header */
+.section-title-area{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:16px;
+  flex-wrap:wrap;
+}
+.section-icon-circle{
+  width:36px;
+  height:36px;
+  border-radius:10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:18px;
+  flex-shrink:0;
+}
+
+/* Account Card */
+.account-card{
+  background:#f8fafc;
+  border-radius:14px;
+  padding:14px;
+  border:1px solid #e2e8f0;
+  transition:all 0.2s ease;
+}
+.account-card:hover{
+  border-color:#bfdbfe;
+}
+
+/* Fake Card */
+.fake-card{
+  background:white;
+  border-radius:16px;
+  padding:16px;
+  border:1px solid #fee2e2;
+  border-left:4px solid #ef4444;
+}
+
+/* Chat Widget */
+.whatsapp-widget{position:fixed;bottom:20px;right:20px;z-index:9999}
 .whatsapp-btn{
-  width:64px;
-  height:64px;
-  background:linear-gradient(135deg,#25d366,#128c7e);
+  width:56px;
+  height:56px;
+  background:#25d366;
   border-radius:50%;
   display:flex;
   align-items:center;
   justify-content:center;
   cursor:pointer;
-  box-shadow:0 8px 24px rgba(37,211,102,0.3);
-  transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:0 4px 16px rgba(37,211,102,0.4);
+  transition:all 0.3s ease;
   animation:bounceIn 0.5s;
 }
-.whatsapp-btn:hover{
-  transform:scale(1.1) rotate(10deg);
-  box-shadow:0 12px 32px rgba(37,211,102,0.4);
-}
-.whatsapp-btn svg{width:36px;height:36px;fill:white}
+.whatsapp-btn:hover{transform:scale(1.08)}
+.whatsapp-btn svg{width:30px;height:30px;fill:white}
 .notification-badge{
   position:absolute;
-  top:-5px;
-  right:-5px;
+  top:-4px;
+  right:-4px;
   background:#ef4444;
   color:white;
   border-radius:50%;
-  width:24px;
-  height:24px;
-  font-size:12px;
+  width:22px;
+  height:22px;
+  font-size:11px;
   font-weight:bold;
   display:none;
   align-items:center;
@@ -463,35 +564,34 @@ body{
 
 .chat-window{
   position:fixed;
-  bottom:100px;
-  right:24px;
-  width:400px;
-  max-width:calc(100vw - 48px);
-  height:600px;
-  max-height:calc(100vh - 140px);
+  bottom:90px;
+  right:20px;
+  width:380px;
+  max-width:calc(100vw - 40px);
+  height:520px;
+  max-height:calc(100vh - 130px);
   background:white;
-  border-radius:20px;
+  border-radius:16px;
   overflow:hidden;
-  box-shadow:0 20px 60px rgba(0,0,0,0.15);
+  box-shadow:0 20px 50px rgba(0,0,0,0.2);
   display:none;
   flex-direction:column;
   animation:slideUp 0.3s ease-out;
-  border:1px solid rgba(0,0,0,0.05);
+  border:1px solid #e2e8f0;
 }
 .chat-window.open{display:flex}
 
-/* Chat Header */
-.chat-header{
-  background:linear-gradient(135deg,#0c8ee9,#0070c7);
-  padding:20px;
+.chat-header-bg{
+  background:linear-gradient(135deg,#2563eb,#1d4ed8);
+  color:white;
+  padding:14px;
   display:flex;
   align-items:center;
-  gap:12px;
-  color:white;
+  gap:10px;
 }
-.chat-avatar{
-  width:48px;
-  height:48px;
+.chat-avatar-circle{
+  width:40px;
+  height:40px;
   border-radius:50%;
   background:linear-gradient(135deg,#f59e0b,#fbbf24);
   display:flex;
@@ -499,41 +599,41 @@ body{
   justify-content:center;
   font-weight:bold;
   color:white;
-  font-size:20px;
+  font-size:18px;
   position:relative;
+  flex-shrink:0;
 }
 .online-dot{
-  width:12px;
-  height:12px;
+  width:10px;
+  height:10px;
   background:#22c55e;
   border-radius:50%;
   position:absolute;
-  bottom:2px;
-  right:2px;
-  border:2px solid white;
+  bottom:1px;
+  right:1px;
+  border:2px solid #2563eb;
 }
 
-/* Chat Messages */
-.chat-messages{
+.chat-messages-area{
   flex:1;
   overflow-y:auto;
-  padding:20px;
-  background:#fafafa;
+  padding:14px;
+  background:#f8fafc;
 }
 .msg-bubble{
-  max-width:75%;
-  padding:10px 16px;
-  margin-bottom:8px;
-  border-radius:16px;
-  font-size:14px;
-  line-height:1.5;
+  max-width:78%;
+  padding:9px 14px;
+  margin-bottom:6px;
+  border-radius:14px;
+  font-size:13.5px;
+  line-height:1.4;
   position:relative;
   word-wrap:break-word;
   animation:messageIn 0.3s ease-out;
 }
-@keyframes messageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes messageIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .msg-out{
-  background:linear-gradient(135deg,#0c8ee9,#0070c7);
+  background:linear-gradient(135deg,#2563eb,#1d4ed8);
   color:white;
   float:right;
   clear:both;
@@ -541,470 +641,276 @@ body{
 }
 .msg-in{
   background:white;
-  color:#18181b;
+  color:#1e293b;
   float:left;
   clear:both;
   border-bottom-left-radius:4px;
-  box-shadow:0 1px 2px rgba(0,0,0,0.05);
+  box-shadow:0 1px 2px rgba(0,0,0,0.04);
 }
-.msg-time{
-  font-size:11px;
+.msg-time-text{
+  font-size:10.5px;
   opacity:0.7;
   text-align:right;
-  margin-top:4px;
+  margin-top:3px;
 }
 
-/* Chat Input */
-.chat-input-area{
+.chat-input-bar{
   background:white;
-  padding:16px;
+  padding:10px 14px;
   display:flex;
   align-items:center;
-  gap:8px;
-  border-top:1px solid #f4f4f5;
+  gap:6px;
+  border-top:1px solid #e2e8f0;
 }
-.chat-input-area input{
+.chat-input-bar input{
   flex:1;
-  background:#f4f4f5;
-  border:2px solid transparent;
-  padding:12px 16px;
-  border-radius:24px;
-  font-size:14px;
+  background:#f1f5f9;
+  border:1.5px solid transparent;
+  padding:10px 14px;
+  border-radius:20px;
+  font-size:13.5px;
   outline:none;
-  transition:all 0.3s ease;
+  transition:all 0.2s ease;
+  min-width:0;
 }
-.chat-input-area input:focus{
-  border-color:#0c8ee9;
+.chat-input-bar input:focus{
+  border-color:#3b82f6;
   background:white;
 }
-.send-btn{
-  width:44px;
-  height:44px;
+.send-btn-circle{
+  width:38px;
+  height:38px;
   border-radius:50%;
-  background:linear-gradient(135deg,#0c8ee9,#0070c7);
+  background:#2563eb;
   border:none;
   display:flex;
   align-items:center;
   justify-content:center;
   cursor:pointer;
-  transition:all 0.3s ease;
-  box-shadow:0 4px 12px rgba(12,142,233,0.3);
+  transition:all 0.2s ease;
+  flex-shrink:0;
 }
-.send-btn:hover{
-  transform:scale(1.05);
-  box-shadow:0 8px 20px rgba(12,142,233,0.4);
-}
+.send-btn-circle:hover{background:#1d4ed8}
+.send-btn-circle svg{width:18px;height:18px;fill:white}
 
-/* Section Headers */
-.section-header{
-  display:flex;
+/* Recording */
+.recording-indicator{
+  display:none;
+  background:#ef4444;
+  color:white;
+  padding:6px 14px;
   align-items:center;
-  gap:12px;
-  margin-bottom:20px;
-}
-.section-icon{
-  width:40px;
-  height:40px;
-  border-radius:12px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:20px;
-}
-
-/* Profile Section */
-.profile-container{
-  text-align:center;
-  padding:40px 20px;
-}
-.profile-image{
-  width:100px;
-  height:100px;
-  border-radius:50%;
-  border:3px solid white;
-  box-shadow:0 8px 32px rgba(12,142,233,0.2);
-  object-fit:cover;
-  margin-bottom:16px;
-}
-.profile-image-wrapper{
-  position:relative;
-  display:inline-block;
-  margin-bottom:16px;
-}
-.verification-check{
-  position:absolute;
-  bottom:8px;
-  right:8px;
-  width:28px;
-  height:28px;
-  background:linear-gradient(135deg,#0c8ee9,#0070c7);
-  border-radius:50%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  border:3px solid white;
-  box-shadow:0 4px 12px rgba(12,142,233,0.4);
-}
-
-/* Stats Cards */
-.stat-card{
-  background:white;
-  border-radius:16px;
-  padding:16px;
-  text-align:center;
-  box-shadow:0 2px 8px rgba(0,0,0,0.05);
-}
-.stat-number{
-  font-size:24px;
-  font-weight:700;
-  background:linear-gradient(135deg,#0c8ee9,#8b5cf6);
-  -webkit-background-clip:text;
-  background-clip:text;
-  color:transparent;
-}
-
-/* Tags */
-.premium-tag{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:6px 16px;
-  border-radius:20px;
+  gap:8px;
   font-size:12px;
-  font-weight:600;
-}
-.tag-verified{
-  background:linear-gradient(135deg,rgba(12,142,233,0.1),rgba(0,112,199,0.1));
-  color:#0c8ee9;
-  border:1px solid rgba(12,142,233,0.2);
-}
-.tag-creator{
-  background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(124,58,237,0.1));
-  color:#8b5cf6;
-  border:1px solid rgba(139,92,246,0.2);
-}
-.tag-danger{
-  background:linear-gradient(135deg,rgba(239,68,68,0.1),rgba(220,38,38,0.1));
-  color:#ef4444;
-  border:1px solid rgba(239,68,68,0.2);
 }
 
-/* Header */
-.main-header{
+/* Image Viewer */
+.image-viewer-overlay{
+  display:none;
   position:fixed;
-  top:0;
-  left:0;
-  right:0;
-  z-index:40;
-  background:rgba(255,255,255,0.9);
-  backdrop-filter:blur(20px);
-  border-bottom:1px solid rgba(0,0,0,0.05);
-  transition:transform 0.3s ease;
+  inset:0;
+  background:rgba(0,0,0,0.95);
+  z-index:10000;
+  align-items:center;
+  justify-content:center;
 }
-.header-hidden{transform:translateY(-100%)}
+.image-viewer-overlay.open{display:flex}
+.image-viewer-overlay img{max-width:95%;max-height:95%;border-radius:8px}
 
-/* Responsive */
-@media(max-width:768px){
+/* Mobile Responsive */
+@media(max-width:640px){
+  .profile-img{width:70px;height:70px}
+  .stat-number{font-size:20px}
   .chat-window{
     width:100%;
     max-width:100%;
     bottom:0;
     right:0;
-    border-radius:0;
-    height:100%;
-    max-height:100%;
+    border-radius:16px 16px 0 0;
+    height:85vh;
+    max-height:85vh;
   }
-  .profile-container{padding:20px 12px}
+  .whatsapp-btn{width:50px;height:50px}
+  .whatsapp-btn svg{width:26px;height:26px}
+  .btn-primary,.btn-outline{padding:8px 16px;font-size:13px}
+  .name-with-tick{font-size:15px}
+  .blue-tick-inline img{width:16px;height:16px}
+  .blue-tick-lg img{width:18px;height:18px}
+}
+
+@media(max-width:380px){
+  .profile-img{width:60px;height:60px}
+  .stat-box{padding:10px 6px}
+  .stat-number{font-size:18px}
+  .btn-primary,.btn-outline{padding:7px 12px;font-size:12px;gap:4px}
+  .name-with-tick{font-size:14px}
+  .blue-tick-inline img{width:14px;height:14px}
 }
 </style>
 </head>
-<body class="min-h-screen">
+<body>
 
-<!-- Main Header -->
-<header id="mainHeader" class="main-header">
-<div class="max-w-6xl mx-auto px-4">
-<div class="flex items-center justify-between h-16">
-<div class="flex items-center gap-3">
-<img src="${DATA.celebrity.photo}" alt="" class="w-10 h-10 rounded-full border-2 border-primary-500 object-cover shadow-lg" onerror="this.style.display='none'">
-<div class="flex items-center gap-2">
-<span class="text-lg font-bold font-display gradient-text">Verification Hub</span>
-<div class="blue-tick">
-<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+<!-- Header -->
+<header id="mainHeader" class="fixed top-0 left-0 right-0 z-40 glass-header transition-transform duration-300">
+<div class="max-w-5xl mx-auto px-3 sm:px-4">
+<div class="flex items-center justify-between h-12 sm:h-14">
+<div class="flex items-center gap-2 min-w-0">
+<img src="${DATA.celebrity.photo}" alt="" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-blue-500 object-cover flex-shrink-0" onerror="this.style.display='none'">
+<div class="name-with-tick">
+<span class="text-sm sm:text-base font-bold gradient-text truncate">Verification Hub</span>
+<span class="blue-tick-inline"><img src="${IMAGES.tiktokBlueTick}" alt="✓" onerror="this.style.display='none'"></span>
 </div>
 </div>
-</div>
-<nav class="flex items-center gap-2">
-<a href="#official" class="px-4 py-2 text-sm font-medium text-surface-600 hover:text-primary-600 rounded-lg hover:bg-primary-50 transition-all">Official</a>
-<a href="#fake" class="px-4 py-2 text-sm font-medium text-surface-600 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all">Fake Alerts</a>
-${coverSongs.length > 0 ? '<a href="#music" class="px-4 py-2 text-sm font-medium text-surface-600 hover:text-emerald-500 rounded-lg hover:bg-emerald-50 transition-all">Music</a>' : ''}
-<a href="#report" class="px-4 py-2 text-sm font-medium text-surface-600 hover:text-amber-500 rounded-lg hover:bg-amber-50 transition-all">Report</a>
+<nav class="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+<a href="#official" class="px-2 sm:px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition">Official</a>
+<a href="#fake" class="px-2 sm:px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-red-500 rounded-lg hover:bg-red-50 transition">Fakes</a>
+${coverSongs.length > 0 ? '<a href="#music" class="px-2 sm:px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-emerald-500 rounded-lg hover:bg-emerald-50 transition hidden sm:block">Music</a>' : ''}
 </nav>
 </div>
 </div>
 </header>
 
-<main class="pt-20 pb-24">
-<div class="max-w-6xl mx-auto px-4">
+<main class="pt-14 sm:pt-16 pb-20">
+<div class="max-w-5xl mx-auto px-3 sm:px-4">
 
-<!-- Profile Section -->
-<section class="profile-container animate-fade-in">
-<div class="profile-image-wrapper">
-<img src="${DATA.celebrity.photo}" alt="" class="profile-image" onerror="this.style.display='none'">
-<div class="verification-check">
-<svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+<!-- Profile -->
+<section class="text-center py-5 sm:py-8 animate-fade-in">
+<div class="profile-img-wrapper mb-3">
+<img src="${DATA.celebrity.photo}" alt="" class="profile-img" onerror="this.style.display='none'">
+<div class="verified-badge-circle">
+<img src="${IMAGES.tiktokBlueTick}" alt="✓" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22white%22><path d=%22M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z%22/></svg>'">
 </div>
 </div>
-<h1 class="text-2xl font-bold font-display mb-1 flex items-center justify-center gap-2">
+<h1 class="text-lg sm:text-xl font-bold mb-1 flex items-center justify-center flex-wrap gap-x-1">
+<span class="name-with-tick">
 ${DATA.celebrity.fullName}
-<span class="blue-tick" style="width:24px;height:24px;">
-<svg width="14" height="14" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="white"/></svg>
+<span class="blue-tick-lg"><img src="${IMAGES.tiktokBlueTick}" alt="✓" onerror="this.style.display='none'"></span>
 </span>
 </h1>
-<p class="text-surface-500 text-sm mb-6">${DATA.celebrity.bio}</p>
+<p class="text-xs sm:text-sm text-slate-500 mb-4">${DATA.celebrity.bio}</p>
 
-<div class="grid grid-cols-3 gap-4 max-w-md mx-auto mb-6">
-<div class="stat-card">
-<div class="stat-number">${DATA.celebrity.tiktokFollowers}</div>
-<div class="text-xs text-surface-500 font-medium">Followers</div>
-</div>
-<div class="stat-card">
-<div class="stat-number">${DATA.celebrity.tiktokFollowing}</div>
-<div class="text-xs text-surface-500 font-medium">Following</div>
-</div>
-<div class="stat-card">
-<div class="stat-number">${DATA.celebrity.tiktokLikes}</div>
-<div class="text-xs text-surface-500 font-medium">Likes</div>
-</div>
+<div class="grid grid-cols-3 gap-2 sm:gap-3 max-w-xs sm:max-w-sm mx-auto mb-4">
+<div class="stat-box"><div class="stat-number">${DATA.celebrity.tiktokFollowers}</div><div class="stat-label">Followers</div></div>
+<div class="stat-box"><div class="stat-number">${DATA.celebrity.tiktokFollowing}</div><div class="stat-label">Following</div></div>
+<div class="stat-box"><div class="stat-number">${DATA.celebrity.tiktokLikes}</div><div class="stat-label">Likes</div></div>
 </div>
 
-<div class="flex justify-center gap-3 flex-wrap mb-6">
-<span class="premium-tag tag-verified">
-<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+<div class="flex justify-center gap-2 flex-wrap mb-4">
+<span class="tag tag-verified">
+<img src="${IMAGES.tiktokBlueTick}" alt="" class="w-3.5 h-3.5" onerror="this.style.display='none'">
 Verified Official
 </span>
-<span class="premium-tag tag-creator">
-<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-Premium Creator
-</span>
+<span class="tag tag-creator">Premium Creator</span>
 </div>
 
-<div class="flex justify-center gap-3">
-<a href="${realAcc[0].url}" target="_blank" class="btn-premium flex items-center gap-2">
-<img src="${IMAGES.tiktokIcon}" alt="" class="w-5 h-5" onerror="this.style.display='none'">
+<div class="flex justify-center gap-2 flex-wrap">
+<a href="${realAcc[0].url}" target="_blank" class="btn-primary">
+<img src="${IMAGES.tiktokIcon}" alt="" class="w-4 h-4" onerror="this.style.display='none'">
 TikTok
 </a>
-<a href="${realAcc[1].url}" target="_blank" class="btn-premium flex items-center gap-2" style="background:linear-gradient(135deg,#1877f2,#0c5dc7)">
-<svg width="16" height="16" fill="white" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+<a href="${realAcc[1].url}" target="_blank" class="btn-primary" style="background:linear-gradient(135deg,#1877f2,#0c5dc7)">
+<img src="${IMAGES.fbBlueTick}" alt="" class="w-4 h-4 brightness-0 invert" onerror="this.style.display='none'">
 Facebook
 </a>
 </div>
 </section>
 
-<!-- Official Account Section -->
-<section id="official" class="py-8 animate-slide-up">
-<div class="section-header">
-<div class="section-icon" style="background:linear-gradient(135deg,rgba(12,142,233,0.1),rgba(0,112,199,0.1))">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="#0c8ee9"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-</div>
+<!-- Official Section -->
+<section id="official" class="py-4 sm:py-6 animate-slide-up">
+<div class="section-title-area">
+<div class="section-icon-circle bg-blue-100">✅</div>
 <div>
-<h2 class="text-xl font-bold font-display">Official Verified Account</h2>
-<p class="text-sm text-surface-500">The only authentic profile</p>
+<h2 class="text-base sm:text-lg font-bold text-slate-800">Official Verified Accounts</h2>
+<p class="text-xs text-slate-500">The only authentic profiles</p>
 </div>
 </div>
 
-<div class="premium-card p-6">
-<div class="flex items-center gap-2 mb-6">
-<span class="verified-badge">
-<svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-VERIFIED
-</span>
-<span class="text-sm text-surface-500">Confirmed by our team</span>
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-<div class="lg:col-span-2 space-y-4">
+<div class="premium-card p-3 sm:p-5">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
 ${realAcc.map(acc => `
-<div class="bg-surface-50 rounded-2xl p-4 border border-surface-200">
-<div class="flex items-center justify-between mb-3">
-<div class="flex items-center gap-2">
-<span class="font-semibold text-sm">${acc.platform}</span>
-<img src="${IMAGES.socialMedia}" alt="" class="w-4 h-4" onerror="this.style.display='none'">
+<div class="account-card">
+<div class="flex items-center justify-between mb-2">
+<span class="text-xs font-semibold text-slate-500 uppercase">${acc.platform}</span>
+<span class="px-2 py-0.5 bg-green-100 text-green-600 text-xs rounded-full font-medium">Verified</span>
 </div>
-<span class="px-3 py-1 bg-green-100 text-green-600 text-xs rounded-full font-medium">Verified ✓</span>
+<div class="flex items-center gap-2 sm:gap-3">
+${acc.screenshot ? `<img src="${acc.screenshot}" alt="" class="w-11 h-11 sm:w-14 sm:h-14 rounded-xl object-cover border-2 border-slate-100 flex-shrink-0" onerror="this.style.display='none'">` : '<div class="w-11 h-11 sm:w-14 sm:h-14 rounded-xl bg-slate-200 flex items-center justify-center text-lg font-bold text-slate-400 flex-shrink-0">' + acc.platform[0] + '</div>'}
+<div class="min-w-0">
+<div class="name-with-tick">
+<span class="font-semibold text-slate-800 text-sm truncate">${acc.username}</span>
+<span class="blue-tick-sm"><img src="${acc.tickIcon}" alt="✓" onerror="this.style.display='none'"></span>
 </div>
-<div class="flex items-center gap-3">
-${acc.screenshot ? `<img src="${acc.screenshot}" alt="" class="w-16 h-16 rounded-xl object-cover border-2 border-surface-200">` : '<div class="w-16 h-16 rounded-xl bg-surface-200 flex items-center justify-center text-2xl font-bold text-surface-400">' + acc.platform[0] + '</div>'}
-<div>
-<div class="font-bold text-surface-800 flex items-center gap-1">
-${acc.username}
-<span class="blue-tick" style="width:16px;height:16px;">
-<svg width="10" height="10" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="white"/></svg>
-</span>
-</div>
-<div class="text-sm text-surface-500">${acc.platform} • ${acc.followers} followers</div>
+<div class="text-xs text-slate-500">${acc.platform} • ${acc.followers} followers</div>
 </div>
 </div>
 </div>`).join('')}
-</div>
-
-<div class="bg-gradient-to-br from-primary-50 to-primary-100 rounded-2xl p-6 flex flex-col items-center justify-center text-center border border-primary-200">
-<img src="${DATA.celebrity.photo}" alt="" class="w-20 h-20 rounded-full border-3 border-white shadow-lg mb-3" onerror="this.style.display='none'">
-<div class="font-bold text-surface-800 flex items-center gap-1 justify-center">
-@baiillamaach_official
-<span class="blue-tick">
-<svg width="12" height="12" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="white"/></svg>
-</span>
-</div>
-<div class="text-sm text-surface-500 mb-4">TikTok • Facebook</div>
-<a href="${realAcc[0].url}" target="_blank" class="btn-premium w-full justify-center flex">
-<svg width="16" height="16" fill="white" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-Follow Official Account
-</a>
-<p class="text-xs text-surface-400 mt-4 flex items-center gap-1">
-<img src="${IMAGES.communication}" alt="" class="w-4 h-4" onerror="this.style.display='none'">
-This is the only authentic account
-</p>
-</div>
 </div>
 </div>
 </section>
 
-<!-- Fake Accounts Section -->
-<section id="fake" class="py-8 animate-slide-up">
-<div class="section-header">
-<div class="section-icon" style="background:linear-gradient(135deg,rgba(239,68,68,0.1),rgba(220,38,38,0.1))">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="#ef4444"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-</div>
+<!-- Fake Accounts -->
+<section id="fake" class="py-4 sm:py-6 animate-slide-up">
+<div class="section-title-area">
+<div class="section-icon-circle bg-red-100">⚠️</div>
 <div>
-<h2 class="text-xl font-bold font-display">Fake Accounts Detected</h2>
-<p class="text-sm text-surface-500">Help us report these impersonators</p>
+<h2 class="text-base sm:text-lg font-bold text-slate-800">Fake Accounts Detected</h2>
+<p class="text-xs text-slate-500">Help report these impersonators</p>
 </div>
-<span class="premium-tag tag-danger" style="margin-left:auto">
-${totalFake} Active Threats
-</span>
+<span class="tag tag-danger ml-auto">${totalFake} Active</span>
 </div>
 
-<div class="space-y-4">
+<div class="space-y-3">
 ${fakeAcc.map((a, i) => `
-<div class="premium-card p-5 border-l-4 border-l-red-500">
-<div class="flex items-center justify-between mb-3">
-<div class="flex items-center gap-2">
-<span class="text-red-500 text-lg">⚠️</span>
-<span class="font-bold text-red-600">Fake Account #${i+1}</span>
+<div class="fake-card">
+<div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+<div class="flex items-center gap-1.5">
+<span class="text-red-500">⚠</span>
+<span class="font-bold text-red-600 text-sm">Fake #${i+1}</span>
 </div>
-<span class="premium-tag tag-danger">${a.threatLevel} Threat</span>
+<span class="tag tag-danger">${a.threatLevel}</span>
 </div>
-
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-<div class="relative rounded-xl overflow-hidden border-2 border-red-200 bg-red-50">
-${a.screenshot ? `<img src="${a.screenshot}" alt="" class="w-full opacity-90">` : '<div class="w-full h-48 flex items-center justify-center text-4xl text-red-300">⚠️</div>'}
-<div class="absolute inset-0 flex items-center justify-center bg-red-500/10">
-<span class="bg-red-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg">FAKE ACCOUNT</span>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+<div class="relative rounded-xl overflow-hidden border-2 border-red-200">
+${a.screenshot ? `<img src="${a.screenshot}" alt="" class="w-full opacity-90">` : '<div class="w-full h-36 flex items-center justify-center text-3xl text-red-300">FAKE</div>'}
+<div class="absolute inset-0 flex items-center justify-center"><span class="bg-red-500/90 text-white px-3 py-1.5 rounded-lg text-xs font-bold">FAKE ACCOUNT</span></div>
 </div>
-</div>
-
-<div class="space-y-2">
-<div class="flex justify-between bg-surface-50 rounded-xl px-4 py-3">
-<span class="text-surface-500 text-sm">Platform</span>
-<span class="text-red-600 font-medium">${a.platform}</span>
-</div>
-<div class="flex justify-between bg-surface-50 rounded-xl px-4 py-3">
-<span class="text-surface-500 text-sm">Username</span>
-<span class="text-red-600 font-medium">${a.username}</span>
-</div>
-<div class="flex justify-between bg-surface-50 rounded-xl px-4 py-3">
-<span class="text-surface-500 text-sm">Reports</span>
-<span class="text-red-600 font-medium">${a.reportedCount}+ Reports</span>
-</div>
-<div class="bg-red-50 rounded-xl p-3 text-sm text-red-600 border border-red-100">
-<img src="${IMAGES.communication}" alt="" class="w-4 h-4 inline mr-1" onerror="this.style.display='none'">
-${a.reason}
+<div class="space-y-1.5 text-sm">
+<div class="flex justify-between bg-red-50 rounded-lg px-3 py-2"><span class="text-slate-500">Platform</span><span class="text-red-600">${a.platform}</span></div>
+<div class="flex justify-between bg-red-50 rounded-lg px-3 py-2"><span class="text-slate-500">Username</span><span class="text-red-600">${a.username}</span></div>
+<div class="flex justify-between bg-red-50 rounded-lg px-3 py-2"><span class="text-slate-500">Reports</span><span class="text-red-600">${a.reportedCount}+</span></div>
+<div class="bg-red-50 rounded-lg p-2 text-xs text-red-600">${a.reason}</div>
 </div>
 </div>
-</div>
-
-<div class="flex gap-3 mt-4">
-<a href="${a.profileUrl}" target="_blank" class="flex-1 flex items-center justify-center gap-2 bg-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-red-600 transition-all shadow-lg shadow-red-500/20">
-<img src="${IMAGES.report}" alt="" class="w-4 h-4" onerror="this.style.display='none'">
-Report Account
-</a>
-<button onclick="navigator.clipboard.writeText('${a.username}')" class="px-6 py-3 bg-surface-100 border border-surface-200 text-surface-700 rounded-xl font-semibold hover:bg-surface-200 transition-all flex items-center gap-2">
-<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
-Copy Username
-</button>
+<div class="flex gap-2 mt-3">
+<a href="${a.profileUrl}" target="_blank" class="flex-1 text-center bg-red-500 text-white px-3 py-2 rounded-full text-xs font-bold hover:bg-red-600 transition">Report</a>
+<button onclick="navigator.clipboard.writeText('${a.username}')" class="flex-1 px-3 py-2 bg-white border border-red-200 text-red-600 rounded-full text-xs font-bold hover:bg-red-50 transition">Copy</button>
 </div>
 </div>`).join('')}
 </div>
-
-<div class="text-center mt-6">
-<button onclick="document.getElementById('fakeVoice').play()" class="btn-premium flex items-center gap-2 mx-auto" style="background:linear-gradient(135deg,#ef4444,#dc2626)">
-<img src="${IMAGES.microphone}" alt="" class="w-5 h-5" onerror="this.style.display='none'">
-🔊 Listen to Voice Alert
+<div class="text-center mt-4">
+<button onclick="document.getElementById('fakeVoice').play()" class="btn-outline text-red-600 border-red-200 hover:bg-red-50">
+🔊 Voice Alert
 </button>
 </div>
 <audio id="fakeVoice" src="${VOICE.fakeAlert}" preload="none"></audio>
 </section>
 
-<!-- Report Section -->
-<section id="report" class="py-8 animate-slide-up">
-<div class="section-header">
-<div class="section-icon" style="background:linear-gradient(135deg,rgba(245,158,11,0.1),rgba(217,119,6,0.1))">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="#f59e0b"><path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6h-5.6z"/></svg>
-</div>
-<div>
-<h2 class="text-xl font-bold font-display">Report Fake Accounts</h2>
-<p class="text-sm text-surface-500">Help keep the community safe</p>
-</div>
-</div>
-
-<div class="premium-card p-6">
-<div class="text-center mb-6">
-<img src="${IMAGES.flag}" alt="" class="w-24 h-24 mx-auto mb-3" onerror="this.style.display='none'">
-<p class="text-surface-600">If you find any fake accounts impersonating Baiilla Maach, report them immediately.</p>
-</div>
-
-<div class="flex flex-wrap gap-3 justify-center">
-<a href="${fakeAcc[0].profileUrl}" target="_blank" class="btn-premium flex items-center gap-2">
-<img src="${IMAGES.fakedetect}" alt="" class="w-5 h-5" onerror="this.style.display='none'">
-Report on TikTok
-</a>
-<button class="btn-premium flex items-center gap-2" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)" onclick="alert('Report submitted! Thank you for helping.')">
-<img src="${IMAGES.report}" alt="" class="w-5 h-5" onerror="this.style.display='none'">
-Submit Report
-</button>
-</div>
-</div>
-</section>
-
 ${coverSongs.length > 0 ? `
-<!-- Cover Music Section -->
-<section id="music" class="py-8 animate-slide-up">
-<div class="section-header">
-<div class="section-icon" style="background:linear-gradient(135deg,rgba(34,197,94,0.1),rgba(22,163,74,0.1))">
-🎵
-</div>
+<section id="music" class="py-4 sm:py-6 animate-slide-up">
+<div class="section-title-area">
+<div class="section-icon-circle bg-emerald-100">🎵</div>
 <div>
-<h2 class="text-xl font-bold font-display">Cover Music</h2>
-<p class="text-sm text-surface-500">${coverSongs.length} Premium Songs</p>
+<h2 class="text-base sm:text-lg font-bold text-slate-800">Cover Music</h2>
+<p class="text-xs text-slate-500">${coverSongs.length} songs</p>
 </div>
 </div>
-
-<div class="premium-card p-6">
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+<div class="premium-card p-3 sm:p-4">
+<div class="space-y-1.5 max-h-56 overflow-y-auto">
 ${coverSongs.map((s, i) => `
-<div class="bg-surface-50 rounded-xl p-4 hover:shadow-md transition-all cursor-pointer border border-surface-200" onclick="playCoverSong('${s.audioUrl}','${s.title}')">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
-${(i+1).toString().padStart(2,'0')}
-</div>
-<div class="flex-1">
-<div class="font-semibold text-surface-800 text-sm">${s.title}</div>
-<div class="text-xs text-surface-500">Cover Song</div>
-</div>
-<button class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition-all shadow-lg">
-▶
-</button>
-</div>
+<div class="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition" onclick="playCoverSong('${s.audioUrl}','${s.title}')">
+<span class="text-xs text-slate-400 w-5 flex-shrink-0">${(i+1).toString().padStart(2,'0')}</span>
+<div class="flex-1 min-w-0"><div class="text-sm text-slate-800 truncate">${s.title}</div><div class="text-xs text-slate-400">${s.artist}</div></div>
+<button class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0 hover:bg-emerald-600 transition text-xs">▶</button>
 </div>`).join('')}
 </div>
 </div>
@@ -1014,7 +920,7 @@ ${(i+1).toString().padStart(2,'0')}
 </div>
 </main>
 
-<!-- WhatsApp Chat Widget -->
+<!-- WhatsApp Widget -->
 <div class="whatsapp-widget">
 <div class="whatsapp-btn" onclick="toggleChat()" id="chatBtn">
 <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
@@ -1022,55 +928,49 @@ ${(i+1).toString().padStart(2,'0')}
 </div>
 
 <div class="chat-window" id="chatWindow">
-<div class="chat-header">
-<div class="chat-avatar">
-H
-<div class="online-dot"></div>
+<div class="chat-header-bg">
+<div class="chat-avatar-circle">H<div class="online-dot" id="onlineDot"></div></div>
+<div style="flex:1;min-width:0">
+<div style="font-weight:600;font-size:15px">Hammad Bin Amir</div>
+<div style="font-size:11px;opacity:0.9" id="statusText">Online</div>
 </div>
-<div style="flex:1">
-<div style="font-weight:600;font-size:16px">Hammad Bin Amir</div>
-<div style="font-size:12px;opacity:0.9" id="statusText">Online</div>
-</div>
-<div class="flex items-center gap-2">
-<img src="${IMAGES.messageIcon}" alt="" class="w-6 h-6" onerror="this.style.display='none'">
-<button onclick="toggleChat()" style="background:transparent;border:none;color:white;cursor:pointer;font-size:24px;opacity:0.8">✕</button>
-</div>
+<button onclick="toggleChat()" style="background:transparent;border:none;color:white;cursor:pointer;font-size:20px;padding:4px">✕</button>
 </div>
 
-<div id="chatLoginForm" style="padding:30px 20px;text-align:center">
-<p style="color:#71717a;margin-bottom:20px;font-size:14px">Enter your details to start chatting</p>
-<input type="text" id="userName" class="input-premium" placeholder="Your Name" style="margin-bottom:12px">
-<input type="text" id="userContact" class="input-premium" placeholder="Phone Number or Email" style="margin-bottom:16px">
-<button onclick="registerChat()" class="btn-premium w-full">Start Chat</button>
-<p style="color:#a1a1aa;font-size:11px;margin-top:12px">Use same phone/email to find old chats</p>
+<div id="chatLoginForm" style="padding:24px 16px;text-align:center">
+<p style="color:#64748b;margin-bottom:16px;font-size:13px">Enter your details to start</p>
+<input type="text" id="userName" placeholder="Your Name" style="width:100%;background:#f1f5f9;border:1.5px solid #e2e8f0;padding:10px 14px;border-radius:10px;font-size:14px;outline:none;margin-bottom:10px;transition:all 0.2s" onfocus="this.style.borderColor='#3b82f6';this.style.background='white'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f1f5f9'">
+<input type="text" id="userContact" placeholder="Phone or Email" style="width:100%;background:#f1f5f9;border:1.5px solid #e2e8f0;padding:10px 14px;border-radius:10px;font-size:14px;outline:none;margin-bottom:14px;transition:all 0.2s" onfocus="this.style.borderColor='#3b82f6';this.style.background='white'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f1f5f9'">
+<button onclick="registerChat()" class="btn-primary w-full justify-center">Start Chat</button>
+<p style="color:#94a3b8;font-size:10px;margin-top:10px">Same phone/email to restore chats</p>
 </div>
 
 <div id="chatInterface" style="display:none;flex:1;flex-direction:column">
-<div class="chat-messages" id="chatMessages">
-<div style="text-align:center;color:#a1a1aa;font-size:12px;padding:10px">🔒 Messages are end-to-end encrypted</div>
+<div class="chat-messages-area" id="chatMessages">
+<div style="text-align:center;color:#94a3b8;font-size:11px;padding:8px">🔒 Secure messages</div>
 </div>
-<div class="typing-indicator" id="typingIndicator" style="display:none;padding:0 20px 10px">
-<div style="display:flex;gap:4px;padding:8px 16px;background:white;border-radius:16px;float:left;clear:both;box-shadow:0 1px 2px rgba(0,0,0,0.05)">
-<div class="typing-dot" style="width:8px;height:8px;border-radius:50%;background:#a1a1aa;animation:typingDot 1.4s infinite;display:inline-block"></div>
-<div class="typing-dot" style="width:8px;height:8px;border-radius:50%;background:#a1a1aa;animation:typingDot 1.4s infinite;display:inline-block;animation-delay:0.2s"></div>
-<div class="typing-dot" style="width:8px;height:8px;border-radius:50%;background:#a1a1aa;animation:typingDot 1.4s infinite;display:inline-block;animation-delay:0.4s"></div>
+<div id="typingIndicator" style="display:none;padding:0 14px 8px">
+<div style="display:flex;gap:4px;padding:8px 14px;background:white;border-radius:14px;float:left;clear:both;box-shadow:0 1px 2px rgba(0,0,0,0.04)">
+<div style="width:7px;height:7px;border-radius:50%;background:#94a3b8;animation:typingDot 1.4s infinite;display:inline-block"></div>
+<div style="width:7px;height:7px;border-radius:50%;background:#94a3b8;animation:typingDot 1.4s infinite;display:inline-block;animation-delay:0.2s"></div>
+<div style="width:7px;height:7px;border-radius:50%;background:#94a3b8;animation:typingDot 1.4s infinite;display:inline-block;animation-delay:0.4s"></div>
 </div>
 </div>
-<div id="imagePreview" style="display:none;padding:8px 20px;background:white;position:relative">
-<img id="previewImage" src="" style="max-height:100px;border-radius:12px">
-<button onclick="clearImagePreview()" style="position:absolute;top:2px;right:22px;background:rgba(0,0,0,0.7);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer">✕</button>
+<div id="imagePreview" style="display:none;padding:8px 14px;background:white;position:relative">
+<img id="previewImage" src="" style="max-height:80px;border-radius:10px">
+<button onclick="clearImagePreview()" style="position:absolute;top:4px;right:18px;background:rgba(0,0,0,0.7);color:white;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px">✕</button>
 </div>
-<div id="recordingBar" style="display:none;background:#ef4444;color:white;padding:8px 20px;align-items:center;gap:8px;font-size:13px">
-<span>🔴 Recording...</span>
+<div class="recording-indicator" id="recordingBar">
+<span>🔴 Recording</span>
 <span id="recTime">00:00</span>
 </div>
-<div class="chat-input-area">
-<button onclick="document.getElementById('imageInput').click()" title="Send Image" style="background:transparent;border:none;font-size:20px;cursor:pointer">🖼</button>
+<div class="chat-input-bar">
+<button onclick="document.getElementById('imageInput').click()" title="Image" style="background:transparent;border:none;font-size:18px;cursor:pointer;padding:4px">🖼</button>
 <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImage(event)">
-<input type="text" id="messageInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
-<button id="recordBtn" onmousedown="startRecording()" onmouseup="stopRecording()" onmouseleave="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Voice Message" style="background:transparent;border:none;font-size:20px;cursor:pointer">🎤</button>
-<button class="send-btn" onclick="sendMessage()">
-<svg width="20" height="20" fill="white" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+<input type="text" id="messageInput" placeholder="Type message..." onkeypress="if(event.key==='Enter')sendMessage()">
+<button id="recordBtn" onmousedown="startRecording()" onmouseup="stopRecording()" onmouseleave="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Voice" style="background:transparent;border:none;font-size:18px;cursor:pointer;padding:4px">🎤</button>
+<button class="send-btn-circle" onclick="sendMessage()">
+<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
 </button>
 </div>
 </div>
@@ -1079,60 +979,53 @@ H
 
 <audio id="welcomeVoice" src="${VOICE.welcome}" preload="none"></audio>
 
-<!-- Image Viewer -->
-<div id="imageViewer" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:10000;align-items:center;justify-content:center" onclick="this.style.display='none'">
-<span style="position:absolute;top:20px;right:20px;color:white;font-size:30px;cursor:pointer">✕</span>
-<img id="viewerImage" src="" style="max-width:95%;max-height:95%">
+<div class="image-viewer-overlay" id="imageViewer" onclick="this.classList.remove('open')">
+<span style="position:absolute;top:16px;right:16px;color:white;font-size:28px;cursor:pointer">✕</span>
+<img id="viewerImage" src="">
 </div>
 
 <script>
-// Header scroll effect
+// Header scroll
 let lastScroll=0;
 window.addEventListener('scroll',()=>{
-const s=window.scrollY;
-const h=document.getElementById('mainHeader');
-if(s>lastScroll&&s>60)h.classList.add('header-hidden');
-else h.classList.remove('header-hidden');
+const s=window.scrollY,h=document.getElementById('mainHeader');
+if(s>lastScroll&&s>60)h.style.transform='translateY(-100%)';
+else h.style.transform='translateY(0)';
 lastScroll=s;
 });
 
-// Cover Music Player
+// Cover Music
 function playCoverSong(url,title){
-const a=document.getElementById('coverAudio');
-a.src=url;
-a.play().catch(()=>{});
-if(title)document.title=title+' - Cover Music';
+const a=document.getElementById('coverAudio');a.src=url;a.play().catch(()=>{});
+if(title)document.title=title;
 }
 
 // Welcome Voice
 setTimeout(()=>{
 const wv=document.getElementById('welcomeVoice');
-if(wv&&!sessionStorage.getItem('wvPlayed')){
-wv.play().catch(()=>{});
-sessionStorage.setItem('wvPlayed','1');
-}
+if(wv&&!sessionStorage.getItem('wv')){wv.play().catch(()=>{});sessionStorage.setItem('wv','1')}
 },2000);
 
-// WhatsApp Chat
-let ws=null,chatToken=localStorage.getItem('chatToken'),chatId=null,selectedImage=null;
+// Chat
+let ws=null,chatToken=localStorage.getItem('ct'),chatId=null,selectedImage=null;
 let mediaRecorder=null,audioChunks=[],recStart=0,recInterval=null;
 
 function toggleChat(){
-const w=document.getElementById('chatWindow');
-w.classList.toggle('open');
+const w=document.getElementById('chatWindow');w.classList.toggle('open');
 if(w.classList.contains('open')&&!ws)connectWS();
 }
 
 function connectWS(){
-const p=window.location.protocol==='https:'?'wss:':'ws:';
-ws=new WebSocket(p+'//'+window.location.host+'/ws');
+const p=location.protocol==='https:'?'wss:':'ws:';
+ws=new WebSocket(p+'//'+location.host+'/ws');
 ws.onopen=()=>{
 document.getElementById('statusText').textContent='Online';
+document.getElementById('onlineDot').style.display='block';
 if(chatToken)ws.send(JSON.stringify({type:'auth',token:chatToken}));
 };
 ws.onmessage=(e)=>{
 const d=JSON.parse(e.data);
-if(d.type==='auth_success'){showChatUI();loadMessages()}
+if(d.type==='auth_success'){showUI();loadMsgs()}
 else if(d.type==='message')addMsg(d.message,d.sender,d.msgType||'text',d.mediaUrl,d.duration,d.timestamp)
 else if(d.type==='typing'){
 document.getElementById('typingIndicator').style.display=d.isTyping?'block':'none';
@@ -1142,6 +1035,7 @@ scrollChat();
 };
 ws.onclose=()=>{
 document.getElementById('statusText').textContent='Offline';
+document.getElementById('onlineDot').style.display='none';
 setTimeout(connectWS,3000);
 };
 }
@@ -1149,35 +1043,25 @@ setTimeout(connectWS,3000);
 async function registerChat(){
 const n=document.getElementById('userName').value.trim();
 const c=document.getElementById('userContact').value.trim();
-if(!n||!c){alert('Please fill all fields');return}
+if(!n||!c){alert('Fill all fields');return}
 try{
 const r=await fetch('/api/chat/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,contact:c})});
 const d=await r.json();
-if(d.success){
-chatToken=d.sessionToken;chatId=d.chatId;
-localStorage.setItem('chatToken',chatToken);
-showChatUI();
-if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'auth',token:chatToken}));
-else connectWS();
-}else alert(d.error||'Error');
+if(d.success){chatToken=d.sessionToken;chatId=d.chatId;localStorage.setItem('ct',chatToken);showUI();if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'auth',token:chatToken}));else connectWS()}
+else alert(d.error||'Error');
 }catch(e){alert('Connection error')}
 }
 
-function showChatUI(){
+function showUI(){
 document.getElementById('chatLoginForm').style.display='none';
 document.getElementById('chatInterface').style.display='flex';
 }
 
 function sendMessage(){
-const inp=document.getElementById('messageInput');
-const msg=inp.value.trim();
+const inp=document.getElementById('messageInput'),msg=inp.value.trim();
 if(!msg&&!selectedImage)return;
-if(selectedImage){
-ws.send(JSON.stringify({type:'message',token:chatToken,message:msg||'🖼 Image',msgType:'image',mediaUrl:selectedImage}));
-clearImagePreview();
-}else{
-ws.send(JSON.stringify({type:'message',token:chatToken,message:msg,msgType:'text'}));
-}
+if(selectedImage){ws.send(JSON.stringify({type:'message',token:chatToken,message:msg||'🖼',msgType:'image',mediaUrl:selectedImage}));clearImagePreview()}
+else ws.send(JSON.stringify({type:'message',token:chatToken,message:msg,msgType:'text'}));
 inp.value='';inp.focus();
 }
 
@@ -1187,96 +1071,43 @@ const w=document.createElement('div');
 const t=new Date(timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
 const a=sender==='user'?'flex justify-end':'flex justify-start';
 const b=sender==='user'?'msg-out':'msg-in';
-let html='';
-if(type==='image'){
-html='<div class="'+a+' mb-2"><div class="'+b+'"><img src="'+mediaUrl+'" style="max-width:250px;border-radius:12px;cursor:pointer" onclick="document.getElementById(\'viewerImage\').src=\''+mediaUrl+'\';document.getElementById(\'imageViewer\').style.display=\'flex\'"><div class="msg-time">'+t+' ✓✓</div></div></div>';
-}else if(type==='voice'){
-html='<div class="'+a+' mb-2"><div class="'+b+'"><div style="display:flex;align-items:center;gap:8px"><button onclick="playVoice(this,\''+mediaUrl+'\')" style="width:32px;height:32px;border-radius:50%;background:#25d366;border:none;color:white;cursor:pointer">▶</button><span style="font-size:12px">🎤 '+(duration||0)+'s</span></div><div class="msg-time">'+t+' ✓✓</div></div></div>';
-}else{
-html='<div class="'+a+' mb-2"><div class="'+b+'">'+text+'<div class="msg-time">'+t+' '+(sender==='user'?'✓✓':'')+'</div></div></div>';
-}
-w.innerHTML=html;c.appendChild(w);scrollChat();
+let h='';
+if(type==='image')h='<div class="'+a+' mb-2"><div class="'+b+'"><img src="'+mediaUrl+'" style="max-width:220px;border-radius:10px;cursor:pointer" onclick="document.getElementById(\'viewerImage\').src=\''+mediaUrl+'\';document.getElementById(\'imageViewer\').classList.add(\'open\')"><div class="msg-time-text">'+t+' ✓✓</div></div></div>';
+else if(type==='voice')h='<div class="'+a+' mb-2"><div class="'+b+'"><div style="display:flex;align-items:center;gap:6px"><button onclick="playV(this,\''+mediaUrl+'\')" style="width:28px;height:28px;border-radius:50%;background:#22c55e;border:none;color:white;cursor:pointer;font-size:12px">▶</button><span style="font-size:11px">🎤 '+(duration||0)+'s</span></div><div class="msg-time-text">'+t+' ✓✓</div></div></div>';
+else h='<div class="'+a+' mb-2"><div class="'+b+'">'+text+'<div class="msg-time-text">'+t+' '+(sender==='user'?'✓✓':'')+'</div></div></div>';
+w.innerHTML=h;c.appendChild(w);scrollChat();
 }
 
-function playVoice(btn,url){
-const a=new Audio(url);
-a.play();
-btn.textContent='⏸';
-a.onended=()=>{btn.textContent='▶'};
-}
+function playV(btn,url){const a=new Audio(url);a.play();btn.textContent='⏸';a.onended=()=>{btn.textContent='▶'}}
 
 function handleImage(e){
-const f=e.target.files[0];
-if(!f)return;
+const f=e.target.files[0];if(!f)return;
 const r=new FileReader();
 r.onload=(ev)=>{selectedImage=ev.target.result;document.getElementById('previewImage').src=selectedImage;document.getElementById('imagePreview').style.display='block'};
 r.readAsDataURL(f);
 }
 
-function clearImagePreview(){
-selectedImage=null;
-document.getElementById('imagePreview').style.display='none';
-document.getElementById('imageInput').value='';
-}
+function clearImagePreview(){selectedImage=null;document.getElementById('imagePreview').style.display='none';document.getElementById('imageInput').value=''}
 
 async function startRecording(){
-try{
-const s=await navigator.mediaDevices.getUserMedia({audio:true});
-mediaRecorder=new MediaRecorder(s);
-audioChunks=[];
-mediaRecorder.ondataavailable=(e)=>audioChunks.push(e.data);
-mediaRecorder.start();
-document.getElementById('recordBtn').style.color='#ef4444';
-document.getElementById('recordingBar').style.display='flex';
-recStart=Date.now();
-recInterval=setInterval(()=>{
-const e=Math.floor((Date.now()-recStart)/1000);
-document.getElementById('recTime').textContent=Math.floor(e/60).toString().padStart(2,'0')+':'+(e%60).toString().padStart(2,'0');
-},1000);
-}catch(e){console.error(e)}
+try{const s=await navigator.mediaDevices.getUserMedia({audio:true});mediaRecorder=new MediaRecorder(s);audioChunks=[];mediaRecorder.ondataavailable=(e)=>audioChunks.push(e.data);mediaRecorder.start();document.getElementById('recordBtn').style.color='#ef4444';document.getElementById('recordingBar').style.display='flex';recStart=Date.now();recInterval=setInterval(()=>{const e=Math.floor((Date.now()-recStart)/1000);document.getElementById('recTime').textContent=Math.floor(e/60).toString().padStart(2,'0')+':'+(e%60).toString().padStart(2,'0')},1000)}catch(e){console.error(e)}
 }
 
 function stopRecording(){
 if(!mediaRecorder||mediaRecorder.state==='inactive')return;
-mediaRecorder.stop();
-document.getElementById('recordBtn').style.color='';
-document.getElementById('recordingBar').style.display='none';
-clearInterval(recInterval);
-mediaRecorder.onstop=()=>{
-const b=new Blob(audioChunks,{type:'audio/webm'});
-const r=new FileReader();
-r.onload=()=>{
-const d=Math.floor((Date.now()-recStart)/1000);
-ws.send(JSON.stringify({type:'message',token:chatToken,message:'🎤 Voice',msgType:'voice',mediaUrl:r.result,duration:d}));
-};
-r.readAsDataURL(b);
-mediaRecorder.stream.getTracks().forEach(t=>t.stop());
-};
+mediaRecorder.stop();document.getElementById('recordBtn').style.color='';document.getElementById('recordingBar').style.display='none';clearInterval(recInterval);
+mediaRecorder.onstop=()=>{const b=new Blob(audioChunks,{type:'audio/webm'});const r=new FileReader();r.onload=()=>{const d=Math.floor((Date.now()-recStart)/1000);ws.send(JSON.stringify({type:'message',token:chatToken,message:'🎤 Voice',msgType:'voice',mediaUrl:r.result,duration:d}))};r.readAsDataURL(b);mediaRecorder.stream.getTracks().forEach(t=>t.stop())}
 }
 
-async function loadMessages(){
-try{
-const r=await fetch('/api/messages?token='+chatToken);
-const d=await r.json();
-if(d.success){
-document.getElementById('chatMessages').innerHTML='<div style="text-align:center;color:#a1a1aa;font-size:12px;padding:10px">🔒 Messages are end-to-end encrypted</div>';
-d.messages.forEach(m=>addMsg(m.message,m.sender,m.type||'text',m.mediaUrl,m.duration,m.createdAt));
-}
-}catch(e){}
+async function loadMsgs(){
+try{const r=await fetch('/api/messages?token='+chatToken);const d=await r.json();if(d.success){document.getElementById('chatMessages').innerHTML='<div style="text-align:center;color:#94a3b8;font-size:11px;padding:8px">🔒 Secure</div>';d.messages.forEach(m=>addMsg(m.message,m.sender,m.type||'text',m.mediaUrl,m.duration,m.createdAt))}}catch(e){}
 }
 
-function scrollChat(){
-const c=document.getElementById('chatMessages');
-setTimeout(()=>{c.scrollTop=c.scrollHeight},100);
-}
+function scrollChat(){const c=document.getElementById('chatMessages');setTimeout(()=>{c.scrollTop=c.scrollHeight},100)}
 
-let typingTO;
+let tt;
 document.getElementById('messageInput')?.addEventListener('input',()=>{
-if(ws&&ws.readyState===WebSocket.OPEN){
-ws.send(JSON.stringify({type:'typing',isTyping:true,token:chatToken}));
-clearTimeout(typingTO);
-typingTO=setTimeout(()=>ws.send(JSON.stringify({type:'typing',isTyping:false,token:chatToken})),2000);
-}
+if(ws&&ws.readyState===1){ws.send(JSON.stringify({type:'typing',isTyping:true,token:chatToken}));clearTimeout(tt);tt=setTimeout(()=>ws.send(JSON.stringify({type:'typing',isTyping:false,token:chatToken})),2000)}
 });
 
 if(chatToken)setTimeout(connectWS,1000);
@@ -1306,8 +1137,8 @@ wss.on('connection', (ws, req) => {
                         ws.send(JSON.stringify({ type: 'auth_success' }));
                         
                         setTimeout(async () => {
-                            await saveMessage(user.chatId, 'admin', 'Hello! 👋 Welcome to Baiilla Maach Official Support. How can I help you today?', 'text');
-                            ws.send(JSON.stringify({ type: 'message', message: 'Hello! 👋 Welcome to Baiilla Maach Official Support. How can I help you today?', sender: 'admin', msgType: 'text', timestamp: new Date().toISOString() }));
+                            await saveMessage(user.chatId, 'admin', 'Hello! 👋 How can I help you?', 'text');
+                            ws.send(JSON.stringify({ type: 'message', message: 'Hello! 👋 How can I help you?', sender: 'admin', msgType: 'text', timestamp: new Date().toISOString() }));
                             notifyAdmin({ type: 'new_message', chatId: user.chatId, name: user.name, message: 'Hello! 👋', sender: 'admin' });
                         }, 1500);
                     }
@@ -1374,14 +1205,14 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     
-    // API: Register chat
+    // API
     if (pathname === '/api/chat/register' && method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
                 const { name, contact } = JSON.parse(body);
-                if (!name || !contact) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'Name and contact required' })); return; }
+                if (!name || !contact) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false })); return; }
                 const user = await findOrCreateUser(name, contact);
                 const token = await createSession(user.chatId);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1391,7 +1222,6 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     
-    // API: Get messages
     if (pathname === '/api/messages' && method === 'GET') {
         const token = parsedUrl.query.token;
         const user = await getUserByToken(token);
@@ -1402,7 +1232,7 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     
-    // Admin routes
+    // Admin
     if (pathname === '/admin' && method === 'GET') {
         const sessionId = cookies.sessionId;
         if (sessionId && adminSessions.has(sessionId)) {
@@ -1411,7 +1241,7 @@ const server = http.createServer(async (req, res) => {
             return;
         }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><style>body{background:#fafafa;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}.box{background:white;border-radius:16px;padding:32px;max-width:360px;width:100%;box-shadow:0 4px 6px rgba(0,0,0,0.05)}h1{text-align:center;margin-bottom:24px;color:#18181b}input{width:100%;padding:12px;margin-bottom:12px;background:#f4f4f5;border:2px solid #e4e4e7;border-radius:10px;font-size:14px;outline:none;transition:all 0.3s}input:focus{border-color:#0c8ee9}button{width:100%;padding:14px;background:linear-gradient(135deg,#0c8ee9,#0070c7);color:white;border:none;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.3s}button:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(12,142,233,0.3)}</style></head><body><div class="box"><h1>🔐 Admin Login</h1><form method="POST" action="/admin/login"><input type="text" name="username" placeholder="Username" required><input type="password" name="password" placeholder="Password" required><button type="submit">Login</button></form></div></body></html>`);
+        res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin</title><style>body{font-family:'Inter',sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}.box{background:white;border-radius:16px;padding:28px;max-width:340px;width:100%;box-shadow:0 4px 16px rgba(0,0,0,0.06)}h1{text-align:center;color:#1e293b;margin-bottom:20px}input{width:100%;padding:10px;margin-bottom:10px;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;outline:none}input:focus{border-color:#3b82f6;background:white}button{width:100%;padding:12px;background:#2563eb;color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}button:hover{background:#1d4ed8}</style></head><body><div class="box"><h1>🔐 Admin</h1><form method="POST" action="/admin/login"><input type="text" name="username" placeholder="Username" required><input type="password" name="password" placeholder="Password" required><button type="submit">Login</button></form></div></body></html>`);
         return;
     }
     
@@ -1458,7 +1288,7 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     
-    // Main verification hub page
+    // Main page
     if (pathname === '/' || pathname === '/index.html') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(getMainHTML());
@@ -1469,7 +1299,6 @@ const server = http.createServer(async (req, res) => {
     res.end('404 Not Found');
 });
 
-// WebSocket upgrade
 server.on('upgrade', (request, socket, head) => {
     const pathname = url.parse(request.url).pathname;
     if (pathname === '/ws' || pathname === '/admin/ws') {
@@ -1490,7 +1319,6 @@ function parseCookies(header) {
     return cookies;
 }
 
-// Admin Panel HTML (Light Theme)
 async function getAdminPanelHTML() {
     const users = await getAllUsers();
     const usersWithInfo = [];
@@ -1502,123 +1330,35 @@ async function getAdminPanelHTML() {
     }
     
     const usersHTML = usersWithInfo.map(user => `
-<div class="flex items-center gap-3 p-4 hover:bg-surface-100 cursor-pointer border-b border-surface-200 transition-all" onclick="openChat('${user.chatId}', '${user.name.replace(/'/g, "\\'")}')">
-<div class="w-12 h-12 bg-gradient-to-br from-primary-500 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
-<span class="text-lg font-bold text-white">${user.name.charAt(0).toUpperCase()}</span>
-</div>
-<div class="flex-1 min-w-0">
-<div class="flex justify-between items-baseline">
-<h3 class="text-surface-800 font-semibold text-sm truncate">${user.name}</h3>
-<span class="text-xs text-surface-400 flex-shrink-0 ml-2">${user.lastMessage ? new Date(user.lastMessage.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : ''}</span>
-</div>
-<div class="flex justify-between items-center mt-1">
-<p class="text-sm text-surface-500 truncate">${user.lastMessage ? user.lastMessage.message.substring(0, 35) : 'No messages'}</p>
-${user.unread > 0 ? `<span class="bg-primary-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 ml-2">${user.unread}</span>` : ''}
-</div>
-</div>
+<div onclick="openChat('${user.chatId}','${user.name.replace(/'/g,"\\'")}')" style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;border-bottom:1px solid #e2e8f0;transition:all 0.2s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+<div style="width:44px;height:44px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:18px;flex-shrink:0">${user.name.charAt(0)}</div>
+<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between"><span style="font-weight:600;color:#1e293b;font-size:14px">${user.name}</span><span style="font-size:11px;color:#94a3b8">${user.lastMessage?new Date(user.lastMessage.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):''}</span></div><div style="display:flex;justify-content:space-between;margin-top:3px"><span style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${user.lastMessage?user.lastMessage.message.substring(0,30):'No messages'}</span>${user.unread>0?`<span style="background:#3b82f6;color:white;font-size:10px;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center">${user.unread}</span>`:''}</div></div>
 </div>`).join('');
 
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard | Baiilla Maach</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#fafafa;height:100vh;display:flex}
-.chat-list{width:380px;background:white;border-right:1px solid #e4e4e7;display:flex;flex-direction:column}
-.chat-area{flex:1;display:flex;flex-direction:column;background:#fafafa}
-.chat-header{background:linear-gradient(135deg,#0c8ee9,#0070c7);color:white;padding:16px;display:flex;align-items:center;gap:12px}
-.chat-bg{flex:1;overflow-y:auto;padding:20px;background:#fafafa}
-.msg-out{background:linear-gradient(135deg,#0c8ee9,#0070c7);color:white;border-radius:16px 4px 16px 16px}
-.msg-in{background:white;color:#18181b;border-radius:4px 16px 16px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.05)}
-</style>
-</head>
-<body>
-<div class="chat-list">
-<div class="chat-header justify-between">
-<h1 class="text-white font-semibold text-lg">💬 Admin Chats</h1>
-<div class="flex gap-2">
-<a href="/" class="text-white/80 hover:text-white text-sm">Site</a>
-<a href="/admin/logout" class="text-white/80 hover:text-white text-sm">Logout</a>
-</div>
-</div>
-<div class="flex-1 overflow-y-auto">${usersHTML || '<div class="text-surface-400 text-center py-8">No users yet</div>'}</div>
-</div>
-<div class="chat-area" id="chatArea">
-<div class="flex-1 flex items-center justify-center">
-<div class="text-center text-surface-400">
-<svg class="w-24 h-24 mx-auto mb-4 opacity-30" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-<p class="text-lg">Select a conversation</p>
-<p class="text-sm">Manage user chats from here</p>
-</div>
-</div>
-</div>
-<script>
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#f8fafc;height:100vh;display:flex}.sidebar{width:360px;background:white;border-right:1px solid #e2e8f0;display:flex;flex-direction:column}.main{flex:1;display:flex;flex-direction:column;background:white}.header{background:#2563eb;color:white;padding:14px 16px;display:flex;align-items:center;justify-content:space-between}.header a{color:rgba(255,255,255,0.8);text-decoration:none;font-size:13px}.chat-area{flex:1;overflow-y:auto;padding:16px;background:#f8fafc}.msg-out{background:#2563eb;color:white;border-radius:14px 4px 14px 14px;padding:9px 14px;max-width:70%;margin-bottom:6px;float:right;clear:both}.msg-in{background:white;color:#1e293b;border-radius:4px 14px 14px 14px;padding:9px 14px;max-width:70%;margin-bottom:6px;float:left;clear:both;box-shadow:0 1px 2px rgba(0,0,0,0.04)}</style></head><body><div class="sidebar"><div class="header"><span style="font-weight:600">💬 Chats</span><div style="display:flex;gap:12px"><a href="/">Site</a><a href="/admin/logout">Logout</a></div></div><div style="flex:1;overflow-y:auto">${usersHTML||'<div style="text-align:center;color:#94a3b8;padding:32px">No users yet</div>'}</div></div><div class="main" id="mainArea"><div style="flex:1;display:flex;align-items:center;justify-content:center;color:#94a3b8"><div style="text-align:center">💬<br>Select a chat</div></div></div><script>
 let ws,currentChatId=null;
-function connectAdmin(){
-const p=window.location.protocol==='https:'?'wss:':'ws:';
-ws=new WebSocket(p+'//'+window.location.host+'/admin/ws');
-ws.onmessage=(e)=>{
-const d=JSON.parse(e.data);
-if(d.type==='new_message'&&d.chatId===currentChatId)addMsg(d.message,d.sender,d.msgType,d.mediaUrl,d.duration);
-if(d.type==='user_typing'&&d.chatId===currentChatId){
-const ti=document.getElementById('typingIndicator');
-if(ti)ti.style.display=d.isTyping?'block':'none';
-}
-};
-}
-async function openChat(cid,name){
-currentChatId=cid;
-document.getElementById('chatArea').innerHTML=
-'<div class="chat-header"><div class="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center"><span class="text-lg font-bold text-white">'+name.charAt(0)+'</span></div><div class="flex-1"><div class="text-white font-medium">'+name+'</div><div class="text-xs text-white/70" id="st">Online</div></div></div>'+
-'<div class="chat-bg" id="mc"><div id="msgs"></div><div id="typingIndicator" style="display:none;float:left;clear:both;margin-top:8px"><div class="msg-in px-4 py-3 inline-block">typing...</div></div><div style="clear:both"></div></div>'+
-'<div style="background:white;padding:16px;display:flex;align-items:center;gap:8px;border-top:1px solid #e4e4e7"><input type="text" id="ai" style="flex:1;background:#f4f4f5;border:2px solid transparent;padding:12px 16px;border-radius:24px;font-size:14px;outline:none;transition:all 0.3s" placeholder="Type a message..." onkeypress="if(event.key===\\'Enter\\')sendAdmin()" onfocus="this.style.borderColor=\\'#0c8ee9\\';this.style.background=\\'white\\'" onblur="this.style.borderColor=\\'transparent\\';this.style.background=\\'#f4f4f5\\'"><button onclick="sendAdmin()" style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#0c8ee9,#0070c7);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(12,142,233,0.3)"><svg width="20" height="20" fill="white" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button></div>';
-const r=await fetch('/api/admin/messages?chatId='+cid);
-const d=await r.json();
-if(d.success){document.getElementById('msgs').innerHTML='';d.messages.forEach(m=>addMsg(m.message,m.sender,m.type,m.mediaUrl,m.duration,m.createdAt));scrollB()}
-}
-function addMsg(text,sender,type,mediaUrl,duration,timestamp){
-const c=document.getElementById('msgs');if(!c)return;
-const t=new Date(timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-const a=sender==='user'?'justify-start':'justify-end';
-const b=sender==='user'?'msg-in':'msg-out';
-const d=document.createElement('div');d.className='mb-3';
-let h='';
-if(type==='image')h='<div class="flex '+a+'"><div class="'+b+' max-w-[70%] px-4 py-3"><img src="'+mediaUrl+'" style="max-width:250px;border-radius:12px;cursor:pointer" onclick="window.open(\\''+mediaUrl+'\\')"><div style="font-size:11px;opacity:0.7;margin-top:4px;text-align:right">'+t+'</div></div></div>';
-else if(type==='voice')h='<div class="flex '+a+'"><div class="'+b+' max-w-[70%] px-4 py-3"><div style="display:flex;align-items:center;gap:8px"><button onclick="new Audio(\\''+mediaUrl+'\\').play()" style="width:30px;height:30px;border-radius:50%;background:#25d366;border:none;color:white;cursor:pointer">▶</button><span>🎤 '+(duration||0)+'s</span></div><div style="font-size:11px;opacity:0.7;margin-top:4px;text-align:right">'+t+'</div></div></div>';
-else h='<div class="flex '+a+'"><div class="'+b+' max-w-[70%] px-4 py-3"><div style="font-size:14px">'+text+'</div><div style="font-size:11px;opacity:0.7;margin-top:4px;text-align:right">'+t+'</div></div></div>';
-d.innerHTML=h;c.appendChild(d);scrollB()
-}
-function scrollB(){const c=document.getElementById('mc');if(c)setTimeout(()=>c.scrollTop=c.scrollHeight,100)}
-async function sendAdmin(){
-const i=document.getElementById('ai');const m=i.value.trim();if(!m)return;i.value='';
-if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'admin_message',chatId:currentChatId,message:m}));
-await fetch('/api/admin/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:currentChatId,message:m})});
-addMsg(m,'admin','text',null,null,new Date().toISOString())
-}
-connectAdmin();
-setInterval(()=>{if(currentChatId)fetch('/api/admin/messages?chatId='+currentChatId).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msgs').innerHTML='';d.messages.forEach(m=>addMsg(m.message,m.sender,m.type,m.mediaUrl,m.duration,m.createdAt))}})},5000);
-</script>
-</body>
-</html>`;
+function connect(){const p=location.protocol==='https:'?'wss:':'ws:';ws=new WebSocket(p+'//'+location.host+'/admin/ws');ws.onmessage=(e)=>{const d=JSON.parse(e.data);if(d.type==='new_message'&&d.chatId===currentChatId)addMsg(d.message,d.sender,d.msgType,d.mediaUrl,d.duration)}}
+async function openChat(cid,name){currentChatId=cid;document.getElementById('mainArea').innerHTML='<div class="header"><div style="display:flex;align-items:center;gap:8px"><div style="width:36px;height:36px;background:#f59e0b;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold">'+name.charAt(0)+'</div><span>'+name+'</span></div></div><div class="chat-area" id="msgArea"><div id="msgs"></div></div><div style="padding:12px;display:flex;gap:8px;border-top:1px solid #e2e8f0;background:white"><input id="ai" style="flex:1;padding:10px 14px;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:20px;font-size:13px;outline:none" placeholder="Type..." onkeypress="if(event.key===\\'Enter\\')send()"><button onclick="send()" style="width:38px;height:38px;background:#2563eb;border:none;border-radius:50%;color:white;cursor:pointer;font-size:16px">➤</button></div>';
+const r=await fetch('/api/admin/messages?chatId='+cid);const d=await r.json();
+if(d.success){document.getElementById('msgs').innerHTML='';d.messages.forEach(m=>addMsg(m.message,m.sender,m.type,m.mediaUrl,m.duration,m.createdAt));scrollB()}}
+function addMsg(text,sender,type,mediaUrl,duration,timestamp){const c=document.getElementById('msgs');if(!c)return;const t=new Date(timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});const b=sender==='user'?'msg-in':'msg-out';const a=sender==='user'?'left':'right';const d=document.createElement('div');d.style.clear='both';d.style.marginBottom='8px';let h='';if(type==='image')h='<div class="'+b+'"><img src="'+mediaUrl+'" style="max-width:200px;border-radius:8px"><div style="font-size:10px;opacity:0.7;text-align:right;margin-top:3px">'+t+'</div></div>';else h='<div class="'+b+'">'+text+'<div style="font-size:10px;opacity:0.7;text-align:right;margin-top:3px">'+t+'</div></div>';d.innerHTML=h;c.appendChild(d);scrollB()}
+function scrollB(){const c=document.getElementById('msgArea');if(c)setTimeout(()=>c.scrollTop=c.scrollHeight,100)}
+async function send(){const i=document.getElementById('ai'),m=i.value.trim();if(!m)return;i.value='';if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'admin_message',chatId:currentChatId,message:m}));await fetch('/api/admin/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:currentChatId,message:m})});addMsg(m,'admin','text',null,null,new Date().toISOString())}
+connect();setInterval(()=>{if(currentChatId)fetch('/api/admin/messages?chatId='+currentChatId).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msgs').innerHTML='';d.messages.forEach(m=>addMsg(m.message,m.sender,m.type,m.mediaUrl,m.duration,m.createdAt))}})},5000)
+</script></body></html>`;
 }
 
-// Start Server
+// Start
 async function start() {
     await connectDB();
     server.listen(PORT, () => {
         console.log('========================================');
-        console.log(' 🌟 Premium Verification Hub');
-        console.log(' Baiilla Maach Official');
+        console.log(' Baiilla Maach Verification Hub');
         console.log('========================================');
-        console.log(' 📱 Main Site: http://localhost:' + PORT);
-        console.log(' 👑 Admin: http://localhost:' + PORT + '/admin');
-        console.log(' 🔑 Login: Hammad / Hammad1122@');
-        console.log(' 📦 Node.js 20.x Compatible');
-        console.log(' 🎨 White Light Mode Theme');
+        console.log(' Site: http://localhost:' + PORT);
+        console.log(' Admin: http://localhost:' + PORT + '/admin');
+        console.log(' Login: Hammad / Hammad1122@');
+        console.log(' Node 20.x Ready | Light Theme');
         console.log('========================================');
     });
 }
