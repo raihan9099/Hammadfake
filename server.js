@@ -20,7 +20,6 @@ const UPLOADS_DIR = path.join(__dir, 'uploads');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// Asset mapping
 const ASSETS = {
     profile: '/assets/tiktok_video_Aj2NO.jpeg',
     officialTT: '/assets/orginalss.png',
@@ -74,7 +73,6 @@ async function connectDB() {
     }
 }
 
-// Database operations
 async function findOrCreateUser(name, contact) {
     const query = contact.includes('@') ? { email: contact } : { phone: contact };
     let user = await db.collection('users').findOne(query);
@@ -160,7 +158,6 @@ async function markMessagesRead(chatId) {
     );
 }
 
-// Cover songs scanner
 function getCoverSongs() {
     try {
         if (!fs.existsSync(COVER_MUSIC_DIR)) return [];
@@ -182,7 +179,6 @@ function getCoverSongs() {
     }
 }
 
-// Verification data
 const VERIFICATION = {
     profile: {
         name: 'Baiilla Maach Official',
@@ -237,7 +233,6 @@ const VERIFICATION = {
     ]
 };
 
-// Main HTML
 function getMainHTML() {
     const songs = getCoverSongs();
     const { profile, officialAccounts, fakeAccounts } = VERIFICATION;
@@ -246,13 +241,9 @@ function getMainHTML() {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <meta name="theme-color" content="#ffffff">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>${profile.name} | Verification Hub</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -276,16 +267,10 @@ function getMainHTML() {
   --text-3: #64748b;
   --text-4: #94a3b8;
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
-  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05);
-  --shadow-xl: 0 20px 25px rgba(0,0,0,0.1), 0 10px 10px rgba(0,0,0,0.04);
-  --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-full: 9999px;
-  --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+  --shadow: 0 1px 3px rgba(0,0,0,0.1);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
+  --shadow-xl: 0 20px 25px rgba(0,0,0,0.1);
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -297,36 +282,27 @@ body{
   min-height:100vh;
   line-height:1.6;
   -webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale;
   overflow-x:hidden;
 }
 
 ::-webkit-scrollbar{width:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--text-4);border-radius:10px}
-::-webkit-scrollbar-thumb:hover{background:var(--text-3)}
 
-.container{
-  max-width:640px;
-  margin:0 auto;
-  padding:0 16px;
-}
+.container{max-width:640px;margin:0 auto;padding:0 16px}
 
 /* Header */
 .header{
   position:fixed;
-  top:0;
-  left:0;
-  right:0;
+  top:0;left:0;right:0;
   z-index:100;
-  background:rgba(255,255,255,0.85);
-  backdrop-filter:blur(20px) saturate(180%);
-  -webkit-backdrop-filter:blur(20px) saturate(180%);
+  background:rgba(255,255,255,0.9);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
   border-bottom:1px solid rgba(226,232,240,0.8);
-  transition:transform var(--transition);
+  transition:transform 0.3s;
 }
 .header.hidden{transform:translateY(-100%)}
-
 .header-inner{
   display:flex;
   align-items:center;
@@ -334,90 +310,62 @@ body{
   height:56px;
   gap:12px;
 }
-.header-left{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  min-width:0;
-}
+.header-left{display:flex;align-items:center;gap:8px;min-width:0}
 .header-avatar{
-  width:34px;
-  height:34px;
+  width:32px;height:32px;
   border-radius:50%;
   object-fit:cover;
   border:2px solid var(--primary-light);
   flex-shrink:0;
 }
 .header-title{
-  display:flex;
-  align-items:center;
-  gap:5px;
   font-weight:700;
-  font-size:15px;
+  font-size:14px;
   white-space:nowrap;
   background:linear-gradient(135deg,var(--primary),var(--purple));
   -webkit-background-clip:text;
   background-clip:text;
   color:transparent;
-}
-.header-tick{
-  width:16px;
-  height:16px;
-  flex-shrink:0;
-}
-.header-nav{
   display:flex;
+  align-items:center;
   gap:4px;
-  flex-shrink:0;
 }
+.header-tick{width:14px;height:14px;flex-shrink:0}
+.header-nav{display:flex;gap:2px;flex-shrink:0}
 .header-nav a{
-  padding:6px 10px;
-  font-size:12px;
+  padding:6px 8px;
+  font-size:11px;
   font-weight:500;
   color:var(--text-2);
   text-decoration:none;
-  border-radius:var(--radius-full);
-  transition:all var(--transition);
+  border-radius:20px;
+  transition:all 0.2s;
   white-space:nowrap;
 }
 .header-nav a:hover{background:var(--surface-3);color:var(--primary)}
 
 /* Sections */
 .section{padding:24px 0}
-.section-header{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  margin-bottom:16px;
-}
+.section-header{display:flex;align-items:center;gap:10px;margin-bottom:16px}
 .section-icon{
-  width:38px;
-  height:38px;
-  border-radius:var(--radius);
+  width:36px;height:36px;
+  border-radius:10px;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:18px;
+  font-size:16px;
   flex-shrink:0;
 }
-.section-title{font-size:17px;font-weight:700;color:var(--text)}
-.section-subtitle{font-size:12px;color:var(--text-3);margin-top:1px}
+.section-title{font-size:16px;font-weight:700}
+.section-subtitle{font-size:11px;color:var(--text-3)}
 
 /* Cards */
 .card{
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:var(--radius-lg);
+  border-radius:16px;
   padding:16px;
   box-shadow:var(--shadow-sm);
-  transition:all var(--transition);
-}
-.card:hover{box-shadow:var(--shadow-md)}
-.card-glass{
-  background:rgba(255,255,255,0.7);
-  backdrop-filter:blur(12px);
-  -webkit-backdrop-filter:blur(12px);
-  border:1px solid rgba(226,232,240,0.6);
 }
 
 /* Badges */
@@ -426,7 +374,7 @@ body{
   align-items:center;
   gap:4px;
   padding:4px 10px;
-  border-radius:var(--radius-full);
+  border-radius:20px;
   font-size:11px;
   font-weight:600;
   white-space:nowrap;
@@ -443,58 +391,27 @@ body{
   justify-content:center;
   gap:6px;
   padding:10px 18px;
-  border-radius:var(--radius-full);
+  border-radius:20px;
   font-size:13px;
   font-weight:600;
   text-decoration:none;
   border:none;
   cursor:pointer;
-  transition:all var(--transition);
+  transition:all 0.2s;
   white-space:nowrap;
 }
-.btn-primary{
-  background:var(--primary);
-  color:white;
-  box-shadow:0 2px 8px rgba(37,99,235,0.3);
-}
-.btn-primary:hover{background:var(--primary-dark);transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,0.4)}
-.btn-primary:active{transform:translateY(0)}
-.btn-outline{
-  background:var(--surface);
-  color:var(--text-2);
-  border:1.5px solid var(--border);
-}
+.btn-primary{background:var(--primary);color:white;box-shadow:0 2px 8px rgba(37,99,235,0.3)}
+.btn-primary:hover{background:var(--primary-dark);transform:translateY(-1px)}
+.btn-outline{background:white;color:var(--text-2);border:1.5px solid var(--border)}
 .btn-outline:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
-.btn-danger{
-  background:var(--danger);
-  color:white;
-}
+.btn-danger{background:var(--danger);color:white}
 .btn-danger:hover{background:#dc2626}
-.btn-sm{padding:7px 14px;font-size:12px}
-.btn-icon{
-  width:38px;
-  height:38px;
-  padding:0;
-  border-radius:50%;
-}
-
-/* Tick inline */
-.tick-inline{
-  display:inline-flex;
-  vertical-align:middle;
-  margin-left:4px;
-  flex-shrink:0;
-}
-.tick-inline img{width:16px;height:16px;display:block}
-.tick-lg img{width:20px;height:20px}
-.tick-sm img{width:13px;height:13px}
 
 /* Hero */
 .hero{padding-top:72px;text-align:center}
 .hero-img-wrap{position:relative;display:inline-block;margin-bottom:12px}
 .hero-img{
-  width:88px;
-  height:88px;
+  width:88px;height:88px;
   border-radius:50%;
   object-fit:cover;
   border:3px solid white;
@@ -502,10 +419,8 @@ body{
 }
 .hero-badge{
   position:absolute;
-  bottom:3px;
-  right:3px;
-  width:26px;
-  height:26px;
+  bottom:3px;right:3px;
+  width:26px;height:26px;
   background:var(--primary);
   border-radius:50%;
   display:flex;
@@ -533,13 +448,13 @@ body{
   margin:0 auto 16px;
 }
 .stat-item{
-  background:var(--surface);
+  background:white;
   border:1px solid var(--border);
-  border-radius:var(--radius);
+  border-radius:12px;
   padding:12px 8px;
   text-align:center;
 }
-.stat-value{font-size:20px;font-weight:700;color:var(--text)}
+.stat-value{font-size:20px;font-weight:700}
 .stat-label{font-size:10px;color:var(--text-3);font-weight:500;margin-top:2px}
 
 /* Account cards */
@@ -549,19 +464,18 @@ body{
   gap:12px;
   padding:12px;
   background:var(--surface-2);
-  border-radius:var(--radius);
+  border-radius:12px;
   border:1px solid var(--border);
 }
 .account-img{
-  width:48px;
-  height:48px;
-  border-radius:var(--radius-sm);
+  width:48px;height:48px;
+  border-radius:8px;
   object-fit:cover;
   flex-shrink:0;
 }
 .account-info{min-width:0}
 .account-name{
-  display:inline-flex;
+  display:flex;
   align-items:center;
   gap:3px;
   font-weight:600;
@@ -571,16 +485,16 @@ body{
 
 /* Fake card */
 .fake-card{
-  background:var(--surface);
+  background:white;
   border:1px solid var(--danger-light);
   border-left:4px solid var(--danger);
-  border-radius:var(--radius-lg);
+  border-radius:16px;
   padding:16px;
   margin-bottom:12px;
 }
 .fake-img-wrap{
   position:relative;
-  border-radius:var(--radius);
+  border-radius:12px;
   overflow:hidden;
   border:2px solid var(--danger-light);
   margin-bottom:12px;
@@ -598,108 +512,79 @@ body{
   background:var(--danger);
   color:white;
   padding:6px 16px;
-  border-radius:var(--radius-full);
+  border-radius:20px;
   font-size:12px;
   font-weight:700;
 }
 
-/* Music player */
+/* Music */
 .music-list{max-height:300px;overflow-y:auto}
 .music-item{
   display:flex;
   align-items:center;
-  gap:12px;
+  gap:10px;
   padding:12px;
-  border-radius:var(--radius);
+  border-radius:12px;
   cursor:pointer;
-  transition:all var(--transition);
+  transition:all 0.2s;
 }
 .music-item:hover{background:var(--surface-3)}
 .music-item.playing{background:var(--primary-light)}
-.music-num{
-  width:28px;
-  font-size:12px;
-  color:var(--text-4);
-  text-align:center;
-  flex-shrink:0;
-}
+.music-num{width:24px;font-size:11px;color:var(--text-4);text-align:center;flex-shrink:0}
 .music-info{flex:1;min-width:0}
-.music-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.music-title{font-size:13px;font-weight:600}
 .music-artist{font-size:11px;color:var(--text-3)}
 .music-play{
-  width:34px;
-  height:34px;
+  width:32px;height:32px;
   border-radius:50%;
   background:var(--success);
   color:white;
   border:none;
-  display:flex;
-  align-items:center;
-  justify-content:center;
   cursor:pointer;
   flex-shrink:0;
-  font-size:14px;
-  transition:all var(--transition);
-}
-.music-play:hover{background:#16a34a}
-.music-progress{
-  height:4px;
-  background:var(--border);
-  border-radius:2px;
-  margin-top:8px;
-  overflow:hidden;
-}
-.music-progress-bar{
-  height:100%;
-  background:var(--success);
-  border-radius:2px;
-  transition:width 0.3s linear;
-  width:0%;
+  font-size:13px;
+  transition:all 0.2s;
 }
 
-/* Identity card */
-.identity-card{
-  text-align:center;
-  padding:20px;
-}
+/* Identity */
+.identity-card{text-align:center;padding:16px}
 .identity-card img{
   max-width:100%;
   max-height:300px;
-  border-radius:var(--radius);
+  border-radius:12px;
   border:2px solid var(--border);
   margin-bottom:12px;
 }
 
-/* Chat Widget */
+/* Report */
+.report-section{text-align:center;padding:16px}
+.report-section img{max-width:180px;margin-bottom:12px}
+
+/* ============ CHAT WIDGET ============ */
 .chat-widget{position:fixed;bottom:20px;right:20px;z-index:999}
 .chat-btn{
-  width:56px;
-  height:56px;
+  width:56px;height:56px;
   border-radius:50%;
   cursor:pointer;
-  box-shadow:var(--shadow-lg);
-  transition:all var(--transition);
+  box-shadow:0 4px 20px rgba(0,0,0,0.2);
   border:none;
   padding:0;
   overflow:hidden;
+  background:white;
   animation:chatBounce 0.6s ease-out;
+  transition:transform 0.2s;
 }
-@keyframes chatBounce{
-  0%{transform:scale(0)}
-  50%{transform:scale(1.1)}
-  100%{transform:scale(1)}
-}
+@keyframes chatBounce{0%{transform:scale(0)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
 .chat-btn:hover{transform:scale(1.08)}
+.chat-btn:active{transform:scale(0.95)}
 .chat-btn img{width:100%;height:100%;object-fit:cover}
 .chat-badge{
   position:absolute;
-  top:-3px;
-  right:-3px;
+  top:-3px;right:-3px;
   background:var(--danger);
   color:white;
   border-radius:50%;
-  width:22px;
-  height:22px;
+  width:22px;height:22px;
   font-size:10px;
   font-weight:700;
   display:none;
@@ -710,44 +595,34 @@ body{
 
 .chat-window{
   position:fixed;
-  bottom:88px;
-  right:20px;
+  bottom:88px;right:20px;
   width:370px;
   max-width:calc(100vw - 32px);
   height:500px;
   max-height:calc(100vh - 120px);
   background:white;
-  border-radius:var(--radius-lg);
+  border-radius:16px;
   overflow:hidden;
-  box-shadow:var(--shadow-xl);
+  box-shadow:0 20px 50px rgba(0,0,0,0.2);
   display:none;
   flex-direction:column;
   border:1px solid var(--border);
+  animation:chatSlideUp 0.3s ease-out;
 }
+@keyframes chatSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .chat-window.open{display:flex}
-@media(max-width:480px){
-  .chat-window{
-    width:100%;
-    max-width:100%;
-    bottom:0;
-    right:0;
-    border-radius:var(--radius-lg) var(--radius-lg) 0 0;
-    height:85vh;
-    max-height:85vh;
-  }
-}
 
 .chat-top{
   background:var(--primary);
   color:white;
-  padding:14px;
+  padding:14px 16px;
   display:flex;
   align-items:center;
   gap:10px;
+  flex-shrink:0;
 }
 .chat-top-avatar{
-  width:40px;
-  height:40px;
+  width:40px;height:40px;
   border-radius:50%;
   object-fit:cover;
   border:2px solid rgba(255,255,255,0.3);
@@ -755,51 +630,38 @@ body{
 }
 .chat-top-info{flex:1;min-width:0}
 .chat-top-name{font-weight:600;font-size:14px}
-.chat-top-status{font-size:11px;opacity:0.8}
-.chat-close{
+.chat-top-status{font-size:11px;opacity:0.85}
+.chat-close-btn{
   background:none;
   border:none;
   color:white;
-  font-size:20px;
+  font-size:22px;
   cursor:pointer;
-  padding:4px;
+  padding:4px 8px;
   opacity:0.8;
+  transition:opacity 0.2s;
 }
-.chat-close:hover{opacity:1}
+.chat-close-btn:hover{opacity:1}
 
-.chat-msgs{
+.chat-messages{
   flex:1;
   overflow-y:auto;
-  padding:14px;
+  padding:16px;
   background:var(--surface-2);
+}
+.msg-row{
   display:flex;
-  flex-direction:column;
+  margin-bottom:6px;
 }
-.chat-date-divider{
-  text-align:center;
-  margin:8px 0;
-}
-.chat-date-divider span{
-  background:var(--surface-3);
-  color:var(--text-4);
-  font-size:10px;
-  padding:4px 10px;
-  border-radius:var(--radius-full);
-}
-.msg-wrap{
-  display:flex;
-  margin-bottom:4px;
-}
-.msg-wrap.user{justify-content:flex-end}
-.msg-wrap.admin{justify-content:flex-start}
+.msg-row.user{justify-content:flex-end}
+.msg-row.admin{justify-content:flex-start}
 .msg-bubble{
-  max-width:80%;
+  max-width:78%;
   padding:8px 12px;
-  border-radius:16px;
+  border-radius:14px;
   font-size:13px;
   line-height:1.45;
   word-wrap:break-word;
-  position:relative;
 }
 .msg-bubble.user{
   background:var(--primary);
@@ -810,11 +672,11 @@ body{
   background:white;
   color:var(--text);
   border-bottom-left-radius:4px;
-  box-shadow:var(--shadow-sm);
+  box-shadow:0 1px 2px rgba(0,0,0,0.04);
 }
 .msg-img{
   max-width:200px;
-  border-radius:12px;
+  border-radius:10px;
   cursor:pointer;
   display:block;
 }
@@ -824,17 +686,13 @@ body{
   gap:8px;
 }
 .msg-voice button{
-  width:30px;
-  height:30px;
+  width:30px;height:30px;
   border-radius:50%;
   background:var(--success);
   color:white;
   border:none;
   cursor:pointer;
   font-size:12px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
   flex-shrink:0;
 }
 .msg-time{
@@ -843,23 +701,22 @@ body{
   text-align:right;
   margin-top:2px;
 }
-.msg-read{color:var(--success-light)}
 
+/* Typing */
 .typing-indicator{
-  padding:0 14px 8px;
   display:none;
+  padding:0 16px 8px;
 }
 .typing-bubble{
   display:inline-flex;
   gap:3px;
   padding:10px 14px;
   background:white;
-  border-radius:16px;
-  box-shadow:var(--shadow-sm);
+  border-radius:14px;
+  box-shadow:0 1px 2px rgba(0,0,0,0.04);
 }
 .typing-dot{
-  width:6px;
-  height:6px;
+  width:6px;height:6px;
   border-radius:50%;
   background:var(--text-4);
   animation:typing 1.4s infinite;
@@ -868,13 +725,15 @@ body{
 .typing-dot:nth-child(3){animation-delay:0.4s}
 @keyframes typing{0%,60%,100%{transform:translateY(0);opacity:0.4}30%{transform:translateY(-8px);opacity:1}}
 
+/* Chat input */
 .chat-input-area{
-  padding:10px 14px;
-  background:white;
-  border-top:1px solid var(--border);
   display:flex;
   align-items:center;
   gap:6px;
+  padding:10px 14px;
+  background:white;
+  border-top:1px solid var(--border);
+  flex-shrink:0;
 }
 .chat-input{
   flex:1;
@@ -884,28 +743,26 @@ body{
   font-size:13px;
   outline:none;
   background:var(--surface-2);
-  transition:all var(--transition);
+  transition:all 0.2s;
   min-width:0;
 }
 .chat-input:focus{border-color:var(--primary);background:white}
-.chat-action-btn{
-  width:36px;
-  height:36px;
+.chat-icon-btn{
+  width:34px;height:34px;
   border-radius:50%;
   border:none;
   background:transparent;
   cursor:pointer;
-  font-size:18px;
+  font-size:16px;
   display:flex;
   align-items:center;
   justify-content:center;
   flex-shrink:0;
-  transition:all var(--transition);
+  transition:all 0.2s;
 }
-.chat-action-btn:hover{background:var(--surface-3)}
-.chat-send{
-  width:38px;
-  height:38px;
+.chat-icon-btn:hover{background:var(--surface-3)}
+.chat-send-btn{
+  width:38px;height:38px;
   border-radius:50%;
   background:var(--primary);
   color:white;
@@ -916,26 +773,23 @@ body{
   justify-content:center;
   flex-shrink:0;
   font-size:16px;
-  transition:all var(--transition);
+  transition:all 0.2s;
 }
-.chat-send:hover{background:var(--primary-dark);transform:scale(1.05)}
-.chat-send:active{transform:scale(0.95)}
+.chat-send-btn:hover{background:var(--primary-dark);transform:scale(1.05)}
 
 /* Recording bar */
 .recording-bar{
   display:none;
   align-items:center;
   gap:8px;
-  padding:8px 14px;
+  padding:8px 16px;
   background:var(--danger);
   color:white;
   font-size:12px;
-  font-weight:500;
+  flex-shrink:0;
 }
-.recording-bar img{width:24px;height:24px}
 .rec-dot{
-  width:8px;
-  height:8px;
+  width:8px;height:8px;
   background:white;
   border-radius:50%;
   animation:recPulse 1s infinite;
@@ -945,31 +799,41 @@ body{
 /* Image preview */
 .img-preview{
   display:none;
-  padding:8px 14px;
+  padding:8px 16px;
   background:white;
-  border-top:1px solid var(--border);
   position:relative;
+  flex-shrink:0;
 }
-.img-preview img{
-  max-height:80px;
-  border-radius:var(--radius-sm);
-}
+.img-preview img{max-height:70px;border-radius:8px}
 .img-preview-close{
   position:absolute;
-  top:4px;
-  right:18px;
+  top:4px;right:20px;
   background:rgba(0,0,0,0.6);
   color:white;
   border:none;
   border-radius:50%;
-  width:22px;
-  height:22px;
+  width:20px;height:20px;
   cursor:pointer;
-  font-size:11px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  font-size:10px;
 }
+
+/* Chat login */
+.chat-login{
+  padding:24px 16px;
+  text-align:center;
+}
+.chat-login input{
+  width:100%;
+  padding:10px 14px;
+  border:1.5px solid var(--border);
+  border-radius:10px;
+  font-size:13px;
+  outline:none;
+  background:var(--surface-2);
+  margin-bottom:8px;
+  transition:all 0.2s;
+}
+.chat-login input:focus{border-color:var(--primary);background:white}
 
 /* Image viewer */
 .img-viewer{
@@ -986,44 +850,32 @@ body{
 .img-viewer img{max-width:95%;max-height:90%;border-radius:8px}
 .img-viewer-close{
   position:absolute;
-  top:16px;
-  right:16px;
+  top:16px;right:16px;
   color:white;
-  font-size:28px;
+  font-size:30px;
   cursor:pointer;
-  background:none;
-  border:none;
-  padding:8px;
 }
 
-/* Chat login */
-.chat-login{
-  padding:24px 16px;
-  text-align:center;
+/* Audio floating */
+.audio-floating{
+  position:fixed;
+  bottom:80px;
+  left:16px;right:16px;
+  max-width:400px;
+  background:white;
+  border-radius:14px;
+  padding:12px 16px;
+  box-shadow:var(--shadow-lg);
+  display:none;
+  align-items:center;
+  gap:10px;
+  z-index:99;
+  border:1px solid var(--border);
 }
-.chat-login input{
-  width:100%;
-  padding:10px 14px;
-  border:1.5px solid var(--border);
-  border-radius:var(--radius);
-  font-size:13px;
-  outline:none;
-  background:var(--surface-2);
-  margin-bottom:8px;
-  transition:all var(--transition);
-}
-.chat-login input:focus{border-color:var(--primary);background:white}
-
-/* Report section */
-.report-section{
-  text-align:center;
-  padding:16px;
-}
-.report-section img{max-width:200px;margin-bottom:12px}
-
-/* Animations */
-@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.animate-in{animation:fadeIn 0.5s ease-out}
+.audio-floating.open{display:flex}
+.audio-floating-info{flex:1;min-width:0}
+.audio-floating-title{font-size:13px;font-weight:600}
+.audio-floating-artist{font-size:11px;color:var(--text-3)}
 
 /* Toast */
 .toast{
@@ -1034,49 +886,27 @@ body{
   background:var(--text);
   color:white;
   padding:10px 20px;
-  border-radius:var(--radius-full);
+  border-radius:20px;
   font-size:13px;
   z-index:1000;
-  animation:fadeIn 0.3s ease-out;
+  animation:fadeIn 0.3s;
+  pointer-events:none;
 }
+@keyframes fadeIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 
-/* Audio player floating */
-.audio-floating{
-  position:fixed;
-  bottom:80px;
-  left:16px;
-  right:16px;
-  max-width:400px;
-  background:white;
-  border-radius:var(--radius-lg);
-  padding:12px 16px;
-  box-shadow:var(--shadow-lg);
-  display:none;
-  align-items:center;
-  gap:12px;
-  z-index:99;
-  border:1px solid var(--border);
-}
-.audio-floating.open{display:flex}
-.audio-floating-info{flex:1;min-width:0}
-.audio-floating-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.audio-floating-artist{font-size:11px;color:var(--text-3)}
-.audio-floating-close{
-  background:none;
-  border:none;
-  font-size:18px;
-  cursor:pointer;
-  color:var(--text-3);
-  padding:4px;
-}
-
-/* Responsive */
+/* Mobile */
 @media(max-width:480px){
-  .container{padding:0 12px}
-  .hero-img{width:72px;height:72px}
-  .hero-name{font-size:18px}
+  .chat-window{
+    width:100%;
+    max-width:100%;
+    bottom:0;
+    right:0;
+    border-radius:16px 16px 0 0;
+    height:85vh;
+    max-height:85vh;
+  }
   .chat-btn{width:50px;height:50px}
-  .audio-floating{bottom:70px;left:8px;right:8px}
+  .hero-img{width:72px;height:72px}
 }
 </style>
 </head>
@@ -1087,10 +917,10 @@ body{
   <div class="container">
     <div class="header-inner">
       <div class="header-left">
-        <img src="${ASSETS.profile}" alt="${profile.name}" class="header-avatar" onerror="this.style.display='none'" loading="eager">
+        <img src="${ASSETS.profile}" alt="" class="header-avatar" onerror="this.style.display='none'">
         <span class="header-title">
           Verification Hub
-          <span class="tick-inline"><img src="${ASSETS.tiktokTick}" alt="✓" onerror="this.style.display='none'"></span>
+          <img src="${ASSETS.tiktokTick}" alt="✓" class="header-tick" onerror="this.style.display='none'">
         </span>
       </div>
       <nav class="header-nav">
@@ -1107,16 +937,16 @@ body{
 <main class="container" style="padding-bottom:40px">
 
 <!-- Hero -->
-<section class="hero animate-in">
+<section class="hero">
   <div class="hero-img-wrap">
-    <img src="${ASSETS.profile}" alt="${profile.name}" class="hero-img" onerror="this.style.display='none'" loading="eager">
+    <img src="${ASSETS.profile}" alt="" class="hero-img" onerror="this.style.display='none'">
     <div class="hero-badge">
-      <img src="${ASSETS.tiktokTick}" alt="✓" onerror="this.innerHTML='✓';this.style.color='white';this.style.fontSize='12px'">
+      <img src="${ASSETS.tiktokTick}" alt="✓" onerror="this.style.display='none'">
     </div>
   </div>
   <h1 class="hero-name">
     ${profile.name}
-    <span class="tick-inline tick-lg"><img src="${ASSETS.tiktokTick}" alt="✓" onerror="this.style.display='none'"></span>
+    <img src="${ASSETS.tiktokTick}" alt="✓" style="width:18px;height:18px" onerror="this.style.display='none'">
   </h1>
   <p class="hero-bio">${profile.bio}</p>
   
@@ -1127,27 +957,23 @@ body{
   </div>
   
   <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-    <span class="badge badge-verified">
-      <img src="${ASSETS.tiktokTick}" alt="" style="width:12px;height:12px" onerror="this.style.display='none'">
-      Verified Official
-    </span>
+    <span class="badge badge-verified">✓ Verified Official</span>
     <span class="badge badge-creator">Premium Creator</span>
   </div>
   
   <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
-    <a href="${officialAccounts[0].url}" target="_blank" rel="noopener" class="btn btn-primary">
+    <a href="${officialAccounts[0].url}" target="_blank" class="btn btn-primary">
       <img src="${ASSETS.tiktokIcon}" alt="" style="width:16px;height:16px" onerror="this.style.display='none'">
       TikTok
     </a>
-    <a href="${officialAccounts[1].url}" target="_blank" rel="noopener" class="btn btn-primary" style="background:#1877f2">
-      <img src="${ASSETS.fbTick}" alt="" style="width:16px;height:16px;filter:brightness(0) invert(1)" onerror="this.style.display='none'">
+    <a href="${officialAccounts[1].url}" target="_blank" class="btn btn-primary" style="background:#1877f2">
       Facebook
     </a>
   </div>
 </section>
 
 <!-- Official Accounts -->
-<section class="section animate-in" id="official">
+<section class="section" id="official">
   <div class="section-header">
     <div class="section-icon" style="background:var(--primary-light)">✅</div>
     <div>
@@ -1155,29 +981,25 @@ body{
       <div class="section-subtitle">The only authentic profiles</div>
     </div>
   </div>
-  
   <div class="card" style="display:flex;flex-direction:column;gap:10px">
     ${officialAccounts.map(acc => `
     <div class="account-card">
-      ${acc.screenshot ? `<img src="${acc.screenshot}" alt="${acc.username}" class="account-img" onerror="this.style.display='none'" loading="lazy">` : `<div class="account-img" style="background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--text-4)">${acc.platform[0]}</div>`}
+      <img src="${acc.screenshot}" alt="" class="account-img" onerror="this.style.display='none'">
       <div class="account-info">
         <div class="account-name">
           ${acc.username}
-          <span class="tick-inline tick-sm"><img src="${acc.badge}" alt="✓" onerror="this.style.display='none'"></span>
+          <img src="${acc.badge}" alt="✓" style="width:14px;height:14px" onerror="this.style.display='none'">
         </div>
         <div class="account-meta">${acc.platform} · ${acc.followers} followers${acc.likes ? ' · '+acc.likes+' likes' : ''}</div>
       </div>
-      <a href="${acc.url}" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="margin-left:auto;flex-shrink:0">
-        <img src="${acc.icon}" alt="" style="width:14px;height:14px" onerror="this.style.display='none'">
-        Follow
-      </a>
+      <a href="${acc.url}" target="_blank" class="btn btn-primary" style="margin-left:auto;flex-shrink:0;font-size:11px;padding:8px 14px">Follow</a>
     </div>
     `).join('')}
   </div>
 </section>
 
 <!-- Identity Verification -->
-<section class="section animate-in" id="identity">
+<section class="section" id="identity">
   <div class="section-header">
     <div class="section-icon" style="background:var(--success-light)">🛡️</div>
     <div>
@@ -1185,19 +1007,18 @@ body{
       <div class="section-subtitle">Government verified identity proof</div>
     </div>
   </div>
-  
   <div class="card identity-card">
-    <img src="${ASSETS.realId}" alt="Identity Proof" loading="lazy" onerror="this.style.display='none'">
+    <img src="${ASSETS.realId}" alt="Identity Proof" onerror="this.style.display='none'">
     <p style="font-size:13px;color:var(--text-2);margin-bottom:8px">
       <strong>✅ Verified Identity</strong><br>
-      This profile has been verified through official government documentation. You can trust this is the real Baiilla Maach.
+      This profile has been verified through official government documentation.
     </p>
     <span class="badge badge-success">✓ Identity Confirmed</span>
   </div>
 </section>
 
 <!-- Fake Accounts -->
-<section class="section animate-in" id="fake">
+<section class="section" id="fake">
   <div class="section-header">
     <div class="section-icon" style="background:var(--danger-light)">⚠️</div>
     <div>
@@ -1208,58 +1029,52 @@ body{
   </div>
   
   <div style="text-align:center;margin-bottom:16px">
-    <img src="${ASSETS.fakeDetect}" alt="Fake Detection" style="max-width:150px;border-radius:var(--radius)" loading="lazy" onerror="this.style.display='none'">
+    <img src="${ASSETS.fakeDetect}" alt="Fake Detection" style="max-width:140px;border-radius:12px" onerror="this.style.display='none'">
   </div>
   
   ${fakeAccounts.map((acc, i) => `
   <div class="fake-card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:18px">⚠️</span>
-        <strong style="color:var(--danger);font-size:14px">Fake Account #${i+1}</strong>
+        <span style="font-size:16px">⚠️</span>
+        <strong style="color:var(--danger);font-size:14px">Fake #${i+1}</strong>
       </div>
       <span class="badge badge-danger">${acc.threat} Threat</span>
     </div>
     
     <div class="fake-img-wrap">
-      <img src="${acc.screenshot}" alt="Fake ${acc.username}" loading="lazy" onerror="this.style.display='none'">
+      <img src="${acc.screenshot}" alt="Fake" onerror="this.style.display='none'">
       <div class="fake-overlay"><span>⚠️ FAKE ACCOUNT</span></div>
     </div>
     
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:10px">
-      <div style="background:var(--danger-light);padding:8px 10px;border-radius:var(--radius-sm)"><span style="color:var(--text-3)">Platform:</span> <strong>${acc.platform}</strong></div>
-      <div style="background:var(--danger-light);padding:8px 10px;border-radius:var(--radius-sm)"><span style="color:var(--text-3)">Username:</span> <strong style="color:var(--danger)">${acc.username}</strong></div>
-      <div style="background:var(--danger-light);padding:8px 10px;border-radius:var(--radius-sm)"><span style="color:var(--text-3)">Reports:</span> <strong>${acc.reports}+</strong></div>
-      <div style="background:var(--danger-light);padding:8px 10px;border-radius:var(--radius-sm)"><span style="color:var(--text-3)">Threat:</span> <strong style="color:var(--danger)">${acc.threat}</strong></div>
+      <div style="background:var(--danger-light);padding:8px 10px;border-radius:8px"><span style="color:var(--text-3)">Platform:</span> <strong>${acc.platform}</strong></div>
+      <div style="background:var(--danger-light);padding:8px 10px;border-radius:8px"><span style="color:var(--text-3)">Username:</span> <strong style="color:var(--danger)">${acc.username}</strong></div>
+      <div style="background:var(--danger-light);padding:8px 10px;border-radius:8px"><span style="color:var(--text-3)">Reports:</span> <strong>${acc.reports}+</strong></div>
+      <div style="background:var(--danger-light);padding:8px 10px;border-radius:8px"><span style="color:var(--text-3)">Threat:</span> <strong style="color:var(--danger)">${acc.threat}</strong></div>
     </div>
     
-    <div style="background:var(--danger-light);padding:10px;border-radius:var(--radius-sm);font-size:12px;color:var(--danger);margin-bottom:10px">
+    <div style="background:var(--danger-light);padding:10px;border-radius:8px;font-size:12px;color:var(--danger);margin-bottom:10px">
       <img src="${ASSETS.flag}" alt="" style="width:14px;height:14px;vertical-align:middle;margin-right:4px" onerror="this.style.display='none'">
       ${acc.reason}
     </div>
     
     <div style="display:flex;gap:8px">
-      <a href="${acc.url}" target="_blank" rel="noopener" class="btn btn-danger btn-sm" style="flex:1">
-        <img src="${ASSETS.reportImg}" alt="" style="width:14px;height:14px" onerror="this.style.display='none'">
-        Report Account
-      </a>
-      <button onclick="copyText('${acc.username}')" class="btn btn-outline btn-sm" style="flex:1">
-        <img src="${ASSETS.flag}" alt="" style="width:14px;height:14px" onerror="this.style.display='none'">
-        Copy Username
-      </button>
+      <a href="${acc.url}" target="_blank" class="btn btn-danger" style="flex:1;font-size:11px">Report</a>
+      <button onclick="copyText('${acc.username}')" class="btn btn-outline" style="flex:1;font-size:11px">Copy</button>
     </div>
   </div>
   `).join('')}
   
   <div style="text-align:center;margin-top:16px">
-    <button onclick="playFakeVoice()" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger-light)">
+    <button onclick="playFakeVoice()" class="btn btn-outline" style="color:var(--danger);border-color:var(--danger-light);font-size:12px">
       🔊 Listen to Voice Alert
     </button>
   </div>
 </section>
 
 <!-- Report Section -->
-<section class="section animate-in">
+<section class="section">
   <div class="section-header">
     <div class="section-icon" style="background:var(--warning-light)">📢</div>
     <div>
@@ -1267,48 +1082,41 @@ body{
       <div class="section-subtitle">Your report helps protect others</div>
     </div>
   </div>
-  
   <div class="card report-section">
-    <img src="${ASSETS.reportImg}" alt="Report" loading="lazy" onerror="this.style.display='none'">
+    <img src="${ASSETS.reportImg}" alt="Report" onerror="this.style.display='none'">
     <p style="font-size:13px;color:var(--text-2);margin-bottom:12px">
-      If you find any account impersonating Baiilla Maach, report it immediately. Your action helps keep the community safe.
+      If you find any account impersonating Baiilla Maach, report it immediately.
     </p>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-      <a href="${fakeAccounts[0].url}" target="_blank" rel="noopener" class="btn btn-danger btn-sm">
+      <a href="${fakeAccounts[0].url}" target="_blank" class="btn btn-danger" style="font-size:12px">
         <img src="${ASSETS.flag}" alt="" style="width:14px;height:14px" onerror="this.style.display='none'">
         Report on TikTok
       </a>
-      <button onclick="showToast('Report submitted! Thank you.')" class="btn btn-outline btn-sm">
-        Submit Report
-      </button>
+      <button onclick="showToast('Report submitted!')" class="btn btn-outline" style="font-size:12px">Submit Report</button>
     </div>
   </div>
 </section>
 
 ${songs.length ? `
 <!-- Cover Music -->
-<section class="section animate-in" id="music">
+<section class="section" id="music">
   <div class="section-header">
     <div class="section-icon" style="background:var(--success-light)">🎵</div>
     <div>
       <div class="section-title">Cover Music</div>
-      <div class="section-subtitle">${songs.length} tracks available</div>
+      <div class="section-subtitle">${songs.length} tracks</div>
     </div>
   </div>
-  
   <div class="card" style="padding:0;overflow:hidden">
-    <div class="music-progress" id="musicProgress">
-      <div class="music-progress-bar" id="musicProgressBar"></div>
-    </div>
-    <div class="music-list" id="musicList">
+    <div class="music-list">
       ${songs.map((s, i) => `
-      <div class="music-item" data-url="${s.url}" data-title="${s.title}" onclick="playTrack(this, '${s.url}', '${s.title}')">
+      <div class="music-item" data-url="${s.url}" data-title="${s.title}" onclick="playTrack(this,'${s.url}','${s.title}')">
         <div class="music-num">${String(i+1).padStart(2,'0')}</div>
         <div class="music-info">
           <div class="music-title">${s.title}</div>
           <div class="music-artist">Cover Song</div>
         </div>
-        <button class="music-play" data-playbtn>▶</button>
+        <button class="music-play" data-btn>▶</button>
       </div>
       `).join('')}
     </div>
@@ -1317,57 +1125,55 @@ ${songs.length ? `
 ` : ''}
 
 <!-- Help Section -->
-<section class="section animate-in" id="help">
+<section class="section" id="help">
   <div class="section-header">
     <div class="section-icon" style="background:var(--purple-light)">💬</div>
     <div>
       <div class="section-title">Need Help?</div>
-      <div class="section-subtitle">We're here to assist you</div>
+      <div class="section-subtitle">Chat with us directly</div>
     </div>
   </div>
-  
   <div class="card" style="text-align:center">
-    <img src="${ASSETS.communication}" alt="Contact" style="max-width:120px;margin:0 auto 12px" loading="lazy" onerror="this.style.display='none'">
+    <img src="${ASSETS.communication}" alt="Contact" style="max-width:120px;margin:0 auto 12px" onerror="this.style.display='none'">
     <p style="font-size:13px;color:var(--text-2);margin-bottom:12px">
-      Have questions about verification or found a fake account? Chat with us directly.
+      Have questions about verification? Chat with us.
     </p>
-    <button onclick="openChat()" class="btn btn-primary">
-      <img src="${ASSETS.chatIcon}" alt="" style="width:18px;height:18px;border-radius:50%" onerror="this.style.display='none'">
-      Start Chat
+    <button onclick="openChatWindow()" class="btn btn-primary">
+      💬 Start Chat
     </button>
   </div>
 </section>
 
 </main>
 
-<!-- Audio -->
+<!-- Audio Elements -->
 <audio id="welcomeAudio" src="${ASSETS.welcomeVoice}" preload="none"></audio>
 <audio id="fakeAudio" src="${ASSETS.fakeVoice}" preload="none"></audio>
 <audio id="musicAudio" preload="none"></audio>
 
 <!-- Floating Music Player -->
 <div class="audio-floating" id="audioFloating">
-  <button class="music-play" id="floatingPlayBtn" onclick="toggleFloatingPlay()" style="width:34px;height:34px;background:var(--success);color:white;border:none;border-radius:50%;cursor:pointer;font-size:14px;flex-shrink:0">▶</button>
+  <button id="floatingPlayBtn" onclick="toggleFloatingPlay()" style="width:34px;height:34px;border-radius:50%;background:var(--success);color:white;border:none;cursor:pointer;font-size:14px;flex-shrink:0">▶</button>
   <div class="audio-floating-info">
     <div class="audio-floating-title" id="floatingTitle">No track</div>
     <div class="audio-floating-artist">Cover Song</div>
   </div>
-  <button class="audio-floating-close" onclick="closeFloatingPlayer()">✕</button>
+  <button onclick="closeFloatingPlayer()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-3);padding:4px">✕</button>
 </div>
 
 <!-- Image Viewer -->
-<div class="img-viewer" id="imgViewer" onclick="this.classList.remove('open')">
-  <button class="img-viewer-close">✕</button>
+<div class="img-viewer" id="imgViewer" onclick="closeImageViewer()">
+  <span class="img-viewer-close">✕</span>
   <img id="viewerImg" src="" alt="">
 </div>
 
 <!-- Toast -->
 <div class="toast" id="toast" style="display:none"></div>
 
-<!-- Chat Widget -->
+<!-- ============ CHAT WIDGET ============ -->
 <div class="chat-widget">
-  <button class="chat-btn" id="chatBtn" onclick="toggleChat()">
-    <img src="${ASSETS.chatIcon}" alt="Chat" onerror="this.style.display='none';this.parentElement.innerHTML='<svg viewBox=\\'0 0 24 24\\' style=\\'width:28px;height:28px;fill:white\\'><path d=\\'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347\\'/></svg>';this.parentElement.style.background='#25d366'">
+  <button class="chat-btn" id="chatBtn" onclick="openChatWindow()" title="Chat with us">
+    <img src="${ASSETS.chatIcon}" alt="Chat" onerror="this.style.display='none'">
   </button>
   <span class="chat-badge" id="chatBadge">0</span>
   
@@ -1376,27 +1182,29 @@ ${songs.length ? `
       <img src="${ASSETS.profile}" alt="" class="chat-top-avatar" onerror="this.style.display='none'">
       <div class="chat-top-info">
         <div class="chat-top-name">Hammad Bin Amir</div>
-        <div class="chat-top-status" id="chatStatus">Online</div>
+        <div class="chat-top-status" id="chatStatusText">Online</div>
       </div>
-      <button class="chat-close" onclick="toggleChat()">✕</button>
+      <button class="chat-close-btn" onclick="closeChatWindow()">✕</button>
     </div>
     
-    <div id="chatLogin" class="chat-login">
-      <p style="color:var(--text-3);font-size:13px;margin-bottom:12px">Enter your details to start messaging</p>
-      <input type="text" id="userName" placeholder="Your name">
-      <input type="text" id="userContact" placeholder="Phone number or email">
-      <button onclick="registerChat()" class="btn btn-primary" style="width:100%;justify-content:center">Start Chat</button>
-      <p style="color:var(--text-4);font-size:10px;margin-top:8px">Use the same phone/email to find your previous chats</p>
+    <!-- Login Form -->
+    <div id="chatLoginForm" class="chat-login">
+      <p style="color:var(--text-3);font-size:13px;margin-bottom:12px">Enter your details to start</p>
+      <input type="text" id="chatNameInput" placeholder="Your name">
+      <input type="text" id="chatContactInput" placeholder="Phone number or email">
+      <button onclick="registerUser()" class="btn btn-primary" style="width:100%;justify-content:center">Start Chat</button>
+      <p style="color:var(--text-4);font-size:10px;margin-top:8px">Use same info to restore previous chats</p>
     </div>
     
-    <div id="chatMain" style="display:none;flex:1;flex-direction:column">
-      <div class="chat-msgs" id="chatMsgs">
+    <!-- Chat Interface -->
+    <div id="chatMainUI" style="display:none;flex:1;flex-direction:column">
+      <div class="chat-messages" id="chatMessagesContainer">
         <div style="text-align:center;padding:16px">
-          <span style="background:var(--surface-3);color:var(--text-4);font-size:10px;padding:4px 10px;border-radius:var(--radius-full)">🔒 Messages are secure</span>
+          <span style="background:var(--surface-3);color:var(--text-4);font-size:10px;padding:4px 10px;border-radius:10px">🔒 Messages are secure</span>
         </div>
       </div>
       
-      <div class="typing-indicator" id="typingInd">
+      <div class="typing-indicator" id="typingIndicator">
         <div class="typing-bubble">
           <div class="typing-dot"></div>
           <div class="typing-dot"></div>
@@ -1404,23 +1212,23 @@ ${songs.length ? `
         </div>
       </div>
       
-      <div class="img-preview" id="imgPreview">
-        <img id="previewImg" src="" alt="">
-        <button class="img-preview-close" onclick="clearImgPreview()">✕</button>
+      <div class="img-preview" id="imagePreviewBar">
+        <img id="previewImage" src="" alt="">
+        <button class="img-preview-close" onclick="clearImagePreview()">✕</button>
       </div>
       
       <div class="recording-bar" id="recordingBar">
         <div class="rec-dot"></div>
-        <span>Recording voice message...</span>
-        <span id="recTime" style="margin-left:auto">00:00</span>
+        <span>Recording voice...</span>
+        <span id="recordingTime" style="margin-left:auto">00:00</span>
       </div>
       
       <div class="chat-input-area">
-        <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="handleImgUpload(event)">
-        <button class="chat-action-btn" onclick="document.getElementById('imgInput').click()" title="Send image">🖼️</button>
-        <input type="text" id="msgInput" class="chat-input" placeholder="Aa" onkeypress="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}">
-        <button class="chat-action-btn" id="micBtn" onmousedown="startRec()" onmouseup="stopRec()" onmouseleave="stopRec()" ontouchstart="startRec()" ontouchend="stopRec()" title="Voice message">🎤</button>
-        <button class="chat-send" onclick="sendMsg()">
+        <input type="file" id="imageFileInput" accept="image/*" style="display:none" onchange="handleImageSelect(event)">
+        <button class="chat-icon-btn" onclick="document.getElementById('imageFileInput').click()" title="Send image">🖼️</button>
+        <input type="text" id="messageTextInput" class="chat-input" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
+        <button class="chat-icon-btn" id="micButton" onmousedown="startRecording()" onmouseup="stopRecording()" onmouseleave="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" title="Voice message">🎤</button>
+        <button class="chat-send-btn" onclick="sendMessage()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
       </div>
@@ -1430,95 +1238,92 @@ ${songs.length ? `
 
 <script>
 // ============ GLOBAL STATE ============
-let ws = null;
-let chatToken = localStorage.getItem('verif_ct');
-let chatId = null;
-let selectedImg = null;
+let webSocket = null;
+let userToken = localStorage.getItem('vh_chat_token');
+let userChatId = null;
+let selectedImageData = null;
 let mediaRecorder = null;
 let audioChunks = [];
-let recStart = 0;
-let recTimer = null;
-let currentTrack = null;
+let recordingStartTime = 0;
+let recordingTimer = null;
+let currentTrackElement = null;
 let currentTrackUrl = '';
-let floatingAudio = document.getElementById('musicAudio');
-let welcomePlayed = sessionStorage.getItem('wv_played');
+let floatingPlayer = document.getElementById('musicAudio');
 
 // ============ HEADER SCROLL ============
-let lastScroll = 0;
-window.addEventListener('scroll', () => {
-  const h = document.getElementById('header');
-  const s = window.scrollY;
-  if (s > lastScroll && s > 80) h.classList.add('hidden');
-  else h.classList.remove('hidden');
-  lastScroll = s;
+let lastScrollPosition = 0;
+window.addEventListener('scroll', function() {
+  var header = document.getElementById('header');
+  var currentScroll = window.scrollY;
+  if (currentScroll > lastScrollPosition && currentScroll > 80) {
+    header.classList.add('hidden');
+  } else {
+    header.classList.remove('hidden');
+  }
+  lastScrollPosition = currentScroll;
 }, { passive: true });
 
 // ============ WELCOME VOICE ============
-if (!welcomePlayed) {
-  setTimeout(() => {
-    const a = document.getElementById('welcomeAudio');
-    if (a) {
-      a.play().catch(() => {});
-      sessionStorage.setItem('wv_played', '1');
+if (!sessionStorage.getItem('vh_welcome_played')) {
+  setTimeout(function() {
+    var audio = document.getElementById('welcomeAudio');
+    if (audio) {
+      audio.play().catch(function() {});
+      sessionStorage.setItem('vh_welcome_played', '1');
     }
   }, 3000);
 }
 
 // ============ FAKE VOICE ============
 function playFakeVoice() {
-  const a = document.getElementById('fakeAudio');
-  if (a) a.play().catch(() => {});
+  var audio = document.getElementById('fakeAudio');
+  if (audio) audio.play().catch(function() {});
 }
 
 // ============ MUSIC PLAYER ============
-function playTrack(el, url, title) {
-  document.querySelectorAll('.music-item').forEach(i => i.classList.remove('playing'));
-  el.classList.add('playing');
+function playTrack(element, url, title) {
+  // Remove playing class from all
+  var allItems = document.querySelectorAll('.music-item');
+  allItems.forEach(function(item) { item.classList.remove('playing'); });
+  element.classList.add('playing');
   
-  if (currentTrackUrl === url && !floatingAudio.paused) {
-    floatingAudio.pause();
-    el.querySelector('[data-playbtn]').textContent = '▶';
+  // Reset all play buttons
+  var allBtns = document.querySelectorAll('[data-btn]');
+  allBtns.forEach(function(btn) { btn.textContent = '▶'; });
+  
+  if (currentTrackUrl === url && !floatingPlayer.paused) {
+    floatingPlayer.pause();
     updateFloatingUI(false);
+    currentTrackUrl = '';
     return;
   }
   
   currentTrackUrl = url;
-  currentTrack = el;
-  floatingAudio.src = url;
-  floatingAudio.play().catch(() => {});
+  currentTrackElement = element;
+  floatingPlayer.src = url;
+  floatingPlayer.play().catch(function() {});
   
-  document.querySelectorAll('[data-playbtn]').forEach(b => b.textContent = '▶');
-  el.querySelector('[data-playbtn]').textContent = '⏸';
+  element.querySelector('[data-btn]').textContent = '⏸';
   
   document.getElementById('floatingTitle').textContent = title;
   document.getElementById('floatingPlayBtn').textContent = '⏸';
   document.getElementById('audioFloating').classList.add('open');
   
-  // Progress
-  floatingAudio.ontimeupdate = () => {
-    if (floatingAudio.duration) {
-      const pct = (floatingAudio.currentTime / floatingAudio.duration) * 100;
-      document.getElementById('musicProgressBar').style.width = pct + '%';
-    }
-  };
-  
-  floatingAudio.onended = () => {
-    el.querySelector('[data-playbtn]').textContent = '▶';
+  floatingPlayer.onended = function() {
+    element.querySelector('[data-btn]').textContent = '▶';
     updateFloatingUI(false);
-    document.getElementById('musicProgressBar').style.width = '0%';
+    currentTrackUrl = '';
   };
 }
 
 function toggleFloatingPlay() {
   if (!currentTrackUrl) return;
-  if (floatingAudio.paused) {
-    floatingAudio.play();
+  if (floatingPlayer.paused) {
+    floatingPlayer.play();
     updateFloatingUI(true);
-    if (currentTrack) currentTrack.querySelector('[data-playbtn]').textContent = '⏸';
   } else {
-    floatingAudio.pause();
+    floatingPlayer.pause();
     updateFloatingUI(false);
-    if (currentTrack) currentTrack.querySelector('[data-playbtn]').textContent = '▶';
   }
 }
 
@@ -1527,244 +1332,327 @@ function updateFloatingUI(playing) {
 }
 
 function closeFloatingPlayer() {
-  floatingAudio.pause();
-  floatingAudio.src = '';
+  floatingPlayer.pause();
+  floatingPlayer.src = '';
   currentTrackUrl = '';
-  currentTrack = null;
+  currentTrackElement = null;
   document.getElementById('audioFloating').classList.remove('open');
-  document.getElementById('musicProgressBar').style.width = '0%';
-  document.querySelectorAll('.music-item').forEach(i => i.classList.remove('playing'));
-  document.querySelectorAll('[data-playbtn]').forEach(b => b.textContent = '▶');
+  var allBtns = document.querySelectorAll('[data-btn]');
+  allBtns.forEach(function(btn) { btn.textContent = '▶'; });
+  var allItems = document.querySelectorAll('.music-item');
+  allItems.forEach(function(item) { item.classList.remove('playing'); });
 }
 
 // ============ TOAST ============
-let toastTimer;
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.display = 'block';
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.style.display = 'none', 2500);
+var toastTimeout;
+function showToast(message) {
+  var toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.style.display = 'block';
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(function() { toast.style.display = 'none'; }, 2500);
 }
 
 function copyText(text) {
-  navigator.clipboard.writeText(text).then(() => showToast('Copied: ' + text)).catch(() => showToast('Failed to copy'));
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('Copied: ' + text);
+  }).catch(function() {
+    showToast('Failed to copy');
+  });
 }
 
 // ============ IMAGE VIEWER ============
-function viewImage(url) {
+function openImageViewer(url) {
   document.getElementById('viewerImg').src = url;
   document.getElementById('imgViewer').classList.add('open');
 }
 
-// ============ CHAT SYSTEM ============
-function openChat() { toggleChat(true); }
-
-function toggleChat(force) {
-  const w = document.getElementById('chatWindow');
-  if (typeof force === 'boolean') w.classList.toggle('open', force);
-  else w.classList.toggle('open');
-  if (w.classList.contains('open') && !ws) connectWS();
+function closeImageViewer() {
+  document.getElementById('imgViewer').classList.remove('open');
 }
 
-function connectWS() {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(proto + '//' + location.host + '/ws');
+// ============ CHAT SYSTEM ============
+function openChatWindow() {
+  var chatWindow = document.getElementById('chatWindow');
+  chatWindow.classList.add('open');
   
-  ws.onopen = () => {
-    document.getElementById('chatStatus').textContent = 'Online';
-    if (chatToken) ws.send(JSON.stringify({ type: 'auth', token: chatToken }));
-  };
+  if (!webSocket || webSocket.readyState !== 1) {
+    connectWebSocket();
+  }
+}
+
+function closeChatWindow() {
+  document.getElementById('chatWindow').classList.remove('open');
+}
+
+function connectWebSocket() {
+  var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  webSocket = new WebSocket(protocol + '//' + location.host + '/ws');
   
-  ws.onmessage = (e) => {
-    const d = JSON.parse(e.data);
-    if (d.type === 'auth_success') { showChatUI(); loadMsgs(); }
-    else if (d.type === 'message') addMsg(d.message, d.sender, d.msgType || 'text', d.mediaUrl, d.duration, d.timestamp);
-    else if (d.type === 'typing') {
-      document.getElementById('typingInd').style.display = d.isTyping ? 'block' : 'none';
-      document.getElementById('chatStatus').textContent = d.isTyping ? 'typing...' : 'Online';
-      scrollChat();
+  webSocket.onopen = function() {
+    console.log('✅ Chat connected');
+    document.getElementById('chatStatusText').textContent = 'Online';
+    
+    // Auto-auth if we have a saved token
+    if (userToken) {
+      webSocket.send(JSON.stringify({ type: 'auth', token: userToken }));
     }
   };
   
-  ws.onclose = () => {
-    document.getElementById('chatStatus').textContent = 'Offline';
-    setTimeout(connectWS, 3000);
+  webSocket.onmessage = function(event) {
+    var data = JSON.parse(event.data);
+    
+    if (data.type === 'auth_success') {
+      showChatInterface();
+      loadChatHistory();
+    } else if (data.type === 'message') {
+      addChatMessage(data.message, data.sender, data.msgType || 'text', data.mediaUrl, data.duration, data.timestamp);
+    } else if (data.type === 'typing') {
+      var typingInd = document.getElementById('typingIndicator');
+      typingInd.style.display = data.isTyping ? 'block' : 'none';
+      document.getElementById('chatStatusText').textContent = data.isTyping ? 'typing...' : 'Online';
+      scrollChatToBottom();
+    }
   };
   
-  ws.onerror = () => {};
-}
-
-async function registerChat() {
-  const name = document.getElementById('userName').value.trim();
-  const contact = document.getElementById('userContact').value.trim();
-  if (!name || !contact) { showToast('Please fill all fields'); return; }
+  webSocket.onclose = function() {
+    console.log('❌ Chat disconnected');
+    document.getElementById('chatStatusText').textContent = 'Offline';
+    
+    // Reconnect after 3 seconds
+    setTimeout(function() {
+      if (document.getElementById('chatWindow').classList.contains('open')) {
+        connectWebSocket();
+      }
+    }, 3000);
+  };
   
-  try {
-    const r = await fetch('/api/chat/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, contact })
-    });
-    const d = await r.json();
-    if (d.success) {
-      chatToken = d.sessionToken;
-      chatId = d.chatId;
-      localStorage.setItem('verif_ct', chatToken);
-      showChatUI();
-      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'auth', token: chatToken }));
-      else connectWS();
-    } else showToast(d.error || 'Registration failed');
-  } catch (e) { showToast('Connection error'); }
+  webSocket.onerror = function(error) {
+    console.error('WebSocket error:', error);
+  };
 }
 
-function showChatUI() {
-  document.getElementById('chatLogin').style.display = 'none';
-  document.getElementById('chatMain').style.display = 'flex';
-}
-
-function sendMsg() {
-  const inp = document.getElementById('msgInput');
-  const msg = inp.value.trim();
-  if (!msg && !selectedImg) return;
+function registerUser() {
+  var name = document.getElementById('chatNameInput').value.trim();
+  var contact = document.getElementById('chatContactInput').value.trim();
   
-  if (selectedImg) {
-    ws.send(JSON.stringify({ type: 'message', token: chatToken, message: msg || '🖼️ Image', msgType: 'image', mediaUrl: selectedImg }));
-    clearImgPreview();
-  } else {
-    ws.send(JSON.stringify({ type: 'message', token: chatToken, message: msg, msgType: 'text' }));
+  if (!name || !contact) {
+    showToast('Please fill all fields');
+    return;
   }
-  inp.value = '';
-  inp.focus();
+  
+  fetch('/api/chat/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, contact: contact })
+  })
+  .then(function(response) { return response.json(); })
+  .then(function(data) {
+    if (data.success) {
+      userToken = data.sessionToken;
+      userChatId = data.chatId;
+      localStorage.setItem('vh_chat_token', userToken);
+      
+      showChatInterface();
+      
+      if (webSocket && webSocket.readyState === 1) {
+        webSocket.send(JSON.stringify({ type: 'auth', token: userToken }));
+      } else {
+        connectWebSocket();
+      }
+    } else {
+      showToast(data.error || 'Registration failed');
+    }
+  })
+  .catch(function(error) {
+    showToast('Connection error. Please try again.');
+  });
 }
 
-function addMsg(text, sender, type, mediaUrl, duration, timestamp) {
-  const c = document.getElementById('chatMsgs');
-  const d = document.createElement('div');
-  const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const cls = sender === 'user' ? 'user' : 'admin';
-  let html = '';
+function showChatInterface() {
+  document.getElementById('chatLoginForm').style.display = 'none';
+  document.getElementById('chatMainUI').style.display = 'flex';
+}
+
+function sendMessage() {
+  var input = document.getElementById('messageTextInput');
+  var message = input.value.trim();
+  
+  if (!message && !selectedImageData) return;
+  
+  if (selectedImageData) {
+    webSocket.send(JSON.stringify({
+      type: 'message',
+      token: userToken,
+      message: message || '🖼️ Image',
+      msgType: 'image',
+      mediaUrl: selectedImageData
+    }));
+    clearImagePreview();
+  } else {
+    webSocket.send(JSON.stringify({
+      type: 'message',
+      token: userToken,
+      message: message,
+      msgType: 'text'
+    }));
+  }
+  
+  input.value = '';
+  input.focus();
+}
+
+function addChatMessage(text, sender, type, mediaUrl, duration, timestamp) {
+  var container = document.getElementById('chatMessagesContainer');
+  var row = document.createElement('div');
+  var time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  var rowClass = sender === 'user' ? 'user' : 'admin';
+  var bubbleClass = sender === 'user' ? 'user' : 'admin';
+  var html = '';
   
   if (type === 'image') {
-    html = `<div class="msg-wrap ${cls}"><div class="msg-bubble ${cls}"><img src="${mediaUrl}" class="msg-img" onclick="viewImage('${mediaUrl}')" loading="lazy"><div class="msg-time">${time} ${cls==='user'?'<span class="msg-read">✓✓</span>':''}</div></div></div>`;
+    html = '<div class="msg-row ' + rowClass + '"><div class="msg-bubble ' + bubbleClass + '"><img src="' + mediaUrl + '" class="msg-img" onclick="openImageViewer(\'' + mediaUrl + '\')"><div class="msg-time">' + time + '</div></div></div>';
   } else if (type === 'voice') {
-    html = `<div class="msg-wrap ${cls}"><div class="msg-bubble ${cls}"><div class="msg-voice"><button onclick="playVoiceMsg(this,'${mediaUrl}')">▶</button><span style="font-size:12px">🎤 ${duration||0}s</span></div><div class="msg-time">${time} ${cls==='user'?'<span class="msg-read">✓✓</span>':''}</div></div></div>`;
+    html = '<div class="msg-row ' + rowClass + '"><div class="msg-bubble ' + bubbleClass + '"><div class="msg-voice"><button onclick="playVoiceMessage(this, \'' + mediaUrl + '\')">▶</button><span style="font-size:12px">🎤 ' + (duration || 0) + 's</span></div><div class="msg-time">' + time + '</div></div></div>';
   } else {
-    html = `<div class="msg-wrap ${cls}"><div class="msg-bubble ${cls}">${escapeHtml(text)}<div class="msg-time">${time} ${cls==='user'?'<span class="msg-read">✓✓</span>':''}</div></div></div>`;
+    html = '<div class="msg-row ' + rowClass + '"><div class="msg-bubble ' + bubbleClass + '">' + escapeHtml(text) + '<div class="msg-time">' + time + '</div></div></div>';
   }
   
-  d.innerHTML = html;
-  c.appendChild(d);
-  scrollChat();
+  row.innerHTML = html;
+  container.appendChild(row);
+  scrollChatToBottom();
 }
 
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
+function escapeHtml(text) {
+  var div = document.createElement('div');
+  div.textContent = text;
   return div.innerHTML;
 }
 
-function playVoiceMsg(btn, url) {
-  const a = new Audio(url);
-  a.play();
-  btn.textContent = '⏸';
-  a.onended = () => { btn.textContent = '▶'; };
+function playVoiceMessage(button, url) {
+  var audio = new Audio(url);
+  audio.play();
+  button.textContent = '⏸';
+  audio.onended = function() { button.textContent = '▶'; };
 }
 
-function handleImgUpload(e) {
-  const f = e.target.files[0];
-  if (!f) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    selectedImg = ev.target.result;
-    document.getElementById('previewImg').src = selectedImg;
-    document.getElementById('imgPreview').style.display = 'block';
-  };
-  reader.readAsDataURL(f);
-}
-
-function clearImgPreview() {
-  selectedImg = null;
-  document.getElementById('imgPreview').style.display = 'none';
-  document.getElementById('imgInput').value = '';
-}
-
-async function startRec() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream);
-    audioChunks = [];
-    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-    mediaRecorder.start();
-    document.getElementById('micBtn').style.color = 'var(--danger)';
-    document.getElementById('recordingBar').style.display = 'flex';
-    recStart = Date.now();
-    recTimer = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - recStart) / 1000);
-      document.getElementById('recTime').textContent = 
-        String(Math.floor(elapsed/60)).padStart(2,'0') + ':' + String(elapsed%60).padStart(2,'0');
-    }, 1000);
-  } catch (e) {
-    showToast('Microphone access denied');
-  }
-}
-
-function stopRec() {
-  if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
-  mediaRecorder.stop();
-  document.getElementById('micBtn').style.color = '';
-  document.getElementById('recordingBar').style.display = 'none';
-  clearInterval(recTimer);
+function handleImageSelect(event) {
+  var file = event.target.files[0];
+  if (!file) return;
   
-  mediaRecorder.onstop = () => {
-    const blob = new Blob(audioChunks, { type: 'audio/webm' });
-    const reader = new FileReader();
-    reader.onload = () => {
-      const duration = Math.floor((Date.now() - recStart) / 1000);
-      ws.send(JSON.stringify({
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    selectedImageData = e.target.result;
+    document.getElementById('previewImage').src = selectedImageData;
+    document.getElementById('imagePreviewBar').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearImagePreview() {
+  selectedImageData = null;
+  document.getElementById('imagePreviewBar').style.display = 'none';
+  document.getElementById('imageFileInput').value = '';
+}
+
+function startRecording() {
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(function(stream) {
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+      
+      mediaRecorder.ondataavailable = function(event) {
+        audioChunks.push(event.data);
+      };
+      
+      mediaRecorder.start();
+      
+      document.getElementById('micButton').style.color = '#ef4444';
+      document.getElementById('recordingBar').style.display = 'flex';
+      
+      recordingStartTime = Date.now();
+      recordingTimer = setInterval(function() {
+        var elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+        document.getElementById('recordingTime').textContent = 
+          String(Math.floor(elapsed / 60)).padStart(2, '0') + ':' + String(elapsed % 60).padStart(2, '0');
+      }, 1000);
+    })
+    .catch(function() {
+      showToast('Microphone access denied');
+    });
+}
+
+function stopRecording() {
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+  
+  mediaRecorder.stop();
+  document.getElementById('micButton').style.color = '';
+  document.getElementById('recordingBar').style.display = 'none';
+  clearInterval(recordingTimer);
+  
+  mediaRecorder.onstop = function() {
+    var blob = new Blob(audioChunks, { type: 'audio/webm' });
+    var reader = new FileReader();
+    
+    reader.onload = function() {
+      var duration = Math.floor((Date.now() - recordingStartTime) / 1000);
+      webSocket.send(JSON.stringify({
         type: 'message',
-        token: chatToken,
+        token: userToken,
         message: '🎤 Voice message',
         msgType: 'voice',
         mediaUrl: reader.result,
-        duration
+        duration: duration
       }));
     };
+    
     reader.readAsDataURL(blob);
-    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    mediaRecorder.stream.getTracks().forEach(function(track) { track.stop(); });
   };
 }
 
-async function loadMsgs() {
-  try {
-    const r = await fetch('/api/messages?token=' + chatToken);
-    const d = await r.json();
-    if (d.success && d.messages.length) {
-      document.getElementById('chatMsgs').innerHTML = '';
-      d.messages.forEach(m => addMsg(m.message, m.sender, m.type || 'text', m.mediaUrl, m.duration, m.createdAt));
-    }
-  } catch (e) {}
+function loadChatHistory() {
+  if (!userToken) return;
+  
+  fetch('/api/messages?token=' + userToken)
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+      if (data.success && data.messages.length > 0) {
+        document.getElementById('chatMessagesContainer').innerHTML = '';
+        data.messages.forEach(function(msg) {
+          addChatMessage(msg.message, msg.sender, msg.type || 'text', msg.mediaUrl, msg.duration, msg.createdAt);
+        });
+      }
+    })
+    .catch(function() {});
 }
 
-function scrollChat() {
-  const c = document.getElementById('chatMsgs');
-  setTimeout(() => { c.scrollTop = c.scrollHeight; }, 50);
+function scrollChatToBottom() {
+  var container = document.getElementById('chatMessagesContainer');
+  setTimeout(function() {
+    container.scrollTop = container.scrollHeight;
+  }, 50);
 }
 
 // Typing indicator
-let typingTimeout;
-document.getElementById('msgInput')?.addEventListener('input', () => {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'typing', isTyping: true, token: chatToken }));
-    clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(() => {
-      ws.send(JSON.stringify({ type: 'typing', isTyping: false, token: chatToken }));
+var typingTimeoutId;
+document.getElementById('messageTextInput').addEventListener('input', function() {
+  if (webSocket && webSocket.readyState === 1) {
+    webSocket.send(JSON.stringify({ type: 'typing', isTyping: true, token: userToken }));
+    clearTimeout(typingTimeoutId);
+    typingTimeoutId = setTimeout(function() {
+      webSocket.send(JSON.stringify({ type: 'typing', isTyping: false, token: userToken }));
     }, 2000);
   }
 });
 
 // ============ INIT ============
-if (chatToken) setTimeout(connectWS, 1000);
+// Auto-connect if chat was previously open
+if (userToken) {
+  setTimeout(function() {
+    connectWebSocket();
+  }, 1000);
+}
 </script>
 </body>
 </html>`;
@@ -1792,7 +1680,6 @@ wss.on('connection', (ws, req) => {
                         userSockets.set(user.chatId, ws);
                         ws.send(JSON.stringify({ type: 'auth_success' }));
                         
-                        // Welcome message
                         setTimeout(async () => {
                             const welcomeMsg = 'Hello! 👋 Welcome to Baiilla Maach Official Support. How can I help you today?';
                             await saveMessage(user.chatId, 'admin', welcomeMsg, 'text');
@@ -1841,7 +1728,7 @@ wss.on('connection', (ws, req) => {
                     });
                 }
             } catch (e) {
-                console.error('WS message error:', e.message);
+                console.error('WS error:', e.message);
             }
         });
         
@@ -1854,8 +1741,6 @@ wss.on('connection', (ws, req) => {
                 ).catch(() => {});
             }
         });
-        
-        ws.on('error', () => {});
     } else if (pathname === '/admin/ws') {
         adminSockets.add(ws);
         
@@ -1883,7 +1768,6 @@ wss.on('connection', (ws, req) => {
         });
         
         ws.on('close', () => adminSockets.delete(ws));
-        ws.on('error', () => {});
     }
 });
 
@@ -1903,7 +1787,6 @@ const server = http.createServer(async (req, res) => {
     const method = req.method;
     const cookies = parseCookies(req.headers.cookie);
     
-    // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -1918,7 +1801,6 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/assets/') || pathname.startsWith('/uploads/')) {
         const filePath = path.join(__dir, decodeURIComponent(pathname));
         
-        // Security check
         if (!filePath.startsWith(path.join(__dir, 'assets')) && !filePath.startsWith(path.join(__dir, 'uploads'))) {
             res.writeHead(403);
             res.end();
@@ -1928,25 +1810,15 @@ const server = http.createServer(async (req, res) => {
         if (fs.existsSync(filePath)) {
             const ext = path.extname(filePath).toLowerCase();
             const mimeTypes = {
-                '.png': 'image/png',
-                '.jpg': 'image/jpeg',
-                '.jpeg': 'image/jpeg',
-                '.gif': 'image/gif',
-                '.webp': 'image/webp',
-                '.svg': 'image/svg+xml',
-                '.mp3': 'audio/mpeg',
-                '.wav': 'audio/wav',
-                '.ogg': 'audio/ogg',
-                '.m4a': 'audio/mp4',
-                '.webm': 'audio/webm',
-                '.aac': 'audio/aac',
-                '.flac': 'audio/flac'
+                '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+                '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+                '.m4a': 'audio/mp4', '.webm': 'audio/webm', '.aac': 'audio/aac', '.flac': 'audio/flac'
             };
             
             res.writeHead(200, {
                 'Content-Type': mimeTypes[ext] || 'application/octet-stream',
-                'Cache-Control': 'public, max-age=86400',
-                'Accept-Ranges': 'bytes'
+                'Cache-Control': 'public, max-age=86400'
             });
             fs.createReadStream(filePath).pipe(res);
         } else {
@@ -2001,7 +1873,7 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     
-    // Admin panel
+    // Admin
     if (pathname === '/admin') {
         const sessionId = cookies.sessionId;
         if (sessionId && adminSessions.has(sessionId)) {
@@ -2010,9 +1882,8 @@ const server = http.createServer(async (req, res) => {
             return;
         }
         
-        // Login page
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><style>body{font-family:'Inter',sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}.box{background:white;border-radius:16px;padding:32px;width:340px;box-shadow:0 4px 16px rgba(0,0,0,0.06)}h1{text-align:center;color:#0f172a;margin-bottom:20px;font-size:20px}input{width:100%;padding:10px;margin-bottom:10px;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;outline:none;box-sizing:border-box}input:focus{border-color:#2563eb;background:white}button{width:100%;padding:12px;background:#2563eb;color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}button:hover{background:#1d4ed8}</style></head><body><div class="box"><h1>🔐 Admin Login</h1><form method="POST" action="/admin/login"><input type="text" name="username" placeholder="Username" required><input type="password" name="password" placeholder="Password" required><button type="submit">Login</button></form></div></body></html>`);
+        res.end(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><style>body{font-family:'Inter',sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}.box{background:white;border-radius:16px;padding:32px;width:340px;box-shadow:0 4px 16px rgba(0,0,0,0.06)}h1{text-align:center;color:#0f172a;margin-bottom:20px}input{width:100%;padding:10px;margin-bottom:10px;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;outline:none;box-sizing:border-box}input:focus{border-color:#2563eb;background:white}button{width:100%;padding:12px;background:#2563eb;color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}button:hover{background:#1d4ed8}</style></head><body><div class="box"><h1>🔐 Admin Login</h1><form method="POST" action="/admin/login"><input type="text" name="username" placeholder="Username" required><input type="password" name="password" placeholder="Password" required><button type="submit">Login</button></form></div></body></html>`);
         return;
     }
     
@@ -2086,15 +1957,11 @@ const server = http.createServer(async (req, res) => {
     
     // Main page
     if (pathname === '/' || pathname === '/index.html') {
-        res.writeHead(200, {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache'
-        });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
         res.end(getMainHTML());
         return;
     }
     
-    // 404
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not Found');
 });
@@ -2122,7 +1989,6 @@ function parseCookies(header) {
     return cookies;
 }
 
-// Admin HTML
 async function getAdminHTML() {
     const users = await getAllUsers();
     const usersWithInfo = [];
@@ -2147,13 +2013,12 @@ async function getAdminHTML() {
     </div>
     `).join('') : '<div style="text-align:center;color:#94a3b8;padding:40px">No users yet</div>';
     
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel | Verification Hub</title><style>
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin | Verification Hub</title><style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',sans-serif;background:#f8fafc;height:100vh;display:flex}
 .sidebar{width:360px;background:white;border-right:1px solid #e2e8f0;display:flex;flex-direction:column}
 .sidebar-header{padding:16px;background:#2563eb;color:white;display:flex;align-items:center;justify-content:space-between}
 .sidebar-header a{color:rgba(255,255,255,0.8);text-decoration:none;font-size:13px}
-.sidebar-header a:hover{color:white}
 .user-list{flex:1;overflow-y:auto}
 .user-item{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background 0.15s}
 .user-item:hover{background:#f8fafc}
@@ -2167,10 +2032,8 @@ body{font-family:'Inter',sans-serif;background:#f8fafc;height:100vh;display:flex
 .main{flex:1;display:flex;flex-direction:column;background:white}
 .chat-header{padding:16px;background:white;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px}
 .chat-avatar{width:40px;height:40px;border-radius:50%;background:#f59e0b;color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px}
-.chat-user-name{font-weight:600;font-size:14px}
-.chat-user-status{font-size:11px;color:#94a3b8}
 .chat-msgs{flex:1;overflow-y:auto;padding:16px;background:#f8fafc}
-.msg-bubble{max-width:70%;padding:10px 14px;border-radius:16px;font-size:13px;line-height:1.45;margin-bottom:6px;word-wrap:break-word}
+.msg-bubble{max-width:70%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.45;margin-bottom:6px;word-wrap:break-word}
 .msg-in{background:white;color:#0f172a;float:left;clear:both;border-bottom-left-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,0.04)}
 .msg-out{background:#2563eb;color:white;float:right;clear:both;border-bottom-right-radius:4px}
 .msg-time{font-size:10px;opacity:0.7;text-align:right;margin-top:3px}
@@ -2179,9 +2042,7 @@ body{font-family:'Inter',sans-serif;background:#f8fafc;height:100vh;display:flex
 .chat-input-area input{flex:1;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:13px;outline:none;background:#f8fafc}
 .chat-input-area input:focus{border-color:#2563eb;background:white}
 .chat-input-area button{width:40px;height:40px;border-radius:50%;background:#2563eb;color:white;border:none;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.chat-input-area button:hover{background:#1d4ed8}
 .empty-state{flex:1;display:flex;align-items:center;justify-content:center;color:#94a3b8;flex-direction:column;gap:8px}
-.empty-state span{font-size:40px}
 </style></head><body>
 <div class="sidebar">
   <div class="sidebar-header">
@@ -2191,43 +2052,43 @@ body{font-family:'Inter',sans-serif;background:#f8fafc;height:100vh;display:flex
   <div class="user-list">${userListHTML}</div>
 </div>
 <div class="main" id="mainArea">
-  <div class="empty-state"><span>💬</span><p>Select a conversation</p></div>
+  <div class="empty-state"><span style="font-size:40px">💬</span><p>Select a conversation</p></div>
 </div>
 <script>
 let ws,currentChat=null;
-(function connect(){const p=location.protocol==='https:'?'wss:':'ws:';ws=new WebSocket(p+'//'+location.host+'/admin/ws');ws.onmessage=(e)=>{const d=JSON.parse(e.data);if(d.type==='new_message'&&d.chatId===currentChat)addMsg(d.message,d.sender,d.msgType,d.mediaUrl,d.duration)};ws.onclose=()=>setTimeout(connect,3000)})();
+(function connect(){var p=location.protocol==='https:'?'wss:':'ws:';ws=new WebSocket(p+'//'+location.host+'/admin/ws');ws.onmessage=function(e){var d=JSON.parse(e.data);if(d.type==='new_message'&&d.chatId===currentChat)addMsg(d.message,d.sender,d.msgType,d.mediaUrl,d.duration)};ws.onclose=function(){setTimeout(connect,3000)}})();
 
 async function openChat(cid,name){
 currentChat=cid;
-document.getElementById('mainArea').innerHTML='<div class="chat-header"><div class="chat-avatar">'+name.charAt(0)+'</div><div><div class="chat-user-name">'+name+'</div><div class="chat-user-status">online</div></div></div><div class="chat-msgs" id="msgContainer"><div id="msgs"></div></div><div class="chat-input-area"><input id="adminInput" placeholder="Type a message..." onkeypress="if(event.key===\\'Enter\\')sendAdminMsg()"><button onclick="sendAdminMsg()">➤</button></div>';
-const r=await fetch('/api/admin/messages?chatId='+cid);
-const d=await r.json();
-if(d.success){document.getElementById('msgs').innerHTML='';d.messages.forEach(m=>addMsg(m.message,m.sender,m.type,m.mediaUrl,m.duration,m.createdAt));scrollB()}
+document.getElementById('mainArea').innerHTML='<div class="chat-header"><div class="chat-avatar">'+name.charAt(0)+'</div><div><div style="font-weight:600;font-size:14px">'+name+'</div><div style="font-size:11px;color:#94a3b8">online</div></div></div><div class="chat-msgs" id="msgContainer"><div id="msgs"></div></div><div class="chat-input-area"><input id="adminInput" placeholder="Type a message..." onkeypress="if(event.key===\\'Enter\\')sendAdminMsg()"><button onclick="sendAdminMsg()">➤</button></div>';
+var r=await fetch('/api/admin/messages?chatId='+cid);
+var d=await r.json();
+if(d.success){document.getElementById('msgs').innerHTML='';d.messages.forEach(function(m){addMsg(m.message,m.sender,m.type,m.mediaUrl,m.duration,m.createdAt)});scrollB()}
 }
 
 function addMsg(text,sender,type,url,duration,time){
-const c=document.getElementById('msgs');if(!c)return;
-const t=new Date(time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-const b=sender==='user'?'msg-in':'msg-out';
-const d=document.createElement('div');d.style.clear='both';d.style.marginBottom='8px';
-let h='';
-if(type==='image')h='<div class="msg-bubble '+b+'"><img src="'+url+'" class="msg-img" onclick="window.open(\\''+url+'\\')"><div class="msg-time">'+t+'</div></div>';
-else h='<div class="msg-bubble '+b+'">'+text+'<div class="msg-time">'+t+'</div></div>';
-d.innerHTML=h;c.appendChild(d);scrollB()
+var c=document.getElementById('msgs');if(!c)return;
+var t=new Date(time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+var b=sender==='user'?'msg-in':'msg-out';
+var d=document.createElement('div');d.style.clear='both';d.style.marginBottom='8px';
+if(type==='image')d.innerHTML='<div class="msg-bubble '+b+'"><img src="'+url+'" class="msg-img" onclick="window.open(\\''+url+'\\')"><div class="msg-time">'+t+'</div></div>';
+else d.innerHTML='<div class="msg-bubble '+b+'">'+text+'<div class="msg-time">'+t+'</div></div>';
+c.appendChild(d);scrollB()
 }
 
-function scrollB(){const c=document.getElementById('msgContainer');if(c)setTimeout(()=>c.scrollTop=c.scrollHeight,50)}
+function scrollB(){var c=document.getElementById('msgContainer');if(c)setTimeout(function(){c.scrollTop=c.scrollHeight},50)}
 
 async function sendAdminMsg(){
-const i=document.getElementById('adminInput');
-const m=i.value.trim();
+var i=document.getElementById('adminInput');
+var m=i.value.trim();
 if(!m)return;
 i.value='';
 if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'admin_message',chatId:currentChat,message:m}));
 await fetch('/api/admin/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chatId:currentChat,message:m})});
 addMsg(m,'admin','text',null,null,new Date().toISOString())
 }
-setInterval(()=>{if(currentChat)fetch('/api/admin/messages?chatId='+currentChat).then(r=>r.json()).then(d=>{if(d.success){document.getElementById('msgs').innerHTML='';d.messages.forEach(m=>addMsg(m.message,m.sender,m.type,m.mediaUrl,m.duration,m.createdAt))}})},5000)
+
+setInterval(function(){if(currentChat)fetch('/api/admin/messages?chatId='+currentChat).then(function(r){return r.json()}).then(function(d){if(d.success){document.getElementById('msgs').innerHTML='';d.messages.forEach(function(m){addMsg(m.message,m.sender,m.type,m.mediaUrl,m.duration,m.createdAt})}})},5000)
 </script></body></html>`;
 }
 
@@ -2236,14 +2097,14 @@ async function start() {
     const dbConnected = await connectDB();
     
     server.listen(PORT, () => {
-        console.log('═'.repeat(50));
-        console.log(' 🛡️  Verification Hub - Baiilla Maach Official');
-        console.log('═'.repeat(50));
-        console.log(` 🌐 Site:  http://localhost:${PORT}`);
-        console.log(` 👑 Admin: http://localhost:${PORT}/admin`);
-        console.log(` 🔑 Login: Hammad / Hammad1122@`);
-        console.log(` 💾 DB:    ${dbConnected ? 'Connected ✅' : 'Offline ❌'}`);
-        console.log('═'.repeat(50));
+        console.log('='.repeat(50));
+        console.log(' 🛡️  Verification Hub');
+        console.log('='.repeat(50));
+        console.log(' 🌐 Site:  http://localhost:' + PORT);
+        console.log(' 👑 Admin: http://localhost:' + PORT + '/admin');
+        console.log(' 🔑 Login: Hammad / Hammad1122@');
+        console.log(' 💾 DB:    ' + (dbConnected ? 'Connected ✅' : 'Offline ❌'));
+        console.log('='.repeat(50));
     });
 }
 
