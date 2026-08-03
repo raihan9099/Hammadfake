@@ -6,63 +6,34 @@ const crypto = require('crypto');
 const { MongoClient, ObjectId } = require('mongodb');
 const formidable = require('formidable');
 const bcrypt = require('bcryptjs');
-const { getChatPageHTML } = require('./chat');
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/milow?retryWrites=true&w=majority';
 const DB_NAME = 'verification_hub';
 
 let db, mongoClient;
-let dbConnected = false;
 
 const __dir = path.resolve();
 const ASSETS_DIR = path.join(__dir, 'assets');
 const GALLERY_DIR = path.join(__dir, 'assets', 'gallery');
 const COVER_MUSIC_DIR = path.join(__dir, 'assets', 'covermusic');
-const CHAT_UPLOADS_DIR = path.join(__dir, 'assets', 'chat_uploads');
 
-[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR, CHAT_UPLOADS_DIR].forEach(dir => {
+[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
 const IMAGES = {
     profile: "/assets/tiktok_video_Aj2NO.jpeg",
-    official: "/assets/orginalss.png",
-    realIdSS: "/assets/real-id-ss.png",
+    official: "/assets/1785276289604.png",
     fraud: "/assets/hammadfams.png",
-    danger: "/assets/baillamach.png",
-    fakeDetect: "/assets/Fakedetect .png",
-    tiktokIcon: "/assets/tiktokicon.png",
-    messageIcon: "/assets/messageicon.gif",
-    reportIcon: "/assets/report.png",
-    blueTick: "/assets/social-media.png",
-    voiceMic: "/assets/microphone-in-hand.gif",
-    facebookIcon: "/assets/communication.png",
-    socialMedia: "/assets/social-media.png",
-    musicIcon: "/assets/music-icon.png"
+    danger: "/assets/baillamach.png"
 };
-
-const VOICE = {
-    welcome: "/assets/realvoice.mp3",
-    fakeAlert: "/assets/7 lak like but its fake.mp3"
-};
-
-const adminPresence = { isOnline: false, lastSeen: null };
-
-const memoryStore = {
-    users: new Map(),
-    sessions: new Map(),
-    messages: new Map()
-};
-
-// Import admin routes
-const { setupAdminRoutes } = require('./admin');
 
 function getCoverSongs() {
     try {
         if (!fs.existsSync(COVER_MUSIC_DIR)) return [];
         const files = fs.readdirSync(COVER_MUSIC_DIR);
-        const audioExts = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'];
+        const audioExts = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.wma', '.opus', '.weba'];
         const coverExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
         const groups = {};
         files.forEach(f => {
@@ -72,638 +43,1746 @@ function getCoverSongs() {
             if (audioExts.includes(ext)) groups[base].audio = f;
             if (coverExts.includes(ext)) groups[base].cover = f;
         });
-        return Object.entries(groups).filter(([_, v]) => v.audio).map(([base, v]) => ({
-            id: base.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
-            title: base.replace(/[-_#]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()).trim(),
-            artist: 'Cover Song',
-            audioUrl: '/assets/covermusic/' + encodeURIComponent(v.audio),
-            coverUrl: v.cover ? '/assets/covermusic/' + encodeURIComponent(v.cover) : null
-        })).sort((a, b) => a.title.localeCompare(b.title));
+        return Object.entries(groups)
+            .filter(([_, v]) => v.audio)
+            .map(([base, v]) => ({
+                id: base.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
+                title: base.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                artist: 'Cover Song',
+                audioUrl: `/assets/covermusic/${v.audio}`,
+                coverUrl: v.cover ? `/assets/covermusic/${v.cover}` : null
+            }))
+            .sort((a, b) => a.title.localeCompare(b.title));
     } catch (e) { return []; }
 }
 
 async function connectDB() {
     try {
-        console.log('Connecting to MongoDB...');
-        mongoClient = new MongoClient(MONGO_URI, { 
-            connectTimeoutMS: 10000, 
-            serverSelectionTimeoutMS: 10000, 
-            socketTimeoutMS: 15000 
-        });
+        mongoClient = new MongoClient(MONGO_URI);
         await mongoClient.connect();
         db = mongoClient.db(DB_NAME);
-        await db.command({ ping: 1 });
-        
-        const collections = ['admin_users', 'gallery_photos', 'chat_users', 'chat_messages', 'chat_sessions'];
-        const existing = await db.listCollections().toArray();
-        const names = existing.map(c => c.name);
-        for (const col of collections) { 
-            if (!names.includes(col)) await db.createCollection(col); 
-        }
-        
-        await db.collection('chat_messages').createIndex({ chatId: 1, createdAt: -1 });
-        await db.collection('chat_users').createIndex({ phoneEmail: 1 }, { sparse: true });
-        await db.collection('chat_sessions').createIndex({ token: 1 });
-        
         const admins = db.collection('admin_users');
-        if (!await admins.findOne({ username: 'admin' })) {
-            await admins.insertOne({ 
-                username: 'admin', 
-                password: await bcrypt.hash('admin123', 10), 
-                createdAt: new Date() 
-            });
-            console.log('Created default admin user');
-        }
-        
-        dbConnected = true;
-        console.log('MongoDB Connected Successfully');
+        const exists = await admins.findOne({ username: 'admin' });
+        if (!exists) await admins.insertOne({ username: 'admin', password: await bcrypt.hash('admin123', 10), createdAt: new Date() });
         return true;
-    } catch (e) {
-        console.error('MongoDB Connection Failed:', e.message);
-        console.log('Running with in-memory storage fallback');
-        dbConnected = false;
-        db = null;
-        return false;
-    }
+    } catch (e) { return false; }
 }
 
-async function getGalleryPhotos() { 
-    if (!db || !dbConnected) return []; 
-    try { 
-        return await db.collection('gallery_photos').find({}).sort({ uploadedAt: -1 }).toArray(); 
-    } catch (e) { return []; } 
+async function getGalleryPhotos() {
+    if (!db) return [];
+    try { return await db.collection('gallery_photos').find({}).sort({ uploadedAt: -1 }).toArray(); }
+    catch (e) { return []; }
 }
 
-async function savePhoto(d) { 
-    if (!db || !dbConnected) return null; 
-    try { 
-        return await db.collection('gallery_photos').insertOne({ ...d, uploadedAt: new Date() }); 
-    } catch(e) { return null; } 
+async function savePhoto(d) {
+    if (!db) return null;
+    return await db.collection('gallery_photos').insertOne({ ...d, uploadedAt: new Date() });
 }
 
-async function deletePhoto(id) { 
-    if (!db || !dbConnected) return null; 
-    try { 
-        return await db.collection('gallery_photos').deleteOne({ _id: new ObjectId(id) }); 
-    } catch(e) { return null; } 
+async function deletePhoto(id) {
+    if (!db) return null;
+    return await db.collection('gallery_photos').deleteOne({ _id: new ObjectId(id) });
 }
 
-function createOrGetChatUser(name, phoneEmail) {
-    const clean = (phoneEmail || '').trim().toLowerCase();
-    if (!clean) return null;
-    let user = memoryStore.users.get(clean);
-    if (user) { 
-        user.name = name; 
-        user.lastSeen = new Date(); 
-        user.status = 'active'; 
-        memoryStore.users.set(clean, user); 
-        return user; 
-    }
-    const chatId = 'CHAT-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-    user = { 
-        chatId, 
-        name, 
-        phoneEmail: clean, 
-        createdAt: new Date(), 
-        lastSeen: new Date(), 
-        status: 'active' 
-    };
-    memoryStore.users.set(clean, user);
-    return user;
-}
-
-function createChatSession(chatId) {
-    const token = crypto.randomBytes(32).toString('hex');
-    memoryStore.sessions.set(token, { 
-        chatId, 
-        createdAt: new Date(), 
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) 
-    });
-    return token;
-}
-
-function getChatUserByToken(token) {
-    if (!token) return null;
-    const session = memoryStore.sessions.get(token);
-    if (!session) return null;
-    if (new Date() > session.expiresAt) { 
-        memoryStore.sessions.delete(token); 
-        return null; 
-    }
-    for (const [key, user] of memoryStore.users) { 
-        if (user.chatId === session.chatId) return user; 
-    }
-    return null;
-}
-
-function getChatMessages(chatId) {
-    const msgs = memoryStore.messages.get(chatId) || [];
-    return msgs.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-}
-
-function saveChatMessage(chatId, sender, message, type, fileUrl, fileName, duration) {
-    const msg = { 
-        chatId, 
-        sender, 
-        message, 
-        type: type || 'text', 
-        fileUrl: fileUrl || null, 
-        fileName: fileName || null, 
-        duration: duration || null, 
-        createdAt: new Date(), 
-        read: false 
-    };
-    if (!memoryStore.messages.has(chatId)) memoryStore.messages.set(chatId, []);
-    memoryStore.messages.get(chatId).push(msg);
-    return msg;
-}
-
-function getAdminChatList() {
-    const list = [];
-    for (const [key, user] of memoryStore.users) {
-        if (user.status === 'active') {
-            const msgs = memoryStore.messages.get(user.chatId) || [];
-            const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
-            const unread = msgs.filter(m => m.sender === 'user' && !m.read).length;
-            list.push({ 
-                chatId: user.chatId, 
-                name: user.name, 
-                phoneEmail: user.phoneEmail, 
-                lastSeen: user.lastSeen, 
-                lastMessage: lastMsg, 
-                unread 
-            });
-        }
-    }
-    return list.sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen));
-}
-
-function markMessagesRead(chatId) {
-    const msgs = memoryStore.messages.get(chatId) || [];
-    msgs.forEach(m => { if (m.sender === 'user') m.read = true; });
+async function verifyAdmin(u, p) {
+    if (!db) return u === 'admin' && p === 'admin123';
+    const a = await db.collection('admin_users').findOne({ username: u });
+    if (!a) return false;
+    return await bcrypt.compare(p, a.password);
 }
 
 const DATA = {
-    celebrity: { 
-        name: "Baiilla Maach", 
-        fullName: "Baiilla Maach Official", 
-        photo: IMAGES.profile, 
-        bio: "Official Entertainment Profile | Bangladesh", 
-        tiktokFollowers: "5,000", 
-        tiktokFollowing: "0", 
-        tiktokLikes: "50K", 
-        location: "Dhaka, Bangladesh" 
+    celebrity: {
+        name: "Baiilla Maach",
+        fullName: "Baiilla Maach Official",
+        photo: IMAGES.profile,
+        bio: "Official Entertainment Profile",
+        username: "@baiillamaach_official"
     },
     realAccounts: [
-        { 
-            platform: "TikTok", 
-            username: "@baiillamaach_official", 
-            url: "https://tiktok.com/@baiillamaach_official", 
-            icon: IMAGES.tiktokIcon, 
-            screenshot: IMAGES.official, 
-            verified: true, 
-            followers: "5,000", 
-            verifiedIcon: IMAGES.blueTick 
-        },
-        { 
-            platform: "Facebook", 
-            username: "Baiilla Maach Official", 
-            url: "https://www.facebook.com/profile.php?id=61575202118828", 
-            icon: IMAGES.facebookIcon, 
-            screenshot: IMAGES.realIdSS, 
-            verified: true, 
-            followers: "Growing", 
-            verifiedIcon: IMAGES.blueTick 
-        }
+        { platform: "TikTok", username: "@baiillamaach_official", url: "https://tiktok.com/@baiillamaach_official", screenshot: IMAGES.official },
+        { platform: "Facebook", username: "Baiilla Maach Official", url: "https://www.facebook.com/profile.php?id=61575202118828", screenshot: null }
     ],
     fakeAccounts: [
-        { 
-            platform: "TikTok", 
-            username: "@baiilla_mach", 
-            profileUrl: "https://tiktok.com/@baiilla_mach", 
-            icon: IMAGES.tiktokIcon, 
-            screenshot: IMAGES.danger, 
-            reason: "Copies official content and logo to deceive followers.", 
-            threatLevel: "Critical", 
-            reportedCount: 156 
-        },
-        { 
-            platform: "TikTok", 
-            username: "@hammad_fams0", 
-            profileUrl: "https://tiktok.com/@hammad_fams0", 
-            icon: IMAGES.tiktokIcon, 
-            screenshot: IMAGES.fraud, 
-            reason: "Uses official name and photo to mislead followers.", 
-            threatLevel: "High", 
-            reportedCount: 89 
-        }
+        { platform: "TikTok", username: "@baiilla_mach", profileUrl: "https://tiktok.com/@baiilla_mach", screenshot: IMAGES.danger, reason: "Copies official logo and content to deceive followers." },
+        { platform: "TikTok", username: "@hammad_fams0", profileUrl: "https://tiktok.com/@hammad_fams0", screenshot: IMAGES.fraud, reason: "Uses official name and photo to mislead followers." }
     ]
 };
 
-function getLastSeenText() {
-    if (adminPresence.isOnline) return 'Online now';
-    if (!adminPresence.lastSeen) return 'Offline';
-    const diffMs = Date.now() - adminPresence.lastSeen.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return 'Active ' + diffMins + 'm ago';
-    const diffHours = Math.floor(diffMs / 3600000);
-    if (diffHours < 24) return 'Active ' + diffHours + 'h ago';
-    return 'Last seen ' + adminPresence.lastSeen.toLocaleDateString();
-}
+const sessions = new Map();
+function createSession(u) { const id = crypto.randomBytes(32).toString('hex'); sessions.set(id, { username: u, createdAt: Date.now() }); setTimeout(() => sessions.delete(id), 7200000); return id; }
+function getSession(id) { const s = sessions.get(id); if (!s) return null; if (Date.now() - s.createdAt > 7200000) { sessions.delete(id); return null; } return s; }
+function parseCookies(h) { const c = {}; if (h) h.split(';').forEach(x => { const p = x.split('='); c[p[0].trim()] = p[1] ? p[1].trim() : ''; }); return c; }
 
-function getMainHTML(galleryPhotos) {
-    galleryPhotos = galleryPhotos || [];
+function getMainHTML(galleryPhotos = []) {
     const coverSongs = getCoverSongs();
     const totalFake = DATA.fakeAccounts.length;
-    const profilePic = DATA.celebrity.photo;
-    
-    let fakeCardsHTML = '';
-    DATA.fakeAccounts.forEach(function(a) {
-        fakeCardsHTML += '<div class="fake-card"><div class="fake-card-body">';
-        if (a.screenshot) {
-            fakeCardsHTML += '<img src="' + a.screenshot + '" class="fake-card-img" alt="Fake">';
-        } else {
-            fakeCardsHTML += '<div class="fake-card-placeholder">⚠️</div>';
-        }
-        fakeCardsHTML += '<div style="flex:1;min-width:0"><div style="font-weight:700;color:#fca5a5;font-size:14px;margin-bottom:4px">' + a.username + '</div>';
-        fakeCardsHTML += '<div style="font-size:11px;color:#f87171;margin-bottom:6px">⚠ ' + a.reason + '</div>';
-        fakeCardsHTML += '<div style="display:flex;gap:6px;flex-wrap:wrap"><a href="' + a.profileUrl + '" target="_blank" class="btn btn-red btn-sm">Report</a>';
-        fakeCardsHTML += '<button onclick="copyTxt(\'' + a.username + '\')" class="btn btn-outline btn-sm">Copy</button></div></div></div></div>';
-    });
 
-    let officialCardsHTML = '';
-    DATA.realAccounts.forEach(function(acc) {
-        officialCardsHTML += '<div class="official-card">';
-        officialCardsHTML += '<img src="' + acc.icon + '" style="width:22px;height:22px;flex-shrink:0">';
-        officialCardsHTML += '<div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:5px">';
-        officialCardsHTML += '<span style="font-weight:600;font-size:14px">' + acc.username + '</span>';
-        officialCardsHTML += '<img src="' + acc.verifiedIcon + '" style="width:14px;height:14px">';
-        officialCardsHTML += '</div><div style="font-size:10px;color:var(--text3);margin-top:2px">' + acc.followers + ' followers</div></div>';
-        officialCardsHTML += '<a href="' + acc.url + '" target="_blank" class="btn btn-green btn-sm">Follow</a></div>';
-    });
+    let coverSongsHTML = '';
+    if (coverSongs.length > 0) {
+        coverSongsHTML = `
+        <section class="section music-section" data-animate>
+            <div class="section-header">
+                <div class="section-icon spotify-icon-bg">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                </div>
+                <h2 class="section-heading">Cover Music</h2>
+            </div>
+            <div class="spotify-player">
+                <div class="spotify-now-playing">
+                    <div class="spotify-album-art" id="nowPlayingCover">
+                        <div class="spotify-default-art">
+                            <svg viewBox="0 0 24 24" width="56" height="56"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                        </div>
+                    </div>
+                    <div class="spotify-track-info">
+                        <div class="spotify-track-name" id="nowPlayingTitle">Select a song</div>
+                        <div class="spotify-track-artist" id="nowPlayingArtist">Cover Songs Collection</div>
+                        <div class="spotify-progress">
+                            <div class="spotify-progress-bar" id="progressBar">
+                                <div class="spotify-progress-fill" id="progressFill"></div>
+                            </div>
+                            <div class="spotify-time">
+                                <span id="currentTime">0:00</span>
+                                <span id="totalTime">0:00</span>
+                            </div>
+                        </div>
+                        <div class="spotify-controls">
+                            <button class="spotify-btn" onclick="prevSong()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                            </button>
+                            <button class="spotify-btn spotify-play-btn" id="playPauseBtn" onclick="togglePlay()">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+                                    <path id="playIcon" d="M8 5v14l11-7z"/>
+                                    <path id="pauseIcon" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" style="display:none"/>
+                                </svg>
+                            </button>
+                            <button class="spotify-btn" onclick="nextSong()">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                            </button>
+                        </div>
+                        <div class="spotify-volume">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+                            <input type="range" class="spotify-volume-slider" id="volumeSlider" min="0" max="100" value="70" onchange="setVol(this.value)">
+                        </div>
+                    </div>
+                </div>
+                <div class="spotify-playlist-container">
+                    <div class="spotify-playlist-header">
+                        <h3>Playlist</h3>
+                        <span class="spotify-song-count">${coverSongs.length} songs</span>
+                    </div>
+                    <div class="spotify-playlist" id="playlist">
+                        ${coverSongs.map((s, i) => `
+                        <div class="spotify-playlist-item" data-index="${i}" data-audio="${s.audioUrl}" data-cover="${s.coverUrl || ''}" onclick="playSong(${i})">
+                            <div class="spotify-track-number">${(i+1).toString().padStart(2,'0')}</div>
+                            <div class="spotify-track-cover-small">${s.coverUrl ? `<img src="${s.coverUrl}" alt="" loading="lazy">` : '<div class="spotify-default-art-small"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>'}</div>
+                            <div class="spotify-track-details">
+                                <div class="spotify-track-title">${s.title}</div>
+                                <div class="spotify-track-artist-small">${s.artist}</div>
+                            </div>
+                            <div class="spotify-equalizer">
+                                <span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span>
+                            </div>
+                        </div>`).join('')}
+                    </div>
+                </div>
+            </div>
+        </section>`;
+    }
 
     let galleryHTML = '';
-    if (galleryPhotos.length === 0) {
-        galleryHTML = '<p style="color:var(--text3);text-align:center;padding:30px;grid-column:1/-1">No photos yet</p>';
+    if (galleryPhotos.length > 0) {
+        galleryHTML = `
+        <section class="section gallery-section" data-animate>
+            <div class="section-header">
+                <div class="section-icon gallery-icon-bg">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                </div>
+                <h2 class="section-heading">Official Gallery</h2>
+            </div>
+            <div class="gallery-grid">
+                ${galleryPhotos.map((p, i) => `
+                <div class="gallery-card" onclick="openGalleryLightbox(${i})">
+                    <div class="gallery-card-inner">
+                        <img src="${p.path}" alt="${p.caption || 'Gallery'}" class="gallery-image" loading="lazy">
+                        <div class="gallery-card-overlay">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                        </div>
+                    </div>
+                    ${p.caption ? `<p class="gallery-caption">${p.caption}</p>` : ''}
+                </div>`).join('')}
+            </div>
+        </section>
+        <div class="lightbox" id="galleryLightbox">
+            <button class="lightbox-close" onclick="closeGalleryLightbox()">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+            <button class="lightbox-nav lightbox-prev" onclick="navigateGallery(-1)">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="white"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            </button>
+            <img class="lightbox-image" id="lightboxImage" src="" alt="">
+            <button class="lightbox-nav lightbox-next" onclick="navigateGallery(1)">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="white"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            </button>
+        </div>`;
+    }
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Official Verification Hub for Baiilla Maach. Identify real vs fake accounts.">
+<meta name="theme-color" content="#ffffff">
+<title>${DATA.celebrity.fullName} | Official Verification Hub</title>
+<style>
+:root {
+    --bg: #ffffff;
+    --bg-secondary: #f8fafc;
+    --text: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --border: #e2e8f0;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 30px rgba(0,0,0,0.08);
+    --shadow-xl: 0 20px 50px rgba(0,0,0,0.1);
+    --green-50: #f0fdf4;
+    --green-100: #dcfce7;
+    --green-500: #22c55e;
+    --green-600: #16a34a;
+    --red-50: #fef2f2;
+    --red-100: #fee2e2;
+    --red-500: #ef4444;
+    --red-600: #dc2626;
+    --red-700: #b91c1c;
+    --amber-50: #fffbeb;
+    --amber-100: #fef3c7;
+    --amber-600: #d97706;
+    --blue-50: #eff6ff;
+    --blue-100: #dbeafe;
+    --blue-600: #2563eb;
+    --blue-700: #1d4ed8;
+    --pink: #ff0050;
+    --cyan: #00f2ea;
+    --fb: #1877f2;
+    --spotify: #1db954;
+    --spotify-black: #191414;
+    --radius: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-2xl: 24px;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-green {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+    50% { box-shadow: 0 0 0 16px rgba(34,197,94,0); }
+}
+
+@keyframes pulse-red {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+    50% { box-shadow: 0 0 0 16px rgba(239,68,68,0); }
+}
+
+@keyframes equalizer {
+    0%, 100% { height: 4px; }
+    50% { height: 14px; }
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+[data-animate] { opacity: 0; }
+[data-animate].animated { animation: fadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+.scroll-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--pink), var(--cyan), var(--green-500));
+    z-index: 10001;
+    transition: width 0.1s;
+}
+
+.navbar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 0;
+}
+
+.navbar .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.navbar-logo-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--pink);
+    object-fit: cover;
+}
+
+.navbar-logo-text {
+    font-weight: 700;
+    font-size: 1.05em;
+    color: var(--text);
+}
+
+.container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+.hero {
+    padding: 50px 0 36px;
+    text-align: center;
+}
+
+.hero-img {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 3px solid var(--pink);
+    object-fit: cover;
+    box-shadow: 0 0 0 6px rgba(255,0,80,0.08), 0 6px 24px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.hero-name {
+    font-size: 2.4em;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+}
+
+.hero-bio {
+    font-size: 1.05em;
+    color: var(--text-secondary);
+    margin-bottom: 18px;
+}
+
+.hero-badges {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.badge {
+    padding: 7px 18px;
+    border-radius: 22px;
+    font-size: 0.82em;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+.badge-verified {
+    background: linear-gradient(135deg, var(--green-500), var(--green-600));
+    color: white;
+    animation: pulse-green 2.5s infinite;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.badge-fun {
+    background: linear-gradient(135deg, var(--pink), #ff6b00);
+    color: white;
+}
+
+.hero-social {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.social-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 24px;
+    border-radius: 28px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.88em;
+    transition: all 0.25s;
+    border: 2px solid transparent;
+}
+
+.social-btn.tiktok { background: #000; color: #fff; }
+.social-btn.tiktok:hover { background: #fff; color: #000; border-color: #000; transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.social-btn.facebook { background: var(--fb); color: #fff; }
+.social-btn.facebook:hover { background: #fff; color: var(--fb); border-color: var(--fb); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+
+.section { padding: 36px 0; }
+
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+}
+
+.section-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.verified-icon-bg { background: linear-gradient(135deg, var(--green-500), var(--green-600)); }
+.danger-icon-bg { background: linear-gradient(135deg, var(--red-500), var(--red-600)); }
+.compare-icon-bg { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+.warning-icon-bg { background: linear-gradient(135deg, #f59e0b, var(--amber-600)); }
+.update-icon-bg { background: linear-gradient(135deg, #3b82f6, var(--blue-600)); }
+.spotify-icon-bg { background: linear-gradient(135deg, var(--spotify), #169c46); }
+.gallery-icon-bg { background: linear-gradient(135deg, #6366f1, #a855f7); }
+
+.section-heading {
+    font-size: 1.35em;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+}
+
+.official-card {
+    background: linear-gradient(135deg, #f0fdf4 0%, #fff 50%, #dcfce7 100%);
+    border: 2px solid #bbf7d0;
+    border-radius: var(--radius-2xl);
+    padding: 32px;
+    position: relative;
+    box-shadow: var(--shadow-xl);
+}
+
+.official-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--green-500), var(--green-600));
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+}
+
+.official-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.official-verify-icon {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, var(--green-500), var(--green-600));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse-green 2.5s infinite;
+    flex-shrink: 0;
+}
+
+.official-card-title h2 {
+    font-size: 1.3em;
+    font-weight: 700;
+    color: #15803d;
+}
+
+.official-card-title span {
+    font-size: 0.85em;
+    color: var(--green-600);
+    font-weight: 600;
+}
+
+.official-card-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 700px) { .official-card-body { grid-template-columns: 1fr; } }
+
+.official-info-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.official-info-item {
+    background: #fff;
+    border-radius: 10px;
+    padding: 12px 16px;
+    border: 1px solid #dcfce7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.official-info-label {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.official-info-value {
+    font-weight: 700;
+    color: var(--text);
+}
+
+.official-preview {
+    background: #fff;
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    border: 1px solid var(--border);
+    text-align: center;
+}
+
+.official-preview img {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 3px solid var(--green-500);
+    margin-bottom: 10px;
+}
+
+.official-preview .uname {
+    font-size: 1.05em;
+    font-weight: 700;
+}
+
+.official-preview .plat {
+    font-size: 0.8em;
+    color: var(--text-secondary);
+    margin: 4px 0 16px;
+}
+
+.btn-follow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 28px;
+    background: linear-gradient(135deg, var(--green-500), var(--green-600));
+    color: #fff;
+    border-radius: 28px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.9em;
+    transition: all 0.25s;
+    box-shadow: 0 4px 15px rgba(34,197,94,0.25);
+}
+
+.btn-follow:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(34,197,94,0.35); }
+
+.fake-section {
+    background: var(--red-50);
+    border: 2px solid #fecaca;
+    border-radius: var(--radius-2xl);
+    padding: 28px;
+}
+
+.fake-alert {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    padding: 14px 18px;
+    border-radius: var(--radius-lg);
+    border: 2px solid #fecaca;
+    margin-bottom: 20px;
+}
+
+.fake-alert-icon {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, var(--red-500), var(--red-600));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3em;
+    animation: pulse-red 2s infinite;
+    flex-shrink: 0;
+}
+
+.fake-alert-text h3 { font-size: 1.1em; font-weight: 700; color: var(--red-700); }
+.fake-alert-text p { font-size: 0.85em; color: var(--red-600); }
+
+.fake-carousel { position: relative; overflow: hidden; border-radius: var(--radius-xl); }
+
+.fake-carousel-track {
+    display: flex;
+    transition: transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.fake-slide { min-width: 100%; padding: 0 2px; }
+
+.fake-card {
+    background: #fff;
+    border-radius: var(--radius-xl);
+    border: 2px solid #fecaca;
+    padding: 24px;
+    position: relative;
+}
+
+.fake-card::after {
+    content: 'FAKE';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-25deg);
+    font-size: 5em;
+    font-weight: 900;
+    color: rgba(239,68,68,0.03);
+    pointer-events: none;
+    letter-spacing: 15px;
+}
+
+.fake-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.fake-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1em;
+    font-weight: 700;
+    color: var(--red-700);
+}
+
+.fake-card-badge {
+    background: var(--red-500);
+    color: #fff;
+    padding: 3px 12px;
+    border-radius: 16px;
+    font-size: 0.65em;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+.fake-card-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+@media (max-width: 600px) { .fake-card-body { grid-template-columns: 1fr; } }
+
+.fake-screenshot {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 3px solid #fecaca;
+}
+
+.fake-screenshot img {
+    width: 100%;
+    display: block;
+}
+
+.fake-watermark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    gap: 6px;
+}
+
+.fake-watermark span {
+    background: rgba(239,68,68,0.85);
+    color: #fff;
+    padding: 5px 14px;
+    border-radius: 14px;
+    font-weight: 800;
+    font-size: 0.8em;
+    letter-spacing: 1.5px;
+}
+
+.fake-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.fake-detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--red-50);
+    border-radius: 8px;
+    font-size: 0.82em;
+}
+
+.fake-detail-label { color: var(--red-600); font-weight: 600; }
+.fake-detail-value { color: var(--red-700); font-weight: 700; }
+
+.fake-reason {
+    background: #fff;
+    border: 2px solid #fee2e2;
+    border-radius: 10px;
+    padding: 12px;
+    margin-top: 6px;
+    font-size: 0.82em;
+    color: var(--red-700);
+    line-height: 1.5;
+}
+
+.fake-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+.btn-report {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, var(--red-500), var(--red-600));
+    color: #fff;
+    border-radius: 22px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.82em;
+    transition: all 0.25s;
+    flex: 1;
+    justify-content: center;
+    min-width: 120px;
+}
+
+.btn-report:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(239,68,68,0.3); }
+
+.btn-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 20px;
+    background: #fff;
+    color: var(--red-600);
+    border: 2px solid #fecaca;
+    border-radius: 22px;
+    font-weight: 700;
+    font-size: 0.82em;
+    cursor: pointer;
+    transition: all 0.25s;
+    flex: 1;
+    justify-content: center;
+    min-width: 120px;
+}
+
+.btn-copy:hover { background: var(--red-50); border-color: var(--red-500); }
+.btn-copy.copied { background: var(--green-500) !important; color: #fff !important; border-color: var(--green-500) !important; }
+
+.carousel-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    margin-top: 16px;
+}
+
+.carousel-dots { display: flex; gap: 6px; }
+
+.carousel-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #fecaca;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.carousel-dot.active { background: var(--red-500); width: 24px; border-radius: 4px; }
+
+.carousel-arrow {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid var(--border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
+    color: var(--text);
+    transition: all 0.25s;
+}
+
+.carousel-arrow:hover { background: var(--red-500); color: #fff; border-color: var(--red-500); }
+
+.comparison-table-wrap {
+    overflow-x: auto;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border);
+    background: #fff;
+    box-shadow: var(--shadow);
+}
+
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88em;
+}
+
+.comparison-table th {
+    background: #f1f5f9;
+    padding: 14px 16px;
+    text-align: left;
+    font-weight: 700;
+    border-bottom: 2px solid var(--border);
+}
+
+.comparison-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.comparison-table .col-official { background: #f0fdf4; border-left: 3px solid var(--green-500); }
+.comparison-table .col-fake { background: #fef2f2; border-left: 3px solid var(--red-500); }
+
+.check { color: var(--green-500); font-weight: 700; }
+.cross { color: var(--red-500); font-weight: 700; }
+
+.warning-section {
+    background: #fffbeb;
+    border: 2px solid #fde68a;
+    border-radius: var(--radius-2xl);
+    padding: 28px;
+}
+
+.warning-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.warning-card {
+    background: #fff;
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    border: 1px solid #fde68a;
+    transition: all 0.25s;
+}
+
+.warning-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+.warning-card-icon { font-size: 1.8em; margin-bottom: 8px; }
+.warning-card h4 { font-size: 0.95em; font-weight: 700; margin-bottom: 4px; }
+.warning-card p { font-size: 0.82em; color: var(--text-secondary); line-height: 1.5; }
+
+.updates-section {
+    background: #eff6ff;
+    border: 2px solid #bfdbfe;
+    border-radius: var(--radius-2xl);
+    padding: 28px;
+    text-align: center;
+}
+
+.updates-section h3 { font-size: 1.1em; font-weight: 700; color: var(--blue-700); margin-bottom: 6px; }
+.updates-section p { color: var(--blue-600); font-size: 0.85em; margin-bottom: 14px; }
+
+.update-tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+.update-tag {
+    background: #fff;
+    color: var(--blue-700);
+    padding: 6px 14px;
+    border-radius: 18px;
+    font-size: 0.78em;
+    font-weight: 600;
+    border: 1px solid #bfdbfe;
+}
+
+.spotify-player {
+    background: var(--spotify-black);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: var(--shadow-xl);
+}
+
+.spotify-now-playing {
+    display: flex;
+    gap: 20px;
+    padding: 24px;
+    background: linear-gradient(135deg, #282828, #191414);
+}
+
+@media (max-width: 680px) { .spotify-now-playing { flex-direction: column; align-items: center; text-align: center; } }
+
+.spotify-album-art {
+    width: 150px; height: 150px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+}
+
+.spotify-album-art img { width: 100%; height: 100%; object-fit: cover; }
+
+.spotify-default-art {
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--spotify), #169c46);
+}
+
+.spotify-track-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 180px;
+}
+
+.spotify-track-name {
+    font-size: 1.3em;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 3px;
+}
+
+.spotify-track-artist {
+    font-size: 0.85em;
+    color: #b3b3b3;
+    margin-bottom: 16px;
+}
+
+.spotify-progress { margin-bottom: 14px; }
+
+.spotify-progress-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    cursor: pointer;
+    margin-bottom: 5px;
+}
+
+.spotify-progress-fill {
+    height: 100%;
+    background: var(--spotify);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.1s linear;
+}
+
+.spotify-time {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68em;
+    color: #b3b3b3;
+}
+
+.spotify-controls {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.spotify-btn {
+    background: none;
+    border: none;
+    color: #b3b3b3;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spotify-btn:hover { color: #fff; transform: scale(1.1); }
+
+.spotify-play-btn {
+    background: #fff;
+    color: #191414;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+}
+
+.spotify-play-btn:hover { transform: scale(1.08); }
+
+.spotify-volume {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #b3b3b3;
+}
+
+.spotify-volume-slider {
+    width: 90px; height: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.spotify-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+}
+
+.spotify-playlist-container { max-height: 360px; overflow-y: auto; }
+
+.spotify-playlist-header {
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: #191414;
+    z-index: 1;
+}
+
+.spotify-playlist-header h3 { font-size: 0.95em; font-weight: 700; color: #fff; }
+.spotify-song-count { font-size: 0.75em; color: #b3b3b3; }
+
+.spotify-playlist-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.spotify-playlist-item:hover { background: rgba(255,255,255,0.05); }
+.spotify-playlist-item.active { background: rgba(29,185,84,0.1); }
+
+.spotify-track-number {
+    font-size: 0.8em;
+    color: #b3b3b3;
+    width: 24px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.spotify-track-cover-small {
+    width: 38px; height: 38px;
+    border-radius: 5px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #282828;
+}
+
+.spotify-track-cover-small img { width: 100%; height: 100%; object-fit: cover; }
+
+.spotify-default-art-small {
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--spotify), #169c46);
+}
+
+.spotify-track-details { flex: 1; min-width: 0; }
+
+.spotify-track-title {
+    font-weight: 600;
+    font-size: 0.84em;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.spotify-track-artist-small { font-size: 0.72em; color: #b3b3b3; }
+
+.spotify-equalizer { display: none; gap: 2px; align-items: flex-end; height: 16px; }
+
+.spotify-playlist-item.active .spotify-equalizer { display: flex; }
+
+.eq-bar {
+    width: 3px;
+    background: var(--spotify);
+    border-radius: 1px;
+    animation: equalizer 0.8s infinite;
+}
+
+.eq-bar:nth-child(1) { animation-delay: 0s; }
+.eq-bar:nth-child(2) { animation-delay: 0.2s; }
+.eq-bar:nth-child(3) { animation-delay: 0.4s; }
+.eq-bar:nth-child(4) { animation-delay: 0.6s; }
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+}
+
+.gallery-card {
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: #fff;
+    box-shadow: var(--shadow);
+}
+
+.gallery-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+
+.gallery-card-inner { position: relative; overflow: hidden; }
+
+.gallery-image {
+    width: 100%;
+    display: block;
+    transition: transform 0.4s;
+}
+
+.gallery-card:hover .gallery-image { transform: scale(1.04); }
+
+.gallery-card-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.gallery-card:hover .gallery-card-overlay { opacity: 1; }
+
+.gallery-caption {
+    padding: 10px 14px;
+    font-size: 0.82em;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.95);
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.lightbox.active { display: flex; }
+
+.lightbox-close {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    z-index: 10001;
+}
+
+.lightbox-image {
+    max-width: 90vw;
+    max-height: 85vh;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 50%;
+    width: 44px; height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.25s;
+}
+
+.lightbox-nav:hover { background: rgba(255,255,255,0.25); }
+.lightbox-prev { left: 16px; }
+.lightbox-next { right: 16px; }
+
+.footer {
+    text-align: center;
+    padding: 36px 20px;
+    color: var(--text-muted);
+    font-size: 0.85em;
+    border-top: 1px solid var(--border);
+    margin-top: 36px;
+    background: var(--bg-secondary);
+}
+
+@media (max-width: 768px) {
+    .hero-name { font-size: 1.8em; }
+    .hero-img { width: 100px; height: 100px; }
+    .section-heading { font-size: 1.2em; }
+    .official-card { padding: 22px; }
+    .spotify-album-art { width: 120px; height: 120px; }
+    .lightbox-nav { width: 36px; height: 36px; }
+    .lightbox-prev { left: 8px; }
+    .lightbox-next { right: 8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="scroll-progress" id="scrollProgress"></div>
+
+<nav class="navbar">
+    <div class="container">
+        <img src="${DATA.celebrity.photo}" alt="" class="navbar-logo-img" onerror="this.style.display='none'">
+        <span class="navbar-logo-text">Verification Hub</span>
+    </div>
+</nav>
+
+<header class="hero" data-animate>
+    <div class="container">
+        <img src="${DATA.celebrity.photo}" alt="${DATA.celebrity.name}" class="hero-img" onerror="this.style.display='none'">
+        <h1 class="hero-name">${DATA.celebrity.fullName}</h1>
+        <p class="hero-bio">${DATA.celebrity.bio}</p>
+        <div class="hero-badges">
+            <span class="badge badge-verified">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+                VERIFIED OFFICIAL
+            </span>
+            <span class="badge badge-fun">✦ ENTERTAINMENT</span>
+        </div>
+        <div class="hero-social">
+            <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="social-btn tiktok">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.89a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
+                TikTok
+            </a>
+            <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" rel="noopener" class="social-btn facebook">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                Facebook
+            </a>
+        </div>
+    </div>
+</header>
+
+<main class="container">
+
+<section class="section" data-animate>
+    <div class="section-header">
+        <div class="section-icon verified-icon-bg">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+        </div>
+        <h2 class="section-heading">Official Verified Account</h2>
+    </div>
+
+    <div class="official-card">
+        <div class="official-card-header">
+            <div class="official-verify-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            </div>
+            <div class="official-card-title">
+                <h2>The Only Authentic Account</h2>
+                <span>✓ Identity Verified</span>
+            </div>
+        </div>
+        <div class="official-card-body">
+            <div class="official-info-list">
+                <div class="official-info-item">
+                    <span class="official-info-label">Username</span>
+                    <span class="official-info-value">@baiillamaach_official</span>
+                </div>
+                <div class="official-info-item">
+                    <span class="official-info-label">Platforms</span>
+                    <span class="official-info-value">TikTok • Facebook</span>
+                </div>
+                <div class="official-info-item">
+                    <span class="official-info-label">Status</span>
+                    <span class="official-info-value" style="color:var(--green-600)">● Active & Verified</span>
+                </div>
+                <div class="official-info-item">
+                    <span class="official-info-label">Security</span>
+                    <span class="official-info-value" style="color:var(--green-600)">Safe</span>
+                </div>
+            </div>
+            <div class="official-preview">
+                <img src="${DATA.celebrity.photo}" alt="" onerror="this.style.display='none'">
+                <div class="uname">@baiillamaach_official</div>
+                <div class="plat">TikTok • Facebook</div>
+                <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="btn-follow">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                    Follow Official Account
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="fake-section" data-animate>
+    <div class="section-header">
+        <div class="section-icon danger-icon-bg">
+            <span style="font-size:1.3em">⚠</span>
+        </div>
+        <h2 class="section-heading">Fake Accounts Detected</h2>
+    </div>
+
+    <div class="fake-alert">
+        <div class="fake-alert-icon">🚨</div>
+        <div class="fake-alert-text">
+            <h3>${totalFake} Fake Account${totalFake > 1 ? 's' : ''} Found</h3>
+            <p>These are NOT affiliated with Baiilla Maach. Report them immediately.</p>
+        </div>
+    </div>
+
+    <div class="fake-carousel" id="fakeCarousel">
+        <div class="fake-carousel-track" id="fakeCarouselTrack">
+            ${DATA.fakeAccounts.map((a, i) => `
+            <div class="fake-slide">
+                <div class="fake-card">
+                    <div class="fake-card-top">
+                        <div class="fake-card-title">
+                            <span>⚠️</span> Fake Account #${i+1}
+                        </div>
+                        <span class="fake-card-badge">Dangerous</span>
+                    </div>
+                    <div class="fake-card-body">
+                        <div class="fake-screenshot">
+                            ${a.screenshot ? `<img src="${a.screenshot}" alt="" loading="lazy">` : ''}
+                            <div class="fake-watermark">
+                                <span>⚠️ FAKE</span>
+                                <span style="font-size:0.65em">DO NOT TRUST</span>
+                            </div>
+                        </div>
+                        <div class="fake-details">
+                            <div class="fake-detail-row">
+                                <span class="fake-detail-label">Platform</span>
+                                <span class="fake-detail-value">${a.platform}</span>
+                            </div>
+                            <div class="fake-detail-row">
+                                <span class="fake-detail-label">Username</span>
+                                <span class="fake-detail-value">${a.username}</span>
+                            </div>
+                            <div class="fake-detail-row">
+                                <span class="fake-detail-label">Status</span>
+                                <span class="fake-detail-value">Active Threat</span>
+                            </div>
+                            <div class="fake-reason">
+                                <span>⚠️ ${a.reason}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="fake-actions">
+                        <a href="${a.profileUrl}" target="_blank" rel="noopener" class="btn-report">🚨 Report</a>
+                        <button class="btn-copy copy-btn" data-username="${a.username}">📋 Copy Username</button>
+                    </div>
+                </div>
+            </div>`).join('')}
+        </div>
+    </div>
+
+    <div class="carousel-nav">
+        <button class="carousel-arrow" onclick="moveCarousel(-1)">◀</button>
+        <div class="carousel-dots" id="carouselDots">
+            ${DATA.fakeAccounts.map((_, i) => `<button class="carousel-dot${i===0?' active':''}" onclick="goToSlide(${i})"></button>`).join('')}
+        </div>
+        <button class="carousel-arrow" onclick="moveCarousel(1)">▶</button>
+    </div>
+</section>
+
+<section class="section" data-animate>
+    <div class="section-header">
+        <div class="section-icon compare-icon-bg">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M3 5v14h18V5H3zm16 2v2H5V7h14zm0 4v2H5v-2h14zm0 4v2H5v-2h14z"/></svg>
+        </div>
+        <h2 class="section-heading">Account Comparison</h2>
+    </div>
+    <div class="comparison-table-wrap">
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>✅ Official</th>
+                    <th>❌ Fake</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Verification</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Verified</td>
+                    <td class="col-fake"><span class="cross">✗</span> Not Verified</td>
+                </tr>
+                <tr>
+                    <td><strong>Username</strong></td>
+                    <td class="col-official"><span class="check">✓</span> @baiillamaach_official</td>
+                    <td class="col-fake"><span class="cross">✗</span> Similar names</td>
+                </tr>
+                <tr>
+                    <td><strong>Content</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Original</td>
+                    <td class="col-fake"><span class="cross">✗</span> Stolen</td>
+                </tr>
+                <tr>
+                    <td><strong>Trust</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Safe</td>
+                    <td class="col-fake"><span class="cross">✗</span> Dangerous</td>
+                </tr>
+                <tr>
+                    <td><strong>Reports</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Clean</td>
+                    <td class="col-fake"><span class="cross">✗</span> Multiple Reports</td>
+                </tr>
+                <tr>
+                    <td><strong>Owner</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Official</td>
+                    <td class="col-fake"><span class="cross">✗</span> Impersonator</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<div class="warning-section" data-animate>
+    <div class="section-header">
+        <div class="section-icon warning-icon-bg">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+        </div>
+        <h2 class="section-heading">How to Stay Safe</h2>
+    </div>
+    <div class="warning-grid">
+        <div class="warning-card">
+            <div class="warning-card-icon">🔍</div>
+            <h4>Verify First</h4>
+            <p>Check username carefully. Official: @baiillamaach_official</p>
+        </div>
+        <div class="warning-card">
+            <div class="warning-card-icon">🚫</div>
+            <h4>Never Share Info</h4>
+            <p>Fake accounts ask for passwords or money. Never share them.</p>
+        </div>
+        <div class="warning-card">
+            <div class="warning-card-icon">📢</div>
+            <h4>Report Fast</h4>
+            <p>Use platform report feature when you spot a fake account.</p>
+        </div>
+        <div class="warning-card">
+            <div class="warning-card-icon">🔗</div>
+            <h4>Use Official Links</h4>
+            <p>Only use links on this page to access the real account.</p>
+        </div>
+    </div>
+</div>
+
+<div class="updates-section" data-animate>
+    <h3>🔄 Latest Updates</h3>
+    <p>Stay informed about impersonation attempts and security.</p>
+    <div class="update-tags">
+        <span class="update-tag">📌 New fakes detected weekly</span>
+        <span class="update-tag">🔒 Verification active</span>
+        <span class="update-tag">🛡️ Community reporting</span>
+        <span class="update-tag">📢 Awareness ongoing</span>
+    </div>
+</div>
+
+${coverSongsHTML}
+
+${galleryHTML}
+
+</main>
+
+<footer class="footer">
+    <p>© ${DATA.celebrity.fullName} • Official Verification Hub</p>
+</footer>
+
+<audio id="audioPlayer" preload="auto"></audio>
+
+<script>
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add('animated');
+    });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('[data-animate]').forEach(el => observer.observe(el));
+
+window.addEventListener('scroll', () => {
+    const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+    document.getElementById('scrollProgress').style.width = pct + '%';
+});
+
+let currentSlide = 0;
+const totalSlides = ${totalFake};
+const track = document.getElementById('fakeCarouselTrack');
+const dots = document.querySelectorAll('.carousel-dot');
+let autoSlide;
+
+function updateCarousel() {
+    track.style.transform = 'translateX(-' + (currentSlide * 100) + '%)';
+    dots.forEach((d, i) => d.classList.toggle('active', i === currentSlide));
+}
+
+function moveCarousel(dir) {
+    currentSlide = (currentSlide + dir + totalSlides) % totalSlides;
+    updateCarousel();
+    clearInterval(autoSlide);
+    autoSlide = setInterval(() => moveCarousel(1), 5000);
+}
+
+function goToSlide(i) {
+    currentSlide = i;
+    updateCarousel();
+    clearInterval(autoSlide);
+    autoSlide = setInterval(() => moveCarousel(1), 5000);
+}
+
+autoSlide = setInterval(() => moveCarousel(1), 5000);
+
+const carousel = document.getElementById('fakeCarousel');
+let touchX = 0;
+carousel.addEventListener('touchstart', e => { touchX = e.changedTouches[0].screenX; });
+carousel.addEventListener('touchend', e => {
+    const diff = touchX - e.changedTouches[0].screenX;
+    if (Math.abs(diff) > 40) moveCarousel(diff > 0 ? 1 : -1);
+});
+
+document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        navigator.clipboard.writeText(this.dataset.username).then(() => {
+            this.innerHTML = '✓ Copied!';
+            this.classList.add('copied');
+            setTimeout(() => { this.innerHTML = '📋 Copy Username'; this.classList.remove('copied'); }, 2000);
+        });
+    });
+});
+
+let cur = -1, playing = false, ap = document.getElementById('audioPlayer'), items = document.querySelectorAll('.spotify-playlist-item');
+
+function loadSong(i) {
+    if (!items.length || i < 0 || i >= items.length) return;
+    cur = i; const it = items[i];
+    ap.src = it.dataset.audio;
+    document.getElementById('nowPlayingTitle').textContent = it.querySelector('.spotify-track-title').textContent;
+    document.getElementById('nowPlayingArtist').textContent = it.querySelector('.spotify-track-artist-small').textContent;
+    const cc = document.getElementById('nowPlayingCover');
+    if (it.dataset.cover) {
+        cc.innerHTML = '<img src="' + it.dataset.cover + '" alt="">';
     } else {
-        galleryPhotos.forEach(function(p) {
-            galleryHTML += '<div class="gallery-item"><img src="' + p.path + '" alt="Photo" loading="lazy"></div>';
-        });
+        cc.innerHTML = '<div class="spotify-default-art"><svg viewBox="0 0 24 24" width="56" height="56"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>';
     }
-
-    let musicSectionHTML = '';
-    if (coverSongs.length > 0) {
-        let songListHTML = '';
-        coverSongs.forEach(function(s, i) {
-            songListHTML += '<div class="song-item" id="song-' + i + '" onclick="playSong(\'' + s.audioUrl + '\',\'' + s.title + '\',\'' + s.artist + '\',\'' + (s.coverUrl || '') + '\',' + i + ')">';
-            songListHTML += '<span style="opacity:0.4;font-size:12px;width:26px">' + String(i + 1).padStart(2, '0') + '</span>';
-            songListHTML += '<div style="flex:1"><div style="font-weight:500;font-size:13px">' + s.title + '</div><div style="font-size:10px;opacity:0.4">' + s.artist + '</div></div>';
-            songListHTML += '<span style="font-size:12px;opacity:0.3">▶</span></div>';
-        });
-
-        musicSectionHTML = '<section id="music" class="music-player">' +
-            '<div class="music-header">' +
-            '<img src="' + IMAGES.voiceMic + '" class="music-header-icon" alt="Mic">' +
-            '<span style="font-weight:700;font-size:16px">Cover Music</span>' +
-            '<span style="font-size:11px;opacity:0.5;margin-left:auto">' + coverSongs.length + ' tracks</span>' +
-            '</div>' +
-            '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">' +
-            '<div class="album-art" id="albumArt"><span>🎵</span></div>' +
-            '<div style="flex:1;min-width:0">' +
-            '<div id="currentTitle" style="font-weight:600;font-size:15px">Select a Song</div>' +
-            '<div id="currentArtist" style="font-size:11px;opacity:0.6;margin-top:4px">Cover Music</div>' +
-            '</div>' +
-            '<button class="play-btn" id="playBtn" onclick="togglePlay()">▶️</button>' +
-            '</div>' +
-            '<div class="progress-wrap">' +
-            '<span id="currentTime" style="font-size:10px;opacity:0.5;width:32px">0:00</span>' +
-            '<div class="progress-bar" onclick="seekAudio(event)"><div class="progress-fill" id="progressFill"><div class="progress-thumb"></div></div></div>' +
-            '<span id="totalTime" style="font-size:10px;opacity:0.5;width:32px;text-align:right">0:00</span>' +
-            '</div>' +
-            '<div class="song-list">' + songListHTML + '</div>' +
-            '<audio id="coverAudio" preload="none"></audio>' +
-            '</section>';
-    }
-
-    return '<!DOCTYPE html>' +
-'<html lang="en">' +
-'<head>' +
-'<meta charset="UTF-8">' +
-'<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">' +
-'<meta name="theme-color" content="#0f0f1a">' +
-'<title>Baiilla Maach | Verification Hub</title>' +
-'<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">' +
-'<style>' +
-':root{--bg:#0a0a14;--surface:#13132b;--surface2:#1a1a35;--text:#f0f0ff;--text2:#a0a0cc;--text3:#6060a0;--purple:#8b5cf6;--purple2:#a78bfa;--pink:#ec4899;--green:#10b981;--red:#ef4444;--yellow:#eab308;--glass-border:rgba(255,255,255,0.06);--glow-purple:0 0 40px rgba(139,92,246,0.3);--glow-green:0 0 30px rgba(16,185,129,0.3);--glow-red:0 0 30px rgba(239,68,68,0.3);--glow-yellow:0 0 30px rgba(234,179,8,0.3)}' +
-'*{margin:0;padding:0;box-sizing:border-box}' +
-'body{font-family:"Plus Jakarta Sans",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}' +
-'.stars-bg{position:fixed;top:0;left:0;right:0;bottom:0;z-index:0;pointer-events:none;overflow:hidden}' +
-'.star{position:absolute;background:white;border-radius:50%;animation:twinkle var(--dur) ease-in-out infinite;animation-delay:var(--delay);opacity:0}' +
-'@keyframes twinkle{0%,100%{opacity:0.2;transform:scale(1)}50%{opacity:0.8;transform:scale(1.5)}}' +
-'.orb{position:fixed;border-radius:50%;filter:blur(80px);opacity:0.3;pointer-events:none;z-index:0;animation:floatOrb var(--dur) ease-in-out infinite}' +
-'@keyframes floatOrb{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(30px,-40px) scale(1.1)}50%{transform:translate(-20px,-80px) scale(0.9)}75%{transform:translate(-40px,-20px) scale(1.05)}}' +
-'main{position:relative;z-index:1;max-width:860px;margin:0 auto;padding:16px}' +
-'.glass-card{background:var(--surface);border:1px solid var(--glass-border);border-radius:24px;padding:24px;margin-bottom:20px;transition:all 0.4s}' +
-'.glass-card:hover{transform:translateY(-4px);box-shadow:0 20px 60px rgba(0,0,0,0.4)}' +
-'.danger-card{border-left:3px solid var(--red)}' +
-'.success-card{border-left:3px solid var(--green)}' +
-'.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:50px;font-weight:600;font-size:13px;cursor:pointer;border:none;text-decoration:none;transition:all 0.3s}' +
-'.btn-purple{background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;box-shadow:var(--glow-purple)}' +
-'.btn-red{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:var(--glow-red)}' +
-'.btn-green{background:linear-gradient(135deg,#10b981,#059669);color:#fff;box-shadow:var(--glow-green)}' +
-'.btn-outline{background:transparent;border:1px solid var(--glass-border);color:var(--text2)}' +
-'.btn-sm{padding:6px 14px;font-size:11px}' +
-'.badge{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:50px;font-size:11px;font-weight:600}' +
-'.badge-red{background:rgba(239,68,68,0.15);color:#fca5a5}' +
-'.badge-green{background:rgba(16,185,129,0.15);color:#6ee7b7}' +
-'.badge-purple{background:rgba(139,92,246,0.15);color:#c4b5fd}' +
-'.badge-yellow{background:rgba(234,179,8,0.15);color:#fde047}' +
-'.main-header{background:rgba(10,10,20,0.8);backdrop-filter:blur(30px);border-bottom:1px solid var(--glass-border);padding:12px 0;position:sticky;top:0;z-index:100}' +
-'.header-inner{display:flex;align-items:center;justify-content:space-between;max-width:860px;margin:0 auto;padding:0 16px}' +
-'.header-logo{display:flex;align-items:center;gap:10px}' +
-'.header-logo img{width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid var(--purple)}' +
-'.header-title{font-weight:700;font-size:16px;background:linear-gradient(135deg,#c4b5fd,#f9a8d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}' +
-'.header-nav{display:flex;gap:6px}' +
-'.header-nav a{padding:7px 14px;border-radius:50px;font-size:11px;font-weight:600;text-decoration:none}' +
-'.nav-red{color:#fca5a5;background:rgba(239,68,68,0.1)}' +
-'.nav-green{color:#6ee7b7;background:rgba(16,185,129,0.1)}' +
-'.nav-purple{color:#c4b5fd;background:rgba(139,92,246,0.1)}' +
-'.profile-section{text-align:center;padding:30px 0 20px}' +
-'.profile-pic-wrap{position:relative;display:inline-block;margin-bottom:12px}' +
-'.profile-pic{width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid var(--purple);box-shadow:var(--glow-purple)}' +
-'.verified-badge-prof{position:absolute;bottom:4px;right:4px;width:30px;height:30px;background:linear-gradient(135deg,#10b981,#059669);border-radius:50%;border:3px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff}' +
-'.profile-name{font-size:26px;font-weight:800;background:linear-gradient(135deg,#c4b5fd,#f9a8d4,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-top:8px}' +
-'.profile-bio{color:var(--text2);font-size:13px;margin-top:6px}' +
-'.stats-row{display:flex;justify-content:center;gap:16px;margin:20px 0;flex-wrap:wrap}' +
-'.stat-card{background:var(--surface2);border:1px solid var(--glass-border);border-radius:18px;padding:16px 24px;text-align:center}' +
-'.stat-value{font-size:22px;font-weight:700;color:var(--purple2)}' +
-'.stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-top:4px}' +
-'.section-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--glass-border)}' +
-'.icon-circle{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}' +
-'.icon-red{background:rgba(239,68,68,0.15)}' +
-'.icon-green{background:rgba(16,185,129,0.15)}' +
-'.icon-yellow{background:rgba(234,179,8,0.15)}' +
-'.section-title{font-size:18px;font-weight:700}' +
-'.section-subtitle{font-size:11px;color:var(--text3);margin-top:2px}' +
-'.fake-card{background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.2);border-radius:18px;padding:18px;margin-bottom:12px}' +
-'.fake-card-body{display:flex;gap:14px;align-items:flex-start}' +
-'.fake-card-img{width:60px;height:60px;border-radius:14px;object-fit:cover;border:2px solid rgba(239,68,68,0.3);flex-shrink:0}' +
-'.fake-card-placeholder{width:60px;height:60px;border-radius:14px;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}' +
-'.official-card{background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:18px;padding:16px 18px;margin-bottom:10px;display:flex;align-items:center;gap:14px}' +
-'.warning-image-container{text-align:center;padding:20px;background:rgba(234,179,8,0.05);border:1px solid rgba(234,179,8,0.2);border-radius:18px;margin-bottom:20px}' +
-'.warning-image-container img{max-width:100%;border-radius:16px;box-shadow:var(--glow-yellow)}' +
-'.music-player{background:linear-gradient(180deg,#1a1040,#0a0a1a);border-radius:32px;padding:28px;color:#fff;margin:20px 0;border:1px solid rgba(139,92,246,0.2)}' +
-'.music-header{display:flex;align-items:center;gap:10px;margin-bottom:20px}' +
-'.music-header-icon{width:28px;height:28px;animation:micBounce 1.5s ease-in-out infinite}' +
-'@keyframes micBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}' +
-'.album-art{width:80px;height:80px;border-radius:20px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0;border:2px solid rgba(255,255,255,0.1);overflow:hidden}' +
-'.album-art img{width:100%;height:100%;object-fit:cover}' +
-'.play-btn{width:56px;height:56px;border-radius:50%;background:#1db954;border:none;color:#000;font-size:22px;cursor:pointer;flex-shrink:0}' +
-'.progress-wrap{display:flex;align-items:center;gap:10px}' +
-'.progress-bar{flex:1;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;cursor:pointer}' +
-'.progress-fill{height:100%;background:linear-gradient(90deg,#1db954,#1ed760);border-radius:2px;width:0%}' +
-'.song-list{max-height:220px;overflow-y:auto;margin-top:18px}' +
-'.song-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;cursor:pointer}' +
-'.song-item:hover{background:rgba(255,255,255,0.04)}' +
-'.song-item.active{background:rgba(29,185,84,0.15);border:1px solid rgba(29,185,84,0.3)}' +
-'.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}' +
-'.gallery-item{border-radius:18px;overflow:hidden;border:1px solid var(--glass-border)}' +
-'.gallery-item img{width:100%;height:130px;object-fit:cover}' +
-'.toast{position:fixed;top:20px;right:20px;z-index:99999;background:var(--surface2);border:1px solid var(--glass-border);padding:14px 20px;border-radius:14px;color:var(--text);font-size:13px;transform:translateX(120%);transition:transform 0.4s;box-shadow:0 10px 40px rgba(0,0,0,0.5)}' +
-'.toast.show{transform:translateX(0)}' +
-'.toast.error{border-left:3px solid var(--red)}' +
-'.toast.success{border-left:3px solid var(--green)}' +
-'.chat-widget{position:fixed;bottom:24px;right:24px;z-index:9999}' +
-'.chat-btn{width:auto;height:56px;border-radius:50px;background:linear-gradient(135deg,#8b5cf6,#ec4899);border:none;cursor:pointer;box-shadow:0 10px 40px rgba(139,92,246,0.4);display:flex;align-items:center;gap:10px;padding:0 20px;transition:all 0.3s;color:#fff;font-weight:600;font-size:14px;white-space:nowrap}' +
-'.chat-btn:hover{transform:scale(1.05);box-shadow:0 15px 50px rgba(236,72,153,0.5)}' +
-'.chat-btn img{width:34px;height:34px;border-radius:50%;flex-shrink:0}' +
-'@media(max-width:640px){.chat-widget{bottom:16px;right:16px}.header-nav{display:none}}' +
-'</style>' +
-'</head>' +
-'<body>' +
-'<div class="stars-bg" id="starsBg"></div>' +
-'<div class="orb" style="width:300px;height:300px;background:rgba(139,92,246,0.4);top:10%;left:-100px;--dur:8s"></div>' +
-'<div class="orb" style="width:250px;height:250px;background:rgba(236,72,153,0.3);top:50%;right:-80px;--dur:10s"></div>' +
-'<div class="orb" style="width:200px;height:200px;background:rgba(59,130,246,0.3);bottom:10%;left:30%;--dur:12s"></div>' +
-'<div id="toast" class="toast"></div>' +
-'<header class="main-header"><div class="header-inner"><div class="header-logo"><img src="' + profilePic + '" alt="Logo"><span class="header-title">Verification Hub</span></div><nav class="header-nav"><a href="#fake" class="nav-red">⚠ Fakes</a>' + (coverSongs.length > 0 ? '<a href="#music" class="nav-purple">🎵 Music</a>' : '') + '<a href="#warning" class="nav-purple">🔍 Detection</a><a href="#official" class="nav-green">✓ Official</a><a href="#gallery" class="nav-purple">📸 Gallery</a></nav></div></header>' +
-'<main>' +
-'<section class="profile-section"><div class="profile-pic-wrap"><img src="' + profilePic + '" class="profile-pic" alt="Profile"><div class="verified-badge-prof">✓</div></div><h1 class="profile-name">' + DATA.celebrity.fullName + '</h1><p class="profile-bio">' + DATA.celebrity.bio + '</p><div class="stats-row"><div class="stat-card"><div class="stat-value">' + DATA.celebrity.tiktokFollowers + '</div><div class="stat-label">Followers</div></div><div class="stat-card"><div class="stat-value">' + DATA.celebrity.tiktokFollowing + '</div><div class="stat-label">Following</div></div><div class="stat-card"><div class="stat-value">' + DATA.celebrity.tiktokLikes + '</div><div class="stat-label">Likes</div></div></div><div style="display:flex;gap:8px;justify-content:center"><span class="badge badge-green">✓ Verified</span><span class="badge badge-purple">Creator</span></div></section>' +
-'<section id="fake" class="glass-card danger-card"><div class="section-header"><div class="icon-circle icon-red">⚠️</div><div><div class="section-title" style="color:#fca5a5">Fake Accounts Detected</div><div class="section-subtitle">Report these impersonating accounts</div></div><span class="badge badge-red" style="margin-left:auto">' + totalFake + ' Active</span></div>' + fakeCardsHTML + '<div style="display:flex;gap:8px;align-items:center;margin-top:12px"><button class="btn btn-red btn-sm" id="voicePlayBtn" onclick="toggleFakeVoice()">🔊 Play Alert</button><button class="btn btn-outline btn-sm" id="voiceStopBtn" onclick="stopFakeVoice()" style="display:none">⏹ Stop</button></div><audio id="fakeVoice" src="' + VOICE.fakeAlert + '" preload="auto"></audio></section>' +
-musicSectionHTML +
-'<section id="warning" class="warning-image-container"><img src="' + IMAGES.fakeDetect + '" alt="Fake Detection Warning"><div style="margin-top:16px"><span class="badge badge-yellow">🔍 Fake Account Detection Guide</span></div><p style="color:var(--text2);font-size:13px;margin-top:12px;line-height:1.6">Always check for the verified badge before interacting. Report suspicious accounts immediately.</p></section>' +
-'<section id="official" class="glass-card success-card"><div class="section-header"><div class="icon-circle icon-green">✓</div><div><div class="section-title" style="color:#6ee7b7">Official Verified Accounts</div><div class="section-subtitle">Only follow these real accounts</div></div></div>' + officialCardsHTML + '</section>' +
-'<section id="gallery" class="glass-card"><div class="section-header"><span style="font-size:22px">📸</span><div><div class="section-title">Photo Gallery</div><div class="section-subtitle">Official moments</div></div></div><div class="gallery-grid">' + galleryHTML + '</div></section>' +
-'</main>' +
-'<div class="chat-widget"><button class="chat-btn" onclick="window.open(\'/chat\',\'_blank\')"><img src="' + IMAGES.messageIcon + '" alt="Chat"><span>💬 Chat Now</span></button></div>' +
-'<script>(function(){var c=document.getElementById("starsBg");for(var i=0;i<80;i++){var s=document.createElement("div");s.className="star";s.style.cssText="left:"+Math.random()*100+"%;top:"+Math.random()*100+"%;width:"+(Math.random()*3+1)+"px;height:"+(Math.random()*3+1)+"px;--dur:"+(Math.random()*3+2)+"s;--delay:"+(Math.random()*5)+"s";c.appendChild(s)}})();function showToast(m,t){var e=document.getElementById("toast");e.textContent=m;e.className="toast show "+(t||"");setTimeout(function(){e.classList.remove("show")},2800)}function copyTxt(t){navigator.clipboard.writeText(t).then(function(){showToast("Copied!","success")})}var fvp=false,fa=document.getElementById("fakeVoice");function toggleFakeVoice(){var b=document.getElementById("voicePlayBtn"),s=document.getElementById("voiceStopBtn");if(fvp){fa.pause();fa.currentTime=0;fvp=false;b.textContent="🔊 Play Alert";b.style.display="";s.style.display="none"}else{fa.play().then(function(){fvp=true;b.textContent="🔊 Playing...";s.style.display=""}).catch(function(){showToast("Error","error")})}}function stopFakeVoice(){fa.pause();fa.currentTime=0;fvp=false;document.getElementById("voicePlayBtn").textContent="🔊 Play Alert";document.getElementById("voicePlayBtn").style.display="";document.getElementById("voiceStopBtn").style.display="none"}fa.addEventListener("ended",function(){fvp=false;document.getElementById("voicePlayBtn").textContent="🔊 Play Alert";document.getElementById("voicePlayBtn").style.display="";document.getElementById("voiceStopBtn").style.display="none"});var ca=null,ip=false;function playSong(u,t,a,c,i){var ad=document.getElementById("coverAudio"),pb=document.getElementById("playBtn"),ar=document.getElementById("albumArt");if(ca===u){togglePlay();return}if(ca){ad.pause()}ca=u;ad.src=u;document.getElementById("currentTitle").textContent=t||"Unknown";document.getElementById("currentArtist").textContent=a||"Unknown";ar.innerHTML=c?\'<img src="\'+c+\'" style="width:100%;height:100%;object-fit:cover">\':"<span>🎵</span>";document.getElementById("progressFill").style.width="0%";document.getElementById("currentTime").textContent="0:00";document.getElementById("totalTime").textContent="0:00";document.querySelectorAll(".song-item").forEach(function(e){e.classList.remove("active")});var se=document.getElementById("song-"+i);if(se)se.classList.add("active");ad.play().then(function(){ip=true;pb.textContent="⏸️";ar.classList.add("playing")}).catch(function(){showToast("Error","error")});ad.ontimeupdate=function(){if(ad.duration){document.getElementById("progressFill").style.width=(ad.currentTime/ad.duration)*100+"%";document.getElementById("currentTime").textContent=ft(ad.currentTime)}};ad.onloadedmetadata=function(){document.getElementById("totalTime").textContent=ft(ad.duration)};ad.onended=function(){ip=false;pb.textContent="▶️";ar.classList.remove("playing");document.getElementById("progressFill").style.width="0%";document.getElementById("currentTime").textContent="0:00";ca=null}}function togglePlay(){var a=document.getElementById("coverAudio"),b=document.getElementById("playBtn"),r=document.getElementById("albumArt");if(!a.src||a.src===window.location.href){showToast("Select a song","error");return}if(ip){a.pause();ip=false;b.textContent="▶️";r.classList.remove("playing")}else{a.play().then(function(){ip=true;b.textContent="⏸️";r.classList.add("playing")}).catch(function(){showToast("Error","error")})}}function seekAudio(e){var a=document.getElementById("coverAudio");if(!a.duration)return;a.currentTime=((e.clientX-e.currentTarget.getBoundingClientRect().left)/e.currentTarget.offsetWidth)*a.duration}function ft(s){if(isNaN(s))return"0:00";return Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0")}setTimeout(function(){var v=document.getElementById("welcomeVoice");if(v&&!sessionStorage.getItem("vp")){v.play().catch(function(){});sessionStorage.setItem("vp","1")}},2000);</script>' +
-'<audio id="welcomeVoice" src="' + VOICE.welcome + '" preload="none"></audio>' +
-'</body></html>';
+    document.querySelectorAll('.spotify-playlist-item').forEach(el => el.classList.remove('active'));
+    it.classList.add('active');
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('currentTime').textContent = '0:00';
+    document.getElementById('totalTime').textContent = '0:00';
+    ap.play().then(() => { playing = true; upPlayBtn(); }).catch(() => {});
 }
 
-function parseCookies(h) { 
-    const c = {}; 
-    if (h) h.split(';').forEach(x => { 
-        const p = x.split('='); 
-        c[p[0].trim()] = p[1] ? p[1].trim() : ''; 
-    }); 
-    return c; 
+function playSong(i) { if (i === cur) togglePlay(); else loadSong(i); }
+
+function togglePlay() {
+    if (!ap.src && items.length > 0) { loadSong(0); return; }
+    if (playing) ap.pause(); else ap.play();
+    playing = !playing; upPlayBtn();
 }
 
-// Create server with routes
+function upPlayBtn() {
+    document.getElementById('playIcon').style.display = playing ? 'none' : 'block';
+    document.getElementById('pauseIcon').style.display = playing ? 'block' : 'none';
+}
+
+function nextSong() { if (items.length) loadSong((cur + 1) % items.length); }
+function prevSong() { if (items.length) loadSong(cur <= 0 ? items.length - 1 : cur - 1); }
+function setVol(v) { ap.volume = v / 100; }
+
+ap.addEventListener('timeupdate', () => {
+    if (ap.duration) {
+        document.getElementById('progressFill').style.width = (ap.currentTime / ap.duration) * 100 + '%';
+        const m = Math.floor(ap.currentTime / 60), s = Math.floor(ap.currentTime % 60);
+        document.getElementById('currentTime').textContent = m + ':' + s.toString().padStart(2, '0');
+    }
+});
+
+ap.addEventListener('loadedmetadata', () => {
+    const m = Math.floor(ap.duration / 60), s = Math.floor(ap.duration % 60);
+    document.getElementById('totalTime').textContent = m + ':' + s.toString().padStart(2, '0');
+});
+
+ap.addEventListener('ended', nextSong);
+
+document.getElementById('progressBar').addEventListener('click', e => {
+    const r = e.target.getBoundingClientRect();
+    ap.currentTime = ((e.clientX - r.left) / r.width) * ap.duration;
+});
+
+ap.volume = 0.7;
+
+let galleryIdx = 0;
+const galleryImgs = document.querySelectorAll('.gallery-image');
+const lightbox = document.getElementById('galleryLightbox');
+const lightboxImg = document.getElementById('lightboxImage');
+
+function openGalleryLightbox(i) {
+    galleryIdx = i;
+    lightboxImg.src = galleryImgs[i].src;
+    lightbox.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeGalleryLightbox() {
+    lightbox.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+function navigateGallery(dir) {
+    galleryIdx = (galleryIdx + dir + galleryImgs.length) % galleryImgs.length;
+    lightboxImg.src = galleryImgs[galleryIdx].src;
+}
+
+lightbox.addEventListener('click', e => { if (e.target === lightbox) closeGalleryLightbox(); });
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeGalleryLightbox();
+    if (e.key === 'ArrowLeft' && lightbox.classList.contains('active')) navigateGallery(-1);
+    if (e.key === 'ArrowRight' && lightbox.classList.contains('active')) navigateGallery(1);
+});
+</script>
+</body>
+</html>`;
+}
+
+function getAdminLoginHTML(error = '') {
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh}.box{background:#fff;border:2px solid #e2e8f0;border-radius:20px;padding:40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.08)}h2{text-align:center;color:#ff0050;margin-bottom:30px}.fg{margin-bottom:20px}label{display:block;margin-bottom:8px;color:#475569;font-weight:600;font-size:.9em}input{width:100%;padding:12px 16px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;font-size:1em;outline:none}input:focus{border-color:#ff0050}.btn{width:100%;padding:14px;background:#ff0050;color:#fff;border:none;border-radius:10px;font-size:1em;font-weight:600;cursor:pointer}.btn:hover{background:#d90040}.error{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px;text-align:center}.back{text-align:center;margin-top:20px}a{color:#64748b;text-decoration:none}a:hover{color:#ff0050}</style></head><body><div class="box"><h2>Admin Login</h2>${error?`<div class="error">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="fg"><label>Username</label><input type="text" name="username" required></div><div class="fg"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">Login</button></form><div class="back"><a href="/">Back to Home</a></div></div></body></html>`;
+}
+
+function getAdminPanelHTML(photos = [], msg = '', err = '') {
+    const phtml = photos.map(p => `<div class="pc"><img src="${p.path}" class="pi"><div class="info">${p.caption?`<p>${p.caption}</p>`:''}<p class="dt">${new Date(p.uploadedAt).toLocaleDateString()}</p></div><form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="del" onclick="return confirm('Delete?')">Delete</button></form></div>`).join('');
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#f8fafc;color:#0f172a}.hdr{background:#fff;padding:20px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e2e8f0;flex-wrap:wrap;gap:10px}.hdr h2{color:#ff0050}.hdr a{color:#64748b;text-decoration:none;padding:8px 16px;border:2px solid #e2e8f0;border-radius:8px;margin-left:10px;font-weight:600}.hdr a:hover{background:#ff0050;color:#fff;border-color:#ff0050}.cnt{max-width:1100px;margin:0 auto;padding:30px 20px}.up{background:#fff;border:2px solid #e2e8f0;border-radius:16px;padding:30px;margin-bottom:30px}.up h3{color:#ff0050;margin-bottom:20px}.fg{margin-bottom:15px}label{display:block;margin-bottom:6px;color:#475569;font-weight:600}input,textarea{width:100%;padding:10px 14px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:8px;font-size:.95em;outline:none}input:focus,textarea:focus{border-color:#ff0050}.bu{background:#22c55e;color:#fff;padding:12px 24px;border:none;border-radius:10px;font-weight:600;cursor:pointer}.bu:hover{background:#16a34a}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:20px}.pc{background:#fff;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden}.pc:hover{border-color:#ff0050}.pi{width:100%;height:200px;object-fit:cover}.info{padding:12px}.dt{font-size:.75em;color:#94a3b8;margin-top:2px}.del{background:#fef2f2;color:#dc2626;border:2px solid #fecaca;padding:6px 12px;border-radius:6px;cursor:pointer;margin:0 12px 12px;width:calc(100% - 24px);font-weight:600}.del:hover{background:#ef4444;color:#fff}.msg{background:#f0fdf4;border:2px solid #bbf7d0;color:#166534;padding:12px;border-radius:8px;margin-bottom:20px}.err{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px}</style></head><body><div class="hdr"><h2>Admin Panel</h2><div><a href="/">Home</a><a href="/admin/logout">Logout</a></div></div><div class="cnt">${msg?`<div class="msg">${msg}</div>`:''}${err?`<div class="err">${err}</div>`:''}<div class="up"><h3>Upload Photo</h3><form method="POST" action="/admin/upload" enctype="multipart/form-data"><div class="fg"><label>Select Photo</label><input type="file" name="photo" accept="image/*" required></div><div class="fg"><label>Caption</label><input type="text" name="caption"></div><button type="submit" class="bu">Upload</button></form></div><h3 style="margin-bottom:20px">Gallery (${photos.length})</h3>${photos.length?`<div class="grid">${phtml}</div>`:'<p style="color:#94a3b8;text-align:center;padding:40px">No photos</p>'}</div></body></html>`;
+}
+
 const server = http.createServer(async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-    
-    const pu = url.parse(req.url, true);
-    const pn = pu.pathname;
-    const m = req.method;
-    const ck = parseCookies(req.headers.cookie);
-    
-    // Serve static assets
-    if (pn.startsWith('/assets/')) {
-        const ap = path.join(__dir, decodeURIComponent(pn));
-        if (!ap.startsWith(ASSETS_DIR)) { res.writeHead(403); res.end(); return; }
-        if (fs.existsSync(ap)) {
-            const e = path.extname(ap).toLowerCase();
-            const t = { 
-                '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg',
-                '.gif':'image/gif','.webp':'image/webp','.mp3':'audio/mpeg',
-                '.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4',
-                '.webm':'audio/webm' 
-            };
-            res.writeHead(200, { 'Content-Type': t[e] || 'application/octet-stream' });
-            fs.createReadStream(ap).pipe(res);
+    const parsedUrl = url.parse(req.url, true);
+    const pathname = parsedUrl.pathname;
+    const cookies = parseCookies(req.headers.cookie);
+
+    if (pathname.startsWith('/assets/')) {
+        const assetPath = path.join(__dir, pathname);
+        if (!assetPath.startsWith(ASSETS_DIR)) { res.writeHead(403); res.end(); return; }
+        if (fs.existsSync(assetPath)) {
+            const ext = path.extname(assetPath).toLowerCase();
+            const types = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac','.wma':'audio/x-ms-wma','.opus':'audio/opus','.weba':'audio/webm' };
+            const ct = types[ext] || 'application/octet-stream';
+            const stat = fs.statSync(assetPath);
+            res.writeHead(200, { 'Content-Type':ct, 'Content-Length':stat.size, 'Cache-Control':'public, max-age=86400', 'Accept-Ranges':'bytes' });
+            fs.createReadStream(assetPath).pipe(res);
         } else { res.writeHead(404); res.end(); }
         return;
     }
-    
-    // Chat routes
-    if (pn === '/chat' && m === 'GET') {
-        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-        res.end(getChatPageHTML());
-        return;
+
+    if (pathname === '/admin' && req.method === 'GET') {
+        const s = getSession(cookies.sessionId);
+        if (s) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p)); return; }
+        res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminLoginHTML()); return;
     }
-    
-    if (pn === '/api/chat/register' && m === 'POST') {
-        let b = ''; req.on('data', c => b += c); req.on('end', async () => {
+
+    if (pathname === '/admin/login' && req.method === 'POST') {
+        let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
+            const params = new URLSearchParams(body);
+            if (await verifyAdmin(params.get('username'),params.get('password'))) {
+                const sid = createSession(params.get('username'));
+                res.writeHead(302,{'Location':'/admin','Set-Cookie':`sessionId=${sid};HttpOnly;Path=/;Max-Age=7200;SameSite=Lax`}); res.end();
+            } else { res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminLoginHTML('Invalid credentials')); }
+        }); return;
+    }
+
+    if (pathname === '/admin/logout') { sessions.delete(cookies.sessionId); res.writeHead(302,{'Location':'/admin','Set-Cookie':'sessionId=;HttpOnly;Path=/;Max-Age=0'}); res.end(); return; }
+
+    if (pathname === '/admin/upload' && req.method === 'POST') {
+        if (!getSession(cookies.sessionId)) { res.writeHead(302,{'Location':'/admin'}); res.end(); return; }
+        const form = new formidable.IncomingForm({ uploadDir:GALLERY_DIR, keepExtensions:true, maxFileSize:10*1024*1024 });
+        form.parse(req, async (err, fields, files) => {
+            if (err) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Upload error')); return; }
+            const pf = Array.isArray(files.photo)?files.photo[0]:files.photo;
+            if (!pf||!pf.originalFilename) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','No file')); return; }
+            if (!['.jpg','.jpeg','.png','.gif','.webp'].includes(path.extname(pf.originalFilename).toLowerCase())) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Invalid format')); return; }
+            const fn = Date.now()+'_'+pf.originalFilename.replace(/[^a-zA-Z0-9.]/g,'_');
             try {
-                const { name, phoneEmail } = JSON.parse(b);
-                if (!name || !phoneEmail) { 
-                    res.writeHead(400, { 'Content-Type': 'application/json' }); 
-                    res.end(JSON.stringify({ success: false, error: 'Name and contact required' })); 
-                    return; 
-                }
-                const u = createOrGetChatUser(name, phoneEmail);
-                if (!u) { 
-                    res.writeHead(500, { 'Content-Type': 'application/json' }); 
-                    res.end(JSON.stringify({ success: false, error: 'Failed to create user' })); 
-                    return; 
-                }
-                const t = createChatSession(u.chatId);
-                const existingMessages = getChatMessages(u.chatId);
-                if (existingMessages.length === 0) { 
-                    saveChatMessage(u.chatId, 'admin', 'Hello! How can I help you? 👋'); 
-                }
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true, chatId: u.chatId, token: t, name, phoneEmail }));
-            } catch (e) { 
-                res.writeHead(500, { 'Content-Type': 'application/json' }); 
-                res.end(JSON.stringify({ success: false, error: e.message })); 
-            }
-        }); 
+                fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
+                await savePhoto({ path:'/assets/gallery/'+fn, caption:fields.caption?(Array.isArray(fields.caption)?fields.caption[0]:fields.caption):'' });
+                const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'Uploaded!'));
+            } catch(e) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Save error')); }
+        }); return;
+    }
+
+    if (pathname === '/admin/delete' && req.method === 'POST') {
+        if (!getSession(cookies.sessionId)) { res.writeHead(302,{'Location':'/admin'}); res.end(); return; }
+        let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
+            const params = new URLSearchParams(body);
+            try { const photo = await db.collection('gallery_photos').findOne({_id:new ObjectId(params.get('photoId'))}); if(photo){const fp=path.join(__dir,photo.path);if(fs.existsSync(fp))fs.unlinkSync(fp);} await deletePhoto(params.get('photoId')); } catch(e){}
+            const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'Deleted'));
+        }); return;
+    }
+
+    if (pathname === '/' || pathname === '/index.html') {
+        const photos = await getGalleryPhotos();
+        res.writeHead(200,{'Content-Type':'text/html;charset=utf-8','Cache-Control':'public, max-age=3600'});
+        res.end(getMainHTML(photos));
         return;
     }
-    
-    if (pn === '/api/chat/verify' && m === 'GET') {
-        const u = getChatUserByToken(pu.query.token);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: !!u, chatId: u ? u.chatId : null }));
-        return;
-    }
-    
-    if (pn === '/api/chat/messages' && m === 'GET') {
-        const u = getChatUserByToken(pu.query.token);
-        if (!u) { 
-            res.writeHead(401, { 'Content-Type': 'application/json' }); 
-            res.end(JSON.stringify({ success: false })); 
-            return; 
-        }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, messages: getChatMessages(u.chatId) }));
-        return;
-    }
-    
-    if (pn === '/api/chat/send' && m === 'POST') {
-        let b = ''; req.on('data', c => b += c); req.on('end', async () => {
-            const { token, message, type, fileUrl, fileName, duration } = JSON.parse(b);
-            const u = getChatUserByToken(token);
-            if (!u) { 
-                res.writeHead(401, { 'Content-Type': 'application/json' }); 
-                res.end(JSON.stringify({ success: false })); 
-                return; 
-            }
-            saveChatMessage(u.chatId, 'user', message, type, fileUrl, fileName, duration);
-            res.writeHead(200, { 'Content-Type': 'application/json' }); 
-            res.end(JSON.stringify({ success: true }));
-        }); 
-        return;
-    }
-    
-    if (pn === '/api/chat/upload' && m === 'POST') {
-        const token = pu.query.token;
-        const u = getChatUserByToken(token);
-        if (!u) { 
-            res.writeHead(401, { 'Content-Type': 'application/json' }); 
-            res.end(JSON.stringify({ success: false })); 
-            return; 
-        }
-        const fm = new formidable.IncomingForm({ 
-            uploadDir: CHAT_UPLOADS_DIR, 
-            keepExtensions: true 
-        });
-        fm.parse(req, async (err, fields, files) => {
-            if (err) { 
-                res.writeHead(500, { 'Content-Type': 'application/json' }); 
-                res.end(JSON.stringify({ success: false })); 
-                return; 
-            }
-            const pf = Array.isArray(files.photo) ? files.photo[0] : files.photo;
-            if (!pf) { 
-                res.writeHead(400, { 'Content-Type': 'application/json' }); 
-                res.end(JSON.stringify({ success: false })); 
-                return; 
-            }
-            const fn = Date.now() + '_' + pf.originalFilename;
-            fs.renameSync(pf.filepath, path.join(CHAT_UPLOADS_DIR, fn));
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, fileUrl: '/assets/chat_uploads/' + fn }));
-        }); 
-        return;
-    }
-    
-    if (pn === '/api/chat/upload-voice' && m === 'POST') {
-        const token = pu.query.token;
-        const u = getChatUserByToken(token);
-        if (!u) { 
-            res.writeHead(401, { 'Content-Type': 'application/json' }); 
-            res.end(JSON.stringify({ success: false })); 
-            return; 
-        }
-        const fm = new formidable.IncomingForm({ 
-            uploadDir: CHAT_UPLOADS_DIR, 
-            keepExtensions: true 
-        });
-        fm.parse(req, async (err, fields, files) => {
-            if (err) { 
-                res.writeHead(500, { 'Content-Type': 'application/json' }); 
-                res.end(JSON.stringify({ success: false })); 
-                return; 
-            }
-            const pf = Array.isArray(files.voice) ? files.voice[0] : files.voice;
-            if (!pf) { 
-                res.writeHead(400, { 'Content-Type': 'application/json' }); 
-                res.end(JSON.stringify({ success: false })); 
-                return; 
-            }
-            const fn = 'voice_' + Date.now() + '.webm';
-            fs.renameSync(pf.filepath, path.join(CHAT_UPLOADS_DIR, fn));
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, fileUrl: '/assets/chat_uploads/' + fn }));
-        }); 
-        return;
-    }
-    
-    // Delegate admin routes to admin.js
-    if (pn.startsWith('/admin') || pn.startsWith('/api/admin')) {
-        await setupAdminRoutes(req, res, pn, m, ck, pu, db, dbConnected, 
-            memoryStore, adminPresence, getGalleryPhotos, savePhoto, 
-            deletePhoto, getAdminChatList, getChatMessages, saveChatMessage, 
-            markMessagesRead, getChatPageHTML);
-        return;
-    }
-    
-    // Main page
-    if (pn === '/' || pn === '/index.html') {
-        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-        res.end(getMainHTML(await getGalleryPhotos())); 
-        return;
-    }
-    
-    res.writeHead(404); 
-    res.end('404');
+
+    res.writeHead(404,{'Content-Type':'text/html;charset=utf-8'});
+    res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>404</title><style>body{background:#f8fafc;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center}h1{font-size:100px;color:#ff0050}</style></head><body><div><h1>404</h1><p>Page not found</p><a href="/">Go Home</a></div></body></html>`);
 });
 
 async function start() {
-    const dbOk = await connectDB();
-    if (dbOk) console.log('MongoDB Connected');
-    else console.log('Using in-memory storage');
-    server.listen(PORT, function() { 
-        console.log('Server running at: http://localhost:' + PORT); 
-    });
+    await connectDB();
+    server.listen(PORT, () => console.log(`Server running: http://localhost:${PORT}`));
 }
 
-start().catch(console.error);
+start();
+server.on('error', e => { if (e.code === 'EADDRINUSE') process.exit(1); });
