@@ -16,18 +16,81 @@ let db, mongoClient;
 const __dir = path.resolve();
 const ASSETS_DIR = path.join(__dir, 'assets');
 const GALLERY_DIR = path.join(__dir, 'assets', 'gallery');
+const CHAT_UPLOADS_DIR = path.join(__dir, 'assets', 'chat_uploads');
 const COVER_MUSIC_DIR = path.join(__dir, 'assets', 'covermusic');
 
-[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR].forEach(dir => {
+[ASSETS_DIR, GALLERY_DIR, CHAT_UPLOADS_DIR, COVER_MUSIC_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
+// Updated IMAGES object with new assets
 const IMAGES = {
-    profile: "/assets/tiktok_video_Aj2NO.jpeg",
-    official: "/assets/1785276289604.png",
-    fraud: "/assets/hammadfams.png",
-    danger: "/assets/baillamach.png"
+    profile: "/tiktok_video_Aj2NO.jpeg",
+    tiktokSS: "/orginalss.png",
+    facebookSS: "/real-id-ss.png",
+    fakeAccount1: "/hammadfams.png",
+    fakeAccount2: "/baillamach.png",
+    fakeDetect: "/Fakedetect.png",
+    tiktokIcon: "/tiktokicon.png",
+    facebookIcon: "/communication.png",
+    messageIcon: "/messageicon.gif",
+    reportIcon: "/report.png",
+    verifiedBadge: "/social-media.png",
+    microphoneIcon: "/microphone-in-hand.gif",
+    musicIcon: "/music-icon.png",
+    flagIcon: "/flag.png",
+    checkMark: "/check-mark.png",
+    fbProfile: "/fb_profile.jpg"
 };
+
+// Initialize chat messages collection
+async function initChatCollection() {
+    if (!db) return;
+    try {
+        const collections = await db.listCollections({ name: 'chat_messages' }).toArray();
+        if (collections.length === 0) {
+            await db.collection('chat_messages').createIndex({ timestamp: -1 });
+            await db.collection('chat_messages').createIndex({ room: 1 });
+        }
+    } catch (e) {
+        console.error('Chat collection init error:', e);
+    }
+}
+
+async function getChatMessages(room = 'general', limit = 50) {
+    if (!db) return [];
+    try {
+        return await db.collection('chat_messages')
+            .find({ room })
+            .sort({ timestamp: -1 })
+            .limit(limit)
+            .toArray();
+    } catch (e) {
+        return [];
+    }
+}
+
+async function saveChatMessage(message) {
+    if (!db) return null;
+    try {
+        const result = await db.collection('chat_messages').insertOne({
+            ...message,
+            timestamp: new Date()
+        });
+        return result;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function deleteChatMessage(id) {
+    if (!db) return null;
+    try {
+        return await db.collection('chat_messages').deleteOne({ _id: new ObjectId(id) });
+    } catch (e) {
+        return null;
+    }
+}
 
 function getCoverSongs() {
     try {
@@ -61,22 +124,42 @@ async function connectDB() {
         mongoClient = new MongoClient(MONGO_URI);
         await mongoClient.connect();
         db = mongoClient.db(DB_NAME);
+        
+        // Initialize collections
         const admins = db.collection('admin_users');
         const exists = await admins.findOne({ username: 'admin' });
-        if (!exists) await admins.insertOne({ username: 'admin', password: await bcrypt.hash('admin123', 10), createdAt: new Date() });
+        if (!exists) {
+            await admins.insertOne({ 
+                username: 'admin', 
+                password: await bcrypt.hash('admin123', 10), 
+                createdAt: new Date() 
+            });
+        }
+        
+        await initChatCollection();
         return true;
-    } catch (e) { return false; }
+    } catch (e) { 
+        console.error('Database connection error:', e);
+        return false; 
+    }
 }
 
 async function getGalleryPhotos() {
     if (!db) return [];
-    try { return await db.collection('gallery_photos').find({}).sort({ uploadedAt: -1 }).toArray(); }
-    catch (e) { return []; }
+    try { 
+        return await db.collection('gallery_photos')
+            .find({})
+            .sort({ uploadedAt: -1 })
+            .toArray(); 
+    } catch (e) { return []; }
 }
 
 async function savePhoto(d) {
     if (!db) return null;
-    return await db.collection('gallery_photos').insertOne({ ...d, uploadedAt: new Date() });
+    return await db.collection('gallery_photos').insertOne({ 
+        ...d, 
+        uploadedAt: new Date() 
+    });
 }
 
 async function deletePhoto(id) {
@@ -96,47 +179,124 @@ const DATA = {
         name: "Baiilla Maach",
         fullName: "Baiilla Maach Official",
         photo: IMAGES.profile,
-        bio: "Official Entertainment Profile",
-        username: "@baiillamaach_official"
+        bio: "Official Entertainment Profile | Singer & Content Creator",
+        username: "@baiillamaach_official",
+        description: "Welcome to the official verification hub. This page helps you identify real accounts and avoid fake ones.",
+        followers: "50K+",
+        totalPosts: "200+",
+        verifiedSince: "2023"
     },
     realAccounts: [
-        { platform: "TikTok", username: "@baiillamaach_official", url: "https://tiktok.com/@baiillamaach_official", screenshot: IMAGES.official },
-        { platform: "Facebook", username: "Baiilla Maach Official", url: "https://www.facebook.com/profile.php?id=61575202118828", screenshot: null }
+        { 
+            platform: "TikTok", 
+            username: "@baiillamaach_official", 
+            url: "https://tiktok.com/@baiillamaach_official", 
+            screenshot: IMAGES.tiktokSS,
+            icon: IMAGES.tiktokIcon,
+            followers: "45.2K",
+            verified: true
+        },
+        { 
+            platform: "Facebook", 
+            username: "Baiilla Maach Official", 
+            url: "https://www.facebook.com/profile.php?id=61575202118828", 
+            screenshot: IMAGES.facebookSS,
+            icon: IMAGES.facebookIcon,
+            followers: "12.8K",
+            verified: true
+        }
     ],
     fakeAccounts: [
-        { platform: "TikTok", username: "@baiilla_mach", profileUrl: "https://tiktok.com/@baiilla_mach", screenshot: IMAGES.danger, reason: "Copies official logo and content to deceive followers." },
-        { platform: "TikTok", username: "@hammad_fams0", profileUrl: "https://tiktok.com/@hammad_fams0", screenshot: IMAGES.fraud, reason: "Uses official name and photo to mislead followers." }
+        { 
+            platform: "TikTok", 
+            username: "@baiilla_mach", 
+            profileUrl: "https://tiktok.com/@baiilla_mach", 
+            screenshot: IMAGES.fakeAccount2, 
+            reason: "Copies official logo and content to deceive followers.",
+            reportCount: 45,
+            dateDetected: "2024-01-15"
+        },
+        { 
+            platform: "TikTok", 
+            username: "@hammad_fams0", 
+            profileUrl: "https://tiktok.com/@hammad_fams0", 
+            screenshot: IMAGES.fakeAccount1, 
+            reason: "Uses official name and photo to mislead followers.",
+            reportCount: 32,
+            dateDetected: "2024-02-20"
+        }
     ]
 };
 
 const sessions = new Map();
-function createSession(u) { const id = crypto.randomBytes(32).toString('hex'); sessions.set(id, { username: u, createdAt: Date.now() }); setTimeout(() => sessions.delete(id), 7200000); return id; }
-function getSession(id) { const s = sessions.get(id); if (!s) return null; if (Date.now() - s.createdAt > 7200000) { sessions.delete(id); return null; } return s; }
-function parseCookies(h) { const c = {}; if (h) h.split(';').forEach(x => { const p = x.split('='); c[p[0].trim()] = p[1] ? p[1].trim() : ''; }); return c; }
+const onlineUsers = new Map(); // Track online users for chat
 
-function getMainHTML(galleryPhotos = []) {
+function createSession(u) { 
+    const id = crypto.randomBytes(32).toString('hex'); 
+    sessions.set(id, { username: u, createdAt: Date.now() }); 
+    setTimeout(() => sessions.delete(id), 7200000); 
+    return id; 
+}
+
+function getSession(id) { 
+    const s = sessions.get(id); 
+    if (!s) return null; 
+    if (Date.now() - s.createdAt > 7200000) { 
+        sessions.delete(id); 
+        return null; 
+    } 
+    return s; 
+}
+
+function parseCookies(h) { 
+    const c = {}; 
+    if (h) h.split(';').forEach(x => { 
+        const p = x.split('='); 
+        c[p[0].trim()] = p[1] ? p[1].trim() : ''; 
+    }); 
+    return c; 
+}
+
+function getMainHTML(galleryPhotos = [], chatMessages = []) {
     const coverSongs = getCoverSongs();
     const totalFake = DATA.fakeAccounts.length;
+    const onlineCount = onlineUsers.size;
 
+    // Chat messages HTML
+    let chatHTML = '';
+    if (chatMessages.length > 0) {
+        chatHTML = chatMessages.reverse().map(msg => `
+            <div class="chat-message ${msg.type === 'admin' ? 'admin-message' : 'user-message'}">
+                <div class="message-header">
+                    <span class="message-sender">${msg.sender || 'Anonymous'}</span>
+                    <span class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                </div>
+                <div class="message-content">${msg.text || ''}</div>
+                ${msg.file ? `<div class="message-file"><a href="${msg.file}" target="_blank">📎 Attachment</a></div>` : ''}
+            </div>
+        `).join('');
+    }
+
+    // Cover songs section
     let coverSongsHTML = '';
     if (coverSongs.length > 0) {
         coverSongsHTML = `
         <section class="section music-section" data-animate>
             <div class="section-header">
                 <div class="section-icon spotify-icon-bg">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                    <img src="${IMAGES.microphoneIcon}" width="22" height="22" alt="" style="border-radius:50%;">
                 </div>
-                <h2 class="section-heading">Cover Music</h2>
+                <h2 class="section-heading">🎵 Cover Music Collection</h2>
             </div>
             <div class="spotify-player">
                 <div class="spotify-now-playing">
                     <div class="spotify-album-art" id="nowPlayingCover">
                         <div class="spotify-default-art">
-                            <svg viewBox="0 0 24 24" width="56" height="56"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                            <img src="${IMAGES.musicIcon}" width="56" height="56" alt="Music">
                         </div>
                     </div>
                     <div class="spotify-track-info">
-                        <div class="spotify-track-name" id="nowPlayingTitle">Select a song</div>
+                        <div class="spotify-track-name" id="nowPlayingTitle">Select a Song</div>
                         <div class="spotify-track-artist" id="nowPlayingArtist">Cover Songs Collection</div>
                         <div class="spotify-progress">
                             <div class="spotify-progress-bar" id="progressBar">
@@ -148,21 +308,18 @@ function getMainHTML(galleryPhotos = []) {
                             </div>
                         </div>
                         <div class="spotify-controls">
-                            <button class="spotify-btn" onclick="prevSong()">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                            <button class="spotify-btn" onclick="prevSong()" title="Previous">
+                                ⏮️
                             </button>
-                            <button class="spotify-btn spotify-play-btn" id="playPauseBtn" onclick="togglePlay()">
-                                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
-                                    <path id="playIcon" d="M8 5v14l11-7z"/>
-                                    <path id="pauseIcon" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" style="display:none"/>
-                                </svg>
+                            <button class="spotify-btn spotify-play-btn" id="playPauseBtn" onclick="togglePlay()" title="Play/Pause">
+                                ▶️
                             </button>
-                            <button class="spotify-btn" onclick="nextSong()">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                            <button class="spotify-btn" onclick="nextSong()" title="Next">
+                                ⏭️
                             </button>
                         </div>
                         <div class="spotify-volume">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+                            🔊
                             <input type="range" class="spotify-volume-slider" id="volumeSlider" min="0" max="100" value="70" onchange="setVol(this.value)">
                         </div>
                     </div>
@@ -174,9 +331,11 @@ function getMainHTML(galleryPhotos = []) {
                     </div>
                     <div class="spotify-playlist" id="playlist">
                         ${coverSongs.map((s, i) => `
-                        <div class="spotify-playlist-item" data-index="${i}" data-audio="${s.audioUrl}" data-cover="${s.coverUrl || ''}" onclick="playSong(${i})">
+                        <div class="spotify-playlist-item" data-index="${i}" data-audio="${s.audioUrl}" data-cover="${s.coverUrl || IMAGES.musicIcon}" onclick="playSong(${i})">
                             <div class="spotify-track-number">${(i+1).toString().padStart(2,'0')}</div>
-                            <div class="spotify-track-cover-small">${s.coverUrl ? `<img src="${s.coverUrl}" alt="" loading="lazy">` : '<div class="spotify-default-art-small"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>'}</div>
+                            <div class="spotify-track-cover-small">
+                                <img src="${s.coverUrl || IMAGES.musicIcon}" alt="" loading="lazy">
+                            </div>
                             <div class="spotify-track-details">
                                 <div class="spotify-track-title">${s.title}</div>
                                 <div class="spotify-track-artist-small">${s.artist}</div>
@@ -191,13 +350,14 @@ function getMainHTML(galleryPhotos = []) {
         </section>`;
     }
 
+    // Gallery section
     let galleryHTML = '';
     if (galleryPhotos.length > 0) {
         galleryHTML = `
         <section class="section gallery-section" data-animate>
             <div class="section-header">
                 <div class="section-icon gallery-icon-bg">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                    📸
                 </div>
                 <h2 class="section-heading">Official Gallery</h2>
             </div>
@@ -207,7 +367,7 @@ function getMainHTML(galleryPhotos = []) {
                     <div class="gallery-card-inner">
                         <img src="${p.path}" alt="${p.caption || 'Gallery'}" class="gallery-image" loading="lazy">
                         <div class="gallery-card-overlay">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                            🔍
                         </div>
                     </div>
                     ${p.caption ? `<p class="gallery-caption">${p.caption}</p>` : ''}
@@ -215,16 +375,10 @@ function getMainHTML(galleryPhotos = []) {
             </div>
         </section>
         <div class="lightbox" id="galleryLightbox">
-            <button class="lightbox-close" onclick="closeGalleryLightbox()">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-            </button>
-            <button class="lightbox-nav lightbox-prev" onclick="navigateGallery(-1)">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="white"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            </button>
+            <button class="lightbox-close" onclick="closeGalleryLightbox()">✕</button>
+            <button class="lightbox-nav lightbox-prev" onclick="navigateGallery(-1)">◀</button>
             <img class="lightbox-image" id="lightboxImage" src="" alt="">
-            <button class="lightbox-nav lightbox-next" onclick="navigateGallery(1)">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="white"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-            </button>
+            <button class="lightbox-nav lightbox-next" onclick="navigateGallery(1)">▶</button>
         </div>`;
     }
 
@@ -234,7 +388,10 @@ function getMainHTML(galleryPhotos = []) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Official Verification Hub for Baiilla Maach. Identify real vs fake accounts.">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#ff0050">
+<meta property="og:title" content="${DATA.celebrity.fullName} | Official Verification Hub">
+<meta property="og:description" content="Verify authentic Baiilla Maach accounts. Report fake accounts.">
+<meta property="og:image" content="${DATA.celebrity.photo}">
 <title>${DATA.celebrity.fullName} | Official Verification Hub</title>
 <style>
 :root {
@@ -307,9 +464,19 @@ body {
     50% { height: 14px; }
 }
 
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes typing {
+    0% { width: 0; }
+    100% { width: 100%; }
+}
+
+@keyframes onlinePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
 [data-animate] { opacity: 0; }
@@ -329,7 +496,7 @@ body {
     position: sticky;
     top: 0;
     z-index: 1000;
-    background: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.95);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border);
@@ -342,21 +509,60 @@ body {
     padding: 0 24px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+}
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
     gap: 12px;
 }
 
 .navbar-logo-img {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     border: 2px solid var(--pink);
     object-fit: cover;
+    box-shadow: 0 2px 8px rgba(255,0,80,0.2);
 }
 
 .navbar-logo-text {
     font-weight: 700;
-    font-size: 1.05em;
+    font-size: 1.1em;
     color: var(--text);
+}
+
+.navbar-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.online-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green-500);
+    animation: onlinePulse 2s infinite;
+}
+
+.verified-badge-small {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: linear-gradient(135deg, var(--green-500), var(--green-600));
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75em;
+}
+
+.verified-badge-small img {
+    width: 14px;
+    height: 14px;
 }
 
 .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
@@ -364,29 +570,60 @@ body {
 .hero {
     padding: 50px 0 36px;
     text-align: center;
+    position: relative;
 }
 
 .hero-img {
-    width: 120px;
-    height: 120px;
+    width: 130px;
+    height: 130px;
     border-radius: 50%;
-    border: 3px solid var(--pink);
+    border: 4px solid var(--pink);
     object-fit: cover;
-    box-shadow: 0 0 0 6px rgba(255,0,80,0.08), 0 6px 24px rgba(0,0,0,0.1);
+    box-shadow: 0 0 0 8px rgba(255,0,80,0.1), 0 8px 32px rgba(0,0,0,0.12);
     margin-bottom: 20px;
+    animation: float 3s ease-in-out infinite;
 }
 
 .hero-name {
-    font-size: 2.4em;
+    font-size: 2.6em;
     font-weight: 800;
     letter-spacing: -0.5px;
     margin-bottom: 4px;
+    background: linear-gradient(135deg, #ff0050, #ff6b00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .hero-bio {
-    font-size: 1.05em;
+    font-size: 1.1em;
     color: var(--text-secondary);
-    margin-bottom: 18px;
+    margin-bottom: 8px;
+}
+
+.hero-stats {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+.hero-stat {
+    text-align: center;
+}
+
+.hero-stat-value {
+    font-size: 1.5em;
+    font-weight: 800;
+    color: var(--pink);
+}
+
+.hero-stat-label {
+    font-size: 0.75em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
 .hero-badges {
@@ -398,9 +635,9 @@ body {
 }
 
 .badge {
-    padding: 7px 18px;
+    padding: 8px 20px;
     border-radius: 22px;
-    font-size: 0.82em;
+    font-size: 0.85em;
     font-weight: 600;
     letter-spacing: 0.2px;
 }
@@ -414,8 +651,18 @@ body {
     gap: 5px;
 }
 
+.badge-verified img {
+    width: 16px;
+    height: 16px;
+}
+
 .badge-fun {
     background: linear-gradient(135deg, var(--pink), #ff6b00);
+    color: white;
+}
+
+.badge-music {
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
     color: white;
 }
 
@@ -439,6 +686,11 @@ body {
     border: 2px solid transparent;
 }
 
+.social-btn img {
+    width: 20px;
+    height: 20px;
+}
+
 .social-btn.tiktok { background: #000; color: #fff; }
 .social-btn.tiktok:hover { background: #fff; color: #000; border-color: #000; transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 .social-btn.facebook { background: var(--fb); color: #fff; }
@@ -454,13 +706,14 @@ body {
 }
 
 .section-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    font-size: 1.3em;
 }
 
 .verified-icon-bg { background: linear-gradient(135deg, var(--green-500), var(--green-600)); }
@@ -470,9 +723,10 @@ body {
 .update-icon-bg { background: linear-gradient(135deg, #3b82f6, var(--blue-600)); }
 .spotify-icon-bg { background: linear-gradient(135deg, var(--spotify), #169c46); }
 .gallery-icon-bg { background: linear-gradient(135deg, #6366f1, #a855f7); }
+.chat-icon-bg { background: linear-gradient(135deg, #06b6d4, #0891b2); }
 
 .section-heading {
-    font-size: 1.35em;
+    font-size: 1.4em;
     font-weight: 700;
     letter-spacing: -0.2px;
 }
@@ -491,7 +745,7 @@ body {
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 4px;
-    background: linear-gradient(90deg, var(--green-500), var(--green-600));
+    background: linear-gradient(90deg, var(--green-500), var(--green-600), var(--green-500));
     border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
 }
 
@@ -504,8 +758,8 @@ body {
 }
 
 .official-verify-icon {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
     background: linear-gradient(135deg, var(--green-500), var(--green-600));
     border-radius: 50%;
     display: flex;
@@ -513,6 +767,11 @@ body {
     justify-content: center;
     animation: pulse-green 2.5s infinite;
     flex-shrink: 0;
+}
+
+.official-verify-icon img {
+    width: 24px;
+    height: 24px;
 }
 
 .official-card-title h2 {
@@ -573,15 +832,15 @@ body {
 }
 
 .official-preview img {
-    width: 72px;
-    height: 72px;
+    width: 80px;
+    height: 80px;
     border-radius: 50%;
     border: 3px solid var(--green-500);
     margin-bottom: 10px;
 }
 
 .official-preview .uname {
-    font-size: 1.05em;
+    font-size: 1.1em;
     font-weight: 700;
 }
 
@@ -608,6 +867,173 @@ body {
 
 .btn-follow:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(34,197,94,0.35); }
 
+/* Chat Widget Styles */
+.chat-widget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+
+.chat-toggle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--pink), #ff6b00);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(255,0,80,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    animation: float 3s ease-in-out infinite;
+}
+
+.chat-toggle:hover {
+    transform: scale(1.1);
+}
+
+.chat-toggle img {
+    width: 30px;
+    height: 30px;
+}
+
+.chat-window {
+    display: none;
+    position: fixed;
+    bottom: 90px;
+    right: 20px;
+    width: 350px;
+    max-height: 500px;
+    background: #fff;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    border: 2px solid var(--border);
+    overflow: hidden;
+}
+
+.chat-window.active {
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-header {
+    background: linear-gradient(135deg, var(--pink), #ff6b00);
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chat-header h3 {
+    font-size: 1em;
+    font-weight: 700;
+}
+
+.chat-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.2em;
+    cursor: pointer;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    max-height: 350px;
+    background: #f8fafc;
+}
+
+.chat-message {
+    margin-bottom: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #fff;
+    border: 1px solid var(--border);
+}
+
+.admin-message {
+    border-left: 3px solid var(--pink);
+}
+
+.user-message {
+    border-left: 3px solid var(--blue-600);
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.message-sender {
+    font-weight: 700;
+    font-size: 0.85em;
+    color: var(--pink);
+}
+
+.message-time {
+    font-size: 0.7em;
+    color: var(--text-muted);
+}
+
+.message-content {
+    font-size: 0.9em;
+    color: var(--text);
+    line-height: 1.4;
+}
+
+.message-file {
+    margin-top: 5px;
+}
+
+.message-file a {
+    color: var(--blue-600);
+    text-decoration: none;
+    font-size: 0.85em;
+}
+
+.chat-input-area {
+    padding: 15px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    background: #fff;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 10px 15px;
+    border: 2px solid var(--border);
+    border-radius: 20px;
+    outline: none;
+    font-size: 0.9em;
+}
+
+.chat-input:focus {
+    border-color: var(--pink);
+}
+
+.chat-send-btn {
+    background: linear-gradient(135deg, var(--pink), #ff6b00);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s;
+}
+
+.chat-send-btn:hover {
+    transform: scale(1.05);
+}
+
+/* Rest of the styles remain the same as your original code */
 .fake-section {
     background: var(--red-50);
     border: 2px solid #fecaca;
@@ -627,14 +1053,14 @@ body {
 }
 
 .fake-alert-icon {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
     background: linear-gradient(135deg, var(--red-500), var(--red-600));
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.3em;
+    font-size: 1.5em;
     animation: pulse-red 2s infinite;
     flex-shrink: 0;
 }
@@ -659,18 +1085,6 @@ body {
     position: relative;
 }
 
-.fake-card::after {
-    content: 'FAKE';
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%) rotate(-25deg);
-    font-size: 5em;
-    font-weight: 900;
-    color: rgba(239,68,68,0.03);
-    pointer-events: none;
-    letter-spacing: 15px;
-}
-
 .fake-card-top {
     display: flex;
     align-items: center;
@@ -692,9 +1106,9 @@ body {
 .fake-card-badge {
     background: var(--red-500);
     color: #fff;
-    padding: 3px 12px;
+    padding: 4px 14px;
     border-radius: 16px;
-    font-size: 0.65em;
+    font-size: 0.7em;
     font-weight: 700;
     letter-spacing: 0.8px;
     text-transform: uppercase;
@@ -794,28 +1208,12 @@ body {
     min-width: 120px;
 }
 
-.btn-report:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(239,68,68,0.3); }
-
-.btn-copy {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 10px 20px;
-    background: #fff;
-    color: var(--red-600);
-    border: 2px solid #fecaca;
-    border-radius: 22px;
-    font-weight: 700;
-    font-size: 0.82em;
-    cursor: pointer;
-    transition: all 0.25s;
-    flex: 1;
-    justify-content: center;
-    min-width: 120px;
+.btn-report img {
+    width: 16px;
+    height: 16px;
 }
 
-.btn-copy:hover { background: var(--red-50); border-color: var(--red-500); }
-.btn-copy.copied { background: var(--green-500) !important; color: #fff !important; border-color: var(--green-500) !important; }
+.btn-report:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(239,68,68,0.3); }
 
 .carousel-nav {
     display: flex;
@@ -828,7 +1226,7 @@ body {
 .carousel-dots { display: flex; gap: 6px; }
 
 .carousel-dot {
-    width: 8px; height: 8px;
+    width: 10px; height: 10px;
     border-radius: 50%;
     background: #fecaca;
     border: none;
@@ -836,10 +1234,10 @@ body {
     transition: all 0.3s;
 }
 
-.carousel-dot.active { background: var(--red-500); width: 24px; border-radius: 4px; }
+.carousel-dot.active { background: var(--red-500); width: 28px; border-radius: 5px; }
 
 .carousel-arrow {
-    width: 36px; height: 36px;
+    width: 38px; height: 38px;
     border-radius: 50%;
     background: #fff;
     border: 2px solid var(--border);
@@ -911,7 +1309,7 @@ body {
 
 .warning-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
 
-.warning-card-icon { font-size: 1.8em; margin-bottom: 8px; }
+.warning-card-icon { font-size: 2em; margin-bottom: 10px; }
 .warning-card h4 { font-size: 0.95em; font-weight: 700; margin-bottom: 4px; }
 .warning-card p { font-size: 0.82em; color: var(--text-secondary); line-height: 1.5; }
 
@@ -938,231 +1336,10 @@ body {
     border: 1px solid #bfdbfe;
 }
 
-.spotify-player {
-    background: var(--spotify-black);
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    box-shadow: var(--shadow-xl);
-}
-
-.spotify-now-playing {
-    display: flex;
-    gap: 20px;
-    padding: 24px;
-    background: linear-gradient(135deg, #282828, #191414);
-}
-
-@media (max-width: 680px) { .spotify-now-playing { flex-direction: column; align-items: center; text-align: center; } }
-
-.spotify-album-art {
-    width: 150px; height: 150px;
-    border-radius: 10px;
-    overflow: hidden;
-    flex-shrink: 0;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.4);
-}
-
-.spotify-album-art img { width: 100%; height: 100%; object-fit: cover; }
-
-.spotify-default-art {
-    width: 100%; height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, var(--spotify), #169c46);
-}
-
-.spotify-track-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-width: 180px;
-}
-
-.spotify-track-name {
-    font-size: 1.3em;
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 3px;
-}
-
-.spotify-track-artist {
-    font-size: 0.85em;
-    color: #b3b3b3;
-    margin-bottom: 16px;
-}
-
-.spotify-progress { margin-bottom: 14px; }
-
-.spotify-progress-bar {
-    width: 100%;
-    height: 4px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 2px;
-    cursor: pointer;
-    margin-bottom: 5px;
-}
-
-.spotify-progress-fill {
-    height: 100%;
-    background: var(--spotify);
-    border-radius: 2px;
-    width: 0%;
-    transition: width 0.1s linear;
-}
-
-.spotify-time {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.68em;
-    color: #b3b3b3;
-}
-
-.spotify-controls {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin-bottom: 14px;
-}
-
-.spotify-btn {
-    background: none;
-    border: none;
-    color: #b3b3b3;
-    cursor: pointer;
-    padding: 5px;
-    border-radius: 50%;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.spotify-btn:hover { color: #fff; transform: scale(1.1); }
-
-.spotify-play-btn {
-    background: #fff;
-    color: #191414;
-    width: 44px; height: 44px;
-    border-radius: 50%;
-}
-
-.spotify-play-btn:hover { transform: scale(1.08); }
-
-.spotify-volume {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #b3b3b3;
-}
-
-.spotify-volume-slider {
-    width: 90px; height: 3px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: rgba(255,255,255,0.2);
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-}
-
-.spotify-volume-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 12px; height: 12px;
-    border-radius: 50%;
-    background: #fff;
-    cursor: pointer;
-}
-
-.spotify-playlist-container { max-height: 360px; overflow-y: auto; }
-
-.spotify-playlist-header {
-    padding: 12px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    position: sticky;
-    top: 0;
-    background: #191414;
-    z-index: 1;
-}
-
-.spotify-playlist-header h3 { font-size: 0.95em; font-weight: 700; color: #fff; }
-.spotify-song-count { font-size: 0.75em; color: #b3b3b3; }
-
-.spotify-playlist-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 20px;
-    cursor: pointer;
-    transition: all 0.2s;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
-}
-
-.spotify-playlist-item:hover { background: rgba(255,255,255,0.05); }
-.spotify-playlist-item.active { background: rgba(29,185,84,0.1); }
-
-.spotify-track-number {
-    font-size: 0.8em;
-    color: #b3b3b3;
-    width: 24px;
-    text-align: center;
-    font-weight: 600;
-}
-
-.spotify-track-cover-small {
-    width: 38px; height: 38px;
-    border-radius: 5px;
-    overflow: hidden;
-    flex-shrink: 0;
-    background: #282828;
-}
-
-.spotify-track-cover-small img { width: 100%; height: 100%; object-fit: cover; }
-
-.spotify-default-art-small {
-    width: 100%; height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, var(--spotify), #169c46);
-}
-
-.spotify-track-details { flex: 1; min-width: 0; }
-
-.spotify-track-title {
-    font-weight: 600;
-    font-size: 0.84em;
-    color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.spotify-track-artist-small { font-size: 0.72em; color: #b3b3b3; }
-
-.spotify-equalizer { display: none; gap: 2px; align-items: flex-end; height: 16px; }
-
-.spotify-playlist-item.active .spotify-equalizer { display: flex; }
-
-.eq-bar {
-    width: 3px;
-    background: var(--spotify);
-    border-radius: 1px;
-    animation: equalizer 0.8s infinite;
-}
-
-.eq-bar:nth-child(1) { animation-delay: 0s; }
-.eq-bar:nth-child(2) { animation-delay: 0.2s; }
-.eq-bar:nth-child(3) { animation-delay: 0.4s; }
-.eq-bar:nth-child(4) { animation-delay: 0.6s; }
-
+/* Gallery styles */
 .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     gap: 16px;
 }
 
@@ -1175,36 +1352,41 @@ body {
     box-shadow: var(--shadow);
 }
 
-.gallery-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+.gallery-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
 
 .gallery-card-inner { position: relative; overflow: hidden; }
 
 .gallery-image {
     width: 100%;
+    height: 200px;
+    object-fit: cover;
     display: block;
     transition: transform 0.4s;
 }
 
-.gallery-card:hover .gallery-image { transform: scale(1.04); }
+.gallery-card:hover .gallery-image { transform: scale(1.05); }
 
 .gallery-card-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.35);
+    background: rgba(0,0,0,0.4);
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
     transition: opacity 0.3s;
+    color: white;
+    font-size: 2em;
 }
 
 .gallery-card:hover .gallery-card-overlay { opacity: 1; }
 
 .gallery-caption {
     padding: 10px 14px;
-    font-size: 0.82em;
+    font-size: 0.85em;
     color: var(--text-secondary);
     text-align: center;
+    font-weight: 500;
 }
 
 .lightbox {
@@ -1221,59 +1403,94 @@ body {
 
 .lightbox-close {
     position: absolute;
-    top: 16px; right: 16px;
-    background: none;
-    border: none;
+    top: 20px; right: 20px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    width: 40px; height: 40px;
+    border-radius: 50%;
     cursor: pointer;
     z-index: 10001;
+    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s;
 }
+
+.lightbox-close:hover { background: rgba(255,255,255,0.2); }
 
 .lightbox-image {
     max-width: 90vw;
     max-height: 85vh;
     object-fit: contain;
-    border-radius: 8px;
+    border-radius: 12px;
 }
 
 .lightbox-nav {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.1);
     backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.2);
     border-radius: 50%;
-    width: 44px; height: 44px;
+    width: 48px; height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.25s;
+    color: white;
+    font-size: 1.2em;
 }
 
 .lightbox-nav:hover { background: rgba(255,255,255,0.25); }
-.lightbox-prev { left: 16px; }
-.lightbox-next { right: 16px; }
+.lightbox-prev { left: 20px; }
+.lightbox-next { right: 20px; }
 
 .footer {
     text-align: center;
-    padding: 36px 20px;
+    padding: 40px 20px;
     color: var(--text-muted);
     font-size: 0.85em;
     border-top: 1px solid var(--border);
-    margin-top: 36px;
+    margin-top: 40px;
     background: var(--bg-secondary);
 }
 
+.footer-brand {
+    font-weight: 700;
+    color: var(--pink);
+    margin-bottom: 8px;
+}
+
+.footer-links {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin: 16px 0;
+    flex-wrap: wrap;
+}
+
+.footer-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.footer-links a:hover { color: var(--pink); }
+
 @media (max-width: 768px) {
-    .hero-name { font-size: 1.8em; }
-    .hero-img { width: 100px; height: 100px; }
+    .hero-name { font-size: 2em; }
+    .hero-img { width: 110px; height: 110px; }
     .section-heading { font-size: 1.2em; }
     .official-card { padding: 22px; }
-    .spotify-album-art { width: 120px; height: 120px; }
-    .lightbox-nav { width: 36px; height: 36px; }
-    .lightbox-prev { left: 8px; }
-    .lightbox-next { right: 8px; }
+    .chat-window { width: 300px; }
+    .lightbox-nav { width: 40px; height: 40px; }
+    .lightbox-prev { left: 10px; }
+    .lightbox-next { right: 10px; }
 }
 </style>
 </head>
@@ -1283,8 +1500,17 @@ body {
 
 <nav class="navbar">
     <div class="container">
-        <img src="${DATA.celebrity.photo}" alt="" class="navbar-logo-img" onerror="this.style.display='none'">
-        <span class="navbar-logo-text">Verification Hub</span>
+        <div class="navbar-brand">
+            <img src="${DATA.celebrity.photo}" alt="" class="navbar-logo-img" onerror="this.style.display='none'">
+            <span class="navbar-logo-text">Verification Hub</span>
+        </div>
+        <div class="navbar-status">
+            <span class="online-dot"></span>
+            <span>Active Now</span>
+            <span class="verified-badge-small">
+                <img src="${IMAGES.verifiedBadge}" alt=""> Verified
+            </span>
+        </div>
     </div>
 </nav>
 
@@ -1293,21 +1519,33 @@ body {
         <img src="${DATA.celebrity.photo}" alt="${DATA.celebrity.name}" class="hero-img" onerror="this.style.display='none'">
         <h1 class="hero-name">${DATA.celebrity.fullName}</h1>
         <p class="hero-bio">${DATA.celebrity.bio}</p>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <div class="hero-stat-value">${DATA.celebrity.followers}</div>
+                <div class="hero-stat-label">Followers</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value">${DATA.celebrity.totalPosts}</div>
+                <div class="hero-stat-label">Posts</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value">${onlineCount}</div>
+                <div class="hero-stat-label">Online Now</div>
+            </div>
+        </div>
         <div class="hero-badges">
             <span class="badge badge-verified">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-                VERIFIED OFFICIAL
+                <img src="${IMAGES.verifiedBadge}" alt=""> VERIFIED OFFICIAL
             </span>
-            <span class="badge badge-fun">✦ ENTERTAINMENT</span>
+            <span class="badge badge-fun">✨ ENTERTAINMENT</span>
+            <span class="badge badge-music">🎵 MUSIC ARTIST</span>
         </div>
         <div class="hero-social">
             <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="social-btn tiktok">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.89a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
-                TikTok
+                <img src="${IMAGES.tiktokIcon}" alt=""> TikTok
             </a>
             <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" rel="noopener" class="social-btn facebook">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                Facebook
+                <img src="${IMAGES.facebookIcon}" alt=""> Facebook
             </a>
         </div>
     </div>
@@ -1318,47 +1556,45 @@ body {
 <section class="section" data-animate>
     <div class="section-header">
         <div class="section-icon verified-icon-bg">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+            ✅
         </div>
-        <h2 class="section-heading">Official Verified Account</h2>
+        <h2 class="section-heading">Official Verified Accounts</h2>
     </div>
 
     <div class="official-card">
         <div class="official-card-header">
             <div class="official-verify-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                <img src="${IMAGES.checkMark}" alt="">
             </div>
             <div class="official-card-title">
-                <h2>The Only Authentic Account</h2>
-                <span>✓ Identity Verified</span>
+                <h2>The Only Authentic Accounts</h2>
+                <span>✓ Identity Verified & Protected</span>
             </div>
         </div>
         <div class="official-card-body">
             <div class="official-info-list">
+                ${DATA.realAccounts.map(acc => `
                 <div class="official-info-item">
-                    <span class="official-info-label">Username</span>
-                    <span class="official-info-value">@baiillamaach_official</span>
-                </div>
-                <div class="official-info-item">
-                    <span class="official-info-label">Platforms</span>
-                    <span class="official-info-value">TikTok • Facebook</span>
-                </div>
+                    <span class="official-info-label">
+                        <img src="${acc.icon}" width="16" height="16" alt=""> ${acc.platform}
+                    </span>
+                    <span class="official-info-value">${acc.username}</span>
+                </div>`).join('')}
                 <div class="official-info-item">
                     <span class="official-info-label">Status</span>
                     <span class="official-info-value" style="color:var(--green-600)">● Active & Verified</span>
                 </div>
                 <div class="official-info-item">
                     <span class="official-info-label">Security</span>
-                    <span class="official-info-value" style="color:var(--green-600)">Safe</span>
+                    <span class="official-info-value" style="color:var(--green-600)">🔒 Protected</span>
                 </div>
             </div>
             <div class="official-preview">
                 <img src="${DATA.celebrity.photo}" alt="" onerror="this.style.display='none'">
-                <div class="uname">@baiillamaach_official</div>
+                <div class="uname">${DATA.celebrity.username}</div>
                 <div class="plat">TikTok • Facebook</div>
                 <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="btn-follow">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                    Follow Official Account
+                    ✓ Follow Official Account
                 </a>
             </div>
         </div>
@@ -1368,16 +1604,16 @@ body {
 <section class="fake-section" data-animate>
     <div class="section-header">
         <div class="section-icon danger-icon-bg">
-            <span style="font-size:1.3em">⚠</span>
+            🚨
         </div>
-        <h2 class="section-heading">Fake Accounts Detected</h2>
+        <h2 class="section-heading">⚠️ Fake Accounts Detected</h2>
     </div>
 
     <div class="fake-alert">
-        <div class="fake-alert-icon">🚨</div>
+        <div class="fake-alert-icon">🛡️</div>
         <div class="fake-alert-text">
-            <h3>${totalFake} Fake Account${totalFake > 1 ? 's' : ''} Found</h3>
-            <p>These are NOT affiliated with Baiilla Maach. Report them immediately.</p>
+            <h3>${totalFake} Fake Account${totalFake > 1 ? 's' : ''} Currently Active</h3>
+            <p>These accounts are NOT affiliated with Baiilla Maach. Report them immediately to protect the community.</p>
         </div>
     </div>
 
@@ -1390,14 +1626,14 @@ body {
                         <div class="fake-card-title">
                             <span>⚠️</span> Fake Account #${i+1}
                         </div>
-                        <span class="fake-card-badge">Dangerous</span>
+                        <span class="fake-card-badge">⚠️ DANGEROUS</span>
                     </div>
                     <div class="fake-card-body">
                         <div class="fake-screenshot">
-                            ${a.screenshot ? `<img src="${a.screenshot}" alt="" loading="lazy">` : ''}
+                            ${a.screenshot ? `<img src="${a.screenshot}" alt="Fake Account Screenshot" loading="lazy">` : ''}
                             <div class="fake-watermark">
-                                <span>⚠️ FAKE</span>
-                                <span style="font-size:0.65em">DO NOT TRUST</span>
+                                <span>⚠️ FAKE ACCOUNT</span>
+                                <span style="font-size:0.7em">DO NOT TRUST</span>
                             </div>
                         </div>
                         <div class="fake-details">
@@ -1410,17 +1646,25 @@ body {
                                 <span class="fake-detail-value">${a.username}</span>
                             </div>
                             <div class="fake-detail-row">
-                                <span class="fake-detail-label">Status</span>
-                                <span class="fake-detail-value">Active Threat</span>
+                                <span class="fake-detail-label">Reports</span>
+                                <span class="fake-detail-value">${a.reportCount} reports</span>
+                            </div>
+                            <div class="fake-detail-row">
+                                <span class="fake-detail-label">Detected</span>
+                                <span class="fake-detail-value">${a.dateDetected}</span>
                             </div>
                             <div class="fake-reason">
-                                <span>⚠️ ${a.reason}</span>
+                                <strong>⚠️ Reason:</strong> ${a.reason}
                             </div>
                         </div>
                     </div>
                     <div class="fake-actions">
-                        <a href="${a.profileUrl}" target="_blank" rel="noopener" class="btn-report">🚨 Report</a>
-                        <button class="btn-copy copy-btn" data-username="${a.username}">📋 Copy Username</button>
+                        <a href="${a.profileUrl}" target="_blank" rel="noopener" class="btn-report">
+                            <img src="${IMAGES.reportIcon}" alt=""> Report Account
+                        </a>
+                        <button class="carousel-arrow" onclick="navigator.clipboard.writeText('${a.username}')" style="background:#fff;color:var(--red-600);border:2px solid #fecaca;border-radius:22px;padding:10px 20px;font-weight:700;cursor:pointer;">
+                            📋 Copy Username
+                        </button>
                     </div>
                 </div>
             </div>`).join('')}
@@ -1439,49 +1683,49 @@ body {
 <section class="section" data-animate>
     <div class="section-header">
         <div class="section-icon compare-icon-bg">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M3 5v14h18V5H3zm16 2v2H5V7h14zm0 4v2H5v-2h14zm0 4v2H5v-2h14z"/></svg>
+            📊
         </div>
-        <h2 class="section-heading">Account Comparison</h2>
+        <h2 class="section-heading">Account Comparison Guide</h2>
     </div>
     <div class="comparison-table-wrap">
         <table class="comparison-table">
             <thead>
                 <tr>
                     <th>Feature</th>
-                    <th>✅ Official</th>
-                    <th>❌ Fake</th>
+                    <th>✅ Official Account</th>
+                    <th>❌ Fake Account</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td><strong>Verification</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Verified</td>
-                    <td class="col-fake"><span class="cross">✗</span> Not Verified</td>
+                    <td><strong>Verification Badge</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Blue checkmark</td>
+                    <td class="col-fake"><span class="cross">✗</span> No verification</td>
                 </tr>
                 <tr>
                     <td><strong>Username</strong></td>
                     <td class="col-official"><span class="check">✓</span> @baiillamaach_official</td>
-                    <td class="col-fake"><span class="cross">✗</span> Similar names</td>
+                    <td class="col-fake"><span class="cross">✗</span> Similar but different</td>
                 </tr>
                 <tr>
-                    <td><strong>Content</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Original</td>
-                    <td class="col-fake"><span class="cross">✗</span> Stolen</td>
+                    <td><strong>Content Quality</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Original, high quality</td>
+                    <td class="col-fake"><span class="cross">✗</span> Stolen, low quality</td>
                 </tr>
                 <tr>
-                    <td><strong>Trust</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Safe</td>
-                    <td class="col-fake"><span class="cross">✗</span> Dangerous</td>
+                    <td><strong>Follower Count</strong></td>
+                    <td class="col-official"><span class="check">✓</span> 50K+ followers</td>
+                    <td class="col-fake"><span class="cross">✗</span> Low follower count</td>
                 </tr>
                 <tr>
-                    <td><strong>Reports</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Clean</td>
-                    <td class="col-fake"><span class="cross">✗</span> Multiple Reports</td>
+                    <td><strong>Post History</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Long history</td>
+                    <td class="col-fake"><span class="cross">✗</span> Recently created</td>
                 </tr>
                 <tr>
-                    <td><strong>Owner</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Official</td>
-                    <td class="col-fake"><span class="cross">✗</span> Impersonator</td>
+                    <td><strong>Community Reports</strong></td>
+                    <td class="col-official"><span class="check">✓</span> Clean record</td>
+                    <td class="col-fake"><span class="cross">✗</span> Multiple reports</td>
                 </tr>
             </tbody>
         </table>
@@ -1491,42 +1735,43 @@ body {
 <div class="warning-section" data-animate>
     <div class="section-header">
         <div class="section-icon warning-icon-bg">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+            ⚡
         </div>
-        <h2 class="section-heading">How to Stay Safe</h2>
+        <h2 class="section-heading">Safety Guidelines</h2>
     </div>
     <div class="warning-grid">
         <div class="warning-card">
             <div class="warning-card-icon">🔍</div>
-            <h4>Verify First</h4>
-            <p>Check username carefully. Official: @baiillamaach_official</p>
+            <h4>Verify Username</h4>
+            <p>Always check the exact username. Official account is <strong>@baiillamaach_official</strong></p>
         </div>
         <div class="warning-card">
-            <div class="warning-card-icon">🚫</div>
-            <h4>Never Share Info</h4>
-            <p>Fake accounts ask for passwords or money. Never share them.</p>
+            <div class="warning-card-icon">🔒</div>
+            <h4>Never Share Personal Info</h4>
+            <p>Fake accounts may ask for passwords, money, or personal details. Never share them.</p>
         </div>
         <div class="warning-card">
-            <div class="warning-card-icon">📢</div>
-            <h4>Report Fast</h4>
-            <p>Use platform report feature when you spot a fake account.</p>
+            <div class="warning-card-icon">🚨</div>
+            <h4>Report Immediately</h4>
+            <p>Use platform report features when you encounter fake accounts. Help keep the community safe.</p>
         </div>
         <div class="warning-card">
             <div class="warning-card-icon">🔗</div>
-            <h4>Use Official Links</h4>
-            <p>Only use links on this page to access the real account.</p>
+            <h4>Use Official Links Only</h4>
+            <p>Only use the links provided on this official verification page to access authentic accounts.</p>
         </div>
     </div>
 </div>
 
 <div class="updates-section" data-animate>
-    <h3>🔄 Latest Updates</h3>
-    <p>Stay informed about impersonation attempts and security.</p>
+    <h3>📢 Stay Updated</h3>
+    <p>We regularly monitor and update this page with new information about impersonation attempts.</p>
     <div class="update-tags">
-        <span class="update-tag">📌 New fakes detected weekly</span>
-        <span class="update-tag">🔒 Verification active</span>
-        <span class="update-tag">🛡️ Community reporting</span>
-        <span class="update-tag">📢 Awareness ongoing</span>
+        <span class="update-tag">🔍 Weekly fake account checks</span>
+        <span class="update-tag">🛡️ Active verification monitoring</span>
+        <span class="update-tag">👥 Community-driven reporting</span>
+        <span class="update-tag">📊 Database updated regularly</span>
+        <span class="update-tag">🎯 Quick response to reports</span>
     </div>
 </div>
 
@@ -1537,12 +1782,41 @@ ${galleryHTML}
 </main>
 
 <footer class="footer">
-    <p>© ${DATA.celebrity.fullName} • Official Verification Hub</p>
+    <div class="footer-brand">${DATA.celebrity.fullName}</div>
+    <p>Official Verification Hub • Established ${DATA.celebrity.verifiedSince}</p>
+    <div class="footer-links">
+        <a href="https://tiktok.com/@baiillamaach_official" target="_blank">TikTok</a>
+        <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank">Facebook</a>
+        <a href="/admin">Admin</a>
+        <a href="#top">Back to Top</a>
+    </div>
+    <p style="margin-top:16px;">© ${new Date().getFullYear()} ${DATA.celebrity.fullName}. All rights reserved.</p>
 </footer>
+
+<!-- Chat Widget -->
+<div class="chat-widget">
+    <button class="chat-toggle" onclick="toggleChat()" title="Chat with us">
+        <img src="${IMAGES.messageIcon}" alt="Chat">
+    </button>
+    <div class="chat-window" id="chatWindow">
+        <div class="chat-header">
+            <h3>💬 Community Chat</h3>
+            <button class="chat-close" onclick="toggleChat()">✕</button>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            ${chatHTML || '<p style="text-align:center;color:var(--text-muted);padding:20px;">No messages yet. Be the first!</p>'}
+        </div>
+        <div class="chat-input-area">
+            <input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
+            <button class="chat-send-btn" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+</div>
 
 <audio id="audioPlayer" preload="auto"></audio>
 
 <script>
+// Intersection Observer for animations
 const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
         if (entry.isIntersecting) entry.target.classList.add('animated');
@@ -1551,11 +1825,13 @@ const observer = new IntersectionObserver((entries) => {
 
 document.querySelectorAll('[data-animate]').forEach(el => observer.observe(el));
 
+// Scroll progress bar
 window.addEventListener('scroll', () => {
     const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
     document.getElementById('scrollProgress').style.width = pct + '%';
 });
 
+// Fake account carousel
 let currentSlide = 0;
 const totalSlides = ${totalFake};
 const track = document.getElementById('fakeCarouselTrack');
@@ -1570,19 +1846,23 @@ function updateCarousel() {
 function moveCarousel(dir) {
     currentSlide = (currentSlide + dir + totalSlides) % totalSlides;
     updateCarousel();
-    clearInterval(autoSlide);
-    autoSlide = setInterval(() => moveCarousel(1), 5000);
+    resetAutoSlide();
 }
 
 function goToSlide(i) {
     currentSlide = i;
     updateCarousel();
+    resetAutoSlide();
+}
+
+function resetAutoSlide() {
     clearInterval(autoSlide);
     autoSlide = setInterval(() => moveCarousel(1), 5000);
 }
 
 autoSlide = setInterval(() => moveCarousel(1), 5000);
 
+// Touch support for carousel
 const carousel = document.getElementById('fakeCarousel');
 let touchX = 0;
 carousel.addEventListener('touchstart', e => { touchX = e.changedTouches[0].screenX; });
@@ -1591,16 +1871,42 @@ carousel.addEventListener('touchend', e => {
     if (Math.abs(diff) > 40) moveCarousel(diff > 0 ? 1 : -1);
 });
 
-document.querySelectorAll('.copy-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        navigator.clipboard.writeText(this.dataset.username).then(() => {
-            this.innerHTML = '✓ Copied!';
-            this.classList.add('copied');
-            setTimeout(() => { this.innerHTML = '📋 Copy Username'; this.classList.remove('copied'); }, 2000);
-        });
-    });
-});
+// Chat functionality
+function toggleChat() {
+    const chatWindow = document.getElementById('chatWindow');
+    chatWindow.classList.toggle('active');
+}
 
+function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    if (!message) return;
+    
+    // Add message to UI
+    const messagesContainer = document.getElementById('chatMessages');
+    const messageElement = document.createElement('div');
+    messageElement.className = 'chat-message user-message';
+    messageElement.innerHTML = `
+        <div class="message-header">
+            <span class="message-sender">You</span>
+            <span class="message-time">${new Date().toLocaleTimeString()}</span>
+        </div>
+        <div class="message-content">${message}</div>
+    `;
+    messagesContainer.appendChild(messageElement);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Send to server
+    fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: message, room: 'general' })
+    }).catch(console.error);
+    
+    input.value = '';
+}
+
+// Music player functionality
 let cur = -1, playing = false, ap = document.getElementById('audioPlayer'), items = document.querySelectorAll('.spotify-playlist-item');
 
 function loadSong(i) {
@@ -1609,18 +1915,13 @@ function loadSong(i) {
     ap.src = it.dataset.audio;
     document.getElementById('nowPlayingTitle').textContent = it.querySelector('.spotify-track-title').textContent;
     document.getElementById('nowPlayingArtist').textContent = it.querySelector('.spotify-track-artist-small').textContent;
-    const cc = document.getElementById('nowPlayingCover');
-    if (it.dataset.cover) {
-        cc.innerHTML = '<img src="' + it.dataset.cover + '" alt="">';
-    } else {
-        cc.innerHTML = '<div class="spotify-default-art"><svg viewBox="0 0 24 24" width="56" height="56"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>';
-    }
+    document.getElementById('nowPlayingCover').innerHTML = '<img src="' + it.dataset.cover + '" alt="">';
     document.querySelectorAll('.spotify-playlist-item').forEach(el => el.classList.remove('active'));
     it.classList.add('active');
     document.getElementById('progressFill').style.width = '0%';
     document.getElementById('currentTime').textContent = '0:00';
     document.getElementById('totalTime').textContent = '0:00';
-    ap.play().then(() => { playing = true; upPlayBtn(); }).catch(() => {});
+    ap.play().then(() => { playing = true; }).catch(() => {});
 }
 
 function playSong(i) { if (i === cur) togglePlay(); else loadSong(i); }
@@ -1628,12 +1929,7 @@ function playSong(i) { if (i === cur) togglePlay(); else loadSong(i); }
 function togglePlay() {
     if (!ap.src && items.length > 0) { loadSong(0); return; }
     if (playing) ap.pause(); else ap.play();
-    playing = !playing; upPlayBtn();
-}
-
-function upPlayBtn() {
-    document.getElementById('playIcon').style.display = playing ? 'none' : 'block';
-    document.getElementById('pauseIcon').style.display = playing ? 'block' : 'none';
+    playing = !playing;
 }
 
 function nextSong() { if (items.length) loadSong((cur + 1) % items.length); }
@@ -1662,6 +1958,7 @@ document.getElementById('progressBar').addEventListener('click', e => {
 
 ap.volume = 0.7;
 
+// Gallery lightbox
 let galleryIdx = 0;
 const galleryImgs = document.querySelectorAll('.gallery-image');
 const lightbox = document.getElementById('galleryLightbox');
@@ -1691,18 +1988,44 @@ document.addEventListener('keydown', e => {
     if (e.key === 'ArrowLeft' && lightbox.classList.contains('active')) navigateGallery(-1);
     if (e.key === 'ArrowRight' && lightbox.classList.contains('active')) navigateGallery(1);
 });
+
+// Update online count periodically
+setInterval(() => {
+    fetch('/api/online')
+        .then(r => r.json())
+        .then(d => {
+            document.querySelector('.hero-stat-value:last-child').textContent = d.count;
+        })
+        .catch(() => {});
+}, 30000);
 </script>
 </body>
 </html>`;
 }
 
 function getAdminLoginHTML(error = '') {
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh}.box{background:#fff;border:2px solid #e2e8f0;border-radius:20px;padding:40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.08)}h2{text-align:center;color:#ff0050;margin-bottom:30px}.fg{margin-bottom:20px}label{display:block;margin-bottom:8px;color:#475569;font-weight:600;font-size:.9em}input{width:100%;padding:12px 16px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;font-size:1em;outline:none}input:focus{border-color:#ff0050}.btn{width:100%;padding:14px;background:#ff0050;color:#fff;border:none;border-radius:10px;font-size:1em;font-weight:600;cursor:pointer}.btn:hover{background:#d90040}.error{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px;text-align:center}.back{text-align:center;margin-top:20px}a{color:#64748b;text-decoration:none}a:hover{color:#ff0050}</style></head><body><div class="box"><h2>Admin Login</h2>${error?`<div class="error">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="fg"><label>Username</label><input type="text" name="username" required></div><div class="fg"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">Login</button></form><div class="back"><a href="/">Back to Home</a></div></div></body></html>`;
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);display:flex;align-items:center;justify-content:center;min-height:100vh}.box{background:#fff;border-radius:24px;padding:48px;width:100%;max-width:420px;box-shadow:0 25px 80px rgba(0,0,0,.12)}h2{text-align:center;background:linear-gradient(135deg,#ff0050,#ff6b00);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:32px;font-size:1.8em}.fg{margin-bottom:24px}label{display:block;margin-bottom:8px;color:#475569;font-weight:600;font-size:.9em}input{width:100%;padding:14px 18px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;font-size:1em;outline:none;transition:all .3s}input:focus{border-color:#ff0050;box-shadow:0 0 0 3px rgba(255,0,80,.1)}.btn{width:100%;padding:16px;background:linear-gradient(135deg,#ff0050,#ff6b00);color:#fff;border:none;border-radius:12px;font-size:1em;font-weight:700;cursor:pointer;transition:all .3s}.btn:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(255,0,80,.3)}.error{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:14px;border-radius:10px;margin-bottom:24px;text-align:center;font-weight:500}.back{text-align:center;margin-top:24px}a{color:#64748b;text-decoration:none;font-weight:600;transition:color .2s}a:hover{color:#ff0050}</style></head><body><div class="box"><h2>🔐 Admin Login</h2>${error?`<div class="error">⚠️ ${error}</div>`:''}<form method="POST" action="/admin/login"><div class="fg"><label>Username</label><input type="text" name="username" placeholder="Enter username" required></div><div class="fg"><label>Password</label><input type="password" name="password" placeholder="Enter password" required></div><button type="submit" class="btn">Sign In</button></form><div class="back"><a href="/">← Back to Home</a></div></div></body></html>`;
 }
 
-function getAdminPanelHTML(photos = [], msg = '', err = '') {
-    const phtml = photos.map(p => `<div class="pc"><img src="${p.path}" class="pi"><div class="info">${p.caption?`<p>${p.caption}</p>`:''}<p class="dt">${new Date(p.uploadedAt).toLocaleDateString()}</p></div><form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="del" onclick="return confirm('Delete?')">Delete</button></form></div>`).join('');
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#f8fafc;color:#0f172a}.hdr{background:#fff;padding:20px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e2e8f0;flex-wrap:wrap;gap:10px}.hdr h2{color:#ff0050}.hdr a{color:#64748b;text-decoration:none;padding:8px 16px;border:2px solid #e2e8f0;border-radius:8px;margin-left:10px;font-weight:600}.hdr a:hover{background:#ff0050;color:#fff;border-color:#ff0050}.cnt{max-width:1100px;margin:0 auto;padding:30px 20px}.up{background:#fff;border:2px solid #e2e8f0;border-radius:16px;padding:30px;margin-bottom:30px}.up h3{color:#ff0050;margin-bottom:20px}.fg{margin-bottom:15px}label{display:block;margin-bottom:6px;color:#475569;font-weight:600}input,textarea{width:100%;padding:10px 14px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:8px;font-size:.95em;outline:none}input:focus,textarea:focus{border-color:#ff0050}.bu{background:#22c55e;color:#fff;padding:12px 24px;border:none;border-radius:10px;font-weight:600;cursor:pointer}.bu:hover{background:#16a34a}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:20px}.pc{background:#fff;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden}.pc:hover{border-color:#ff0050}.pi{width:100%;height:200px;object-fit:cover}.info{padding:12px}.dt{font-size:.75em;color:#94a3b8;margin-top:2px}.del{background:#fef2f2;color:#dc2626;border:2px solid #fecaca;padding:6px 12px;border-radius:6px;cursor:pointer;margin:0 12px 12px;width:calc(100% - 24px);font-weight:600}.del:hover{background:#ef4444;color:#fff}.msg{background:#f0fdf4;border:2px solid #bbf7d0;color:#166534;padding:12px;border-radius:8px;margin-bottom:20px}.err{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px}</style></head><body><div class="hdr"><h2>Admin Panel</h2><div><a href="/">Home</a><a href="/admin/logout">Logout</a></div></div><div class="cnt">${msg?`<div class="msg">${msg}</div>`:''}${err?`<div class="err">${err}</div>`:''}<div class="up"><h3>Upload Photo</h3><form method="POST" action="/admin/upload" enctype="multipart/form-data"><div class="fg"><label>Select Photo</label><input type="file" name="photo" accept="image/*" required></div><div class="fg"><label>Caption</label><input type="text" name="caption"></div><button type="submit" class="bu">Upload</button></form></div><h3 style="margin-bottom:20px">Gallery (${photos.length})</h3>${photos.length?`<div class="grid">${phtml}</div>`:'<p style="color:#94a3b8;text-align:center;padding:40px">No photos</p>'}</div></body></html>`;
+function getAdminPanelHTML(photos = [], chatMessages = [], msg = '', err = '') {
+    const phtml = photos.map(p => `<div class="pc"><img src="${p.path}" class="pi"><div class="info">${p.caption?`<p>${p.caption}</p>`:''}<p class="dt">${new Date(p.uploadedAt).toLocaleDateString()}</p></div><form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="del" onclick="return confirm('Delete this photo?')">🗑️ Delete</button></form></div>`).join('');
+    
+    const chatHTML = chatMessages.slice(0, 20).reverse().map(m => `
+        <div class="chat-item">
+            <div class="chat-info">
+                <strong>${m.sender || 'Anonymous'}</strong>
+                <span>${new Date(m.timestamp).toLocaleString()}</span>
+            </div>
+            <p>${m.text || ''}</p>
+            ${m.file ? `<a href="${m.file}" target="_blank">📎 Attachment</a>` : ''}
+            <form method="POST" action="/admin/delete-chat" style="display:inline">
+                <input type="hidden" name="messageId" value="${m._id}">
+                <button class="del-small" onclick="return confirm('Delete this message?')">Delete</button>
+            </form>
+        </div>
+    `).join('');
+
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#f8fafc;color:#0f172a}.hdr{background:#fff;padding:20px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e2e8f0;flex-wrap:wrap;gap:12px;box-shadow:0 2px 10px rgba(0,0,0,.05)}.hdr h2{background:linear-gradient(135deg,#ff0050,#ff6b00);-webkit-background-clip:text;-webkit-text-fill-color:transparent}.hdr a{color:#64748b;text-decoration:none;padding:10px 20px;border:2px solid #e2e8f0;border-radius:10px;font-weight:600;transition:all .3s}.hdr a:hover{background:#ff0050;color:#fff;border-color:#ff0050}.cnt{max-width:1200px;margin:0 auto;padding:30px 20px}.up{background:#fff;border:2px solid #e2e8f0;border-radius:16px;padding:30px;margin-bottom:30px;box-shadow:0 4px 15px rgba(0,0,0,.05)}.up h3{color:#ff0050;margin-bottom:20px;font-size:1.2em}.fg{margin-bottom:18px}label{display:block;margin-bottom:6px;color:#475569;font-weight:600;font-size:.9em}input,textarea{width:100%;padding:12px 16px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;font-size:.95em;outline:none;transition:all .3s}input:focus,textarea:focus{border-color:#ff0050;box-shadow:0 0 0 3px rgba(255,0,80,.1)}.bu{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;padding:12px 28px;border:none;border-radius:10px;font-weight:600;cursor:pointer;transition:all .3s}.bu:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(34,197,94,.3)}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px}.pc{background:#fff;border:2px solid #e2e8f0;border-radius:14px;overflow:hidden;transition:all .3s}.pc:hover{border-color:#ff0050;transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,.1)}.pi{width:100%;height:220px;object-fit:cover}.info{padding:14px}.dt{font-size:.75em;color:#94a3b8;margin-top:4px}.del{background:#fef2f2;color:#dc2626;border:2px solid #fecaca;padding:8px 16px;border-radius:8px;cursor:pointer;margin:0 14px 14px;width:calc(100% - 28px);font-weight:600;transition:all .3s}.del:hover{background:#ef4444;color:#fff;border-color:#ef4444}.chat-section{margin-top:40px}.chat-item{background:#fff;padding:16px;border-radius:10px;border:1px solid #e2e8f0;margin-bottom:12px}.chat-info{display:flex;justify-content:space-between;margin-bottom:8px;font-size:.85em}.chat-info span{color:#94a3b8}.del-small{background:none;border:none;color:#dc2626;cursor:pointer;font-size:.8em;margin-top:8px;text-decoration:underline}.msg{background:#f0fdf4;border:2px solid #bbf7d0;color:#166534;padding:14px;border-radius:10px;margin-bottom:20px;font-weight:500}.err{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:14px;border-radius:10px;margin-bottom:20px;font-weight:500}@media(max-width:768px){.cnt{padding:20px 15px}.hdr{padding:15px 20px}.grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}}</style></head><body><div class="hdr"><h2>🎛️ Admin Panel</h2><div><a href="/">🏠 Home</a><a href="/admin/logout">🚪 Logout</a></div></div><div class="cnt">${msg?`<div class="msg">✅ ${msg}</div>`:''}${err?`<div class="err">❌ ${err}</div>`:''}<div class="up"><h3>📸 Upload New Photo</h3><form method="POST" action="/admin/upload" enctype="multipart/form-data"><div class="fg"><label>Select Photo</label><input type="file" name="photo" accept="image/*" required></div><div class="fg"><label>Caption (optional)</label><input type="text" name="caption" placeholder="Add a description..."></div><button type="submit" class="bu">📤 Upload Photo</button></form></div><h3 style="margin-bottom:20px">🖼️ Gallery (${photos.length} photos)</h3>${photos.length?`<div class="grid">${phtml}</div>`:'<p style="color:#94a3b8;text-align:center;padding:40px;background:#fff;border-radius:10px;border:1px solid #e2e8f0;">📭 No photos uploaded yet</p>'}<div class="chat-section"><h3 style="margin-bottom:20px">💬 Recent Messages (${chatMessages.length} total)</h3>${chatHTML || '<p style="color:#94a3b8;text-align:center;padding:20px;">No messages yet</p>'}</div></div></body></html>`;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -1710,79 +2033,294 @@ const server = http.createServer(async (req, res) => {
     const pathname = parsedUrl.pathname;
     const cookies = parseCookies(req.headers.cookie);
 
-    if (pathname.startsWith('/assets/')) {
-        const assetPath = path.join(__dir, pathname);
-        if (!assetPath.startsWith(ASSETS_DIR)) { res.writeHead(403); res.end(); return; }
-        if (fs.existsSync(assetPath)) {
-            const ext = path.extname(assetPath).toLowerCase();
-            const types = { '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac','.wma':'audio/x-ms-wma','.opus':'audio/opus','.weba':'audio/webm' };
-            const ct = types[ext] || 'application/octet-stream';
-            const stat = fs.statSync(assetPath);
-            res.writeHead(200, { 'Content-Type':ct, 'Content-Length':stat.size, 'Cache-Control':'public, max-age=86400', 'Accept-Ranges':'bytes' });
-            fs.createReadStream(assetPath).pipe(res);
-        } else { res.writeHead(404); res.end(); }
+    // Track online users
+    const userIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    if (!onlineUsers.has(userIP)) {
+        onlineUsers.set(userIP, Date.now());
+    } else {
+        onlineUsers.set(userIP, Date.now());
+    }
+
+    // Clean up old users (inactive for more than 5 minutes)
+    const now = Date.now();
+    for (const [ip, time] of onlineUsers.entries()) {
+        if (now - time > 300000) onlineUsers.delete(ip);
+    }
+
+    // API endpoint for online count
+    if (pathname === '/api/online') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ count: onlineUsers.size }));
         return;
     }
 
+    // API endpoint for chat
+    if (pathname === '/api/chat' && req.method === 'POST') {
+        let body = '';
+        req.on('data', c => body += c);
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                await saveChatMessage({
+                    text: data.text,
+                    sender: data.sender || 'Anonymous',
+                    room: data.room || 'general',
+                    type: 'user'
+                });
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        });
+        return;
+    }
+
+    // Serve static assets
+    if (pathname.startsWith('/assets/') || 
+        pathname === '/tiktok_video_Aj2NO.jpeg' ||
+        pathname === '/orginalss.png' ||
+        pathname === '/real-id-ss.png' ||
+        pathname === '/hammadfams.png' ||
+        pathname === '/baillamach.png' ||
+        pathname === '/Fakedetect.png' ||
+        pathname === '/tiktokicon.png' ||
+        pathname === '/communication.png' ||
+        pathname === '/messageicon.gif' ||
+        pathname === '/report.png' ||
+        pathname === '/social-media.png' ||
+        pathname === '/microphone-in-hand.gif' ||
+        pathname === '/music-icon.png' ||
+        pathname === '/flag.png' ||
+        pathname === '/check-mark.png' ||
+        pathname === '/fb_profile.jpg') {
+        
+        let assetPath;
+        if (pathname.startsWith('/assets/')) {
+            assetPath = path.join(__dir, pathname);
+        } else {
+            assetPath = path.join(__dir, pathname);
+        }
+        
+        // Security check
+        if (!assetPath.startsWith(__dir)) { 
+            res.writeHead(403); 
+            res.end(); 
+            return; 
+        }
+        
+        if (fs.existsSync(assetPath)) {
+            const ext = path.extname(assetPath).toLowerCase();
+            const types = { 
+                '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg',
+                '.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml',
+                '.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg',
+                '.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac',
+                '.wma':'audio/x-ms-wma','.opus':'audio/opus','.weba':'audio/webm'
+            };
+            const ct = types[ext] || 'application/octet-stream';
+            const stat = fs.statSync(assetPath);
+            res.writeHead(200, { 
+                'Content-Type': ct, 
+                'Content-Length': stat.size, 
+                'Cache-Control': 'public, max-age=86400',
+                'Accept-Ranges': 'bytes' 
+            });
+            fs.createReadStream(assetPath).pipe(res);
+        } else { 
+            console.error('File not found:', assetPath);
+            res.writeHead(404); 
+            res.end(); 
+        }
+        return;
+    }
+
+    // Admin routes
     if (pathname === '/admin' && req.method === 'GET') {
         const s = getSession(cookies.sessionId);
-        if (s) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p)); return; }
-        res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminLoginHTML()); return;
+        if (s) { 
+            const p = await getGalleryPhotos();
+            const cm = await getChatMessages('general', 50);
+            res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); 
+            res.end(getAdminPanelHTML(p, cm)); 
+            return; 
+        }
+        res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); 
+        res.end(getAdminLoginHTML()); 
+        return;
     }
 
     if (pathname === '/admin/login' && req.method === 'POST') {
-        let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
+        let body = ''; 
+        req.on('data',c=>body+=c); 
+        req.on('end',async()=>{
             const params = new URLSearchParams(body);
             if (await verifyAdmin(params.get('username'),params.get('password'))) {
                 const sid = createSession(params.get('username'));
-                res.writeHead(302,{'Location':'/admin','Set-Cookie':`sessionId=${sid};HttpOnly;Path=/;Max-Age=7200;SameSite=Lax`}); res.end();
-            } else { res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminLoginHTML('Invalid credentials')); }
-        }); return;
-    }
-
-    if (pathname === '/admin/logout') { sessions.delete(cookies.sessionId); res.writeHead(302,{'Location':'/admin','Set-Cookie':'sessionId=;HttpOnly;Path=/;Max-Age=0'}); res.end(); return; }
-
-    if (pathname === '/admin/upload' && req.method === 'POST') {
-        if (!getSession(cookies.sessionId)) { res.writeHead(302,{'Location':'/admin'}); res.end(); return; }
-        const form = new formidable.IncomingForm({ uploadDir:GALLERY_DIR, keepExtensions:true, maxFileSize:10*1024*1024 });
-        form.parse(req, async (err, fields, files) => {
-            if (err) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Upload error')); return; }
-            const pf = Array.isArray(files.photo)?files.photo[0]:files.photo;
-            if (!pf||!pf.originalFilename) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','No file')); return; }
-            if (!['.jpg','.jpeg','.png','.gif','.webp'].includes(path.extname(pf.originalFilename).toLowerCase())) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Invalid format')); return; }
-            const fn = Date.now()+'_'+pf.originalFilename.replace(/[^a-zA-Z0-9.]/g,'_');
-            try {
-                fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
-                await savePhoto({ path:'/assets/gallery/'+fn, caption:fields.caption?(Array.isArray(fields.caption)?fields.caption[0]:fields.caption):'' });
-                const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'Uploaded!'));
-            } catch(e) { const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'','Save error')); }
-        }); return;
-    }
-
-    if (pathname === '/admin/delete' && req.method === 'POST') {
-        if (!getSession(cookies.sessionId)) { res.writeHead(302,{'Location':'/admin'}); res.end(); return; }
-        let body = ''; req.on('data',c=>body+=c); req.on('end',async()=>{
-            const params = new URLSearchParams(body);
-            try { const photo = await db.collection('gallery_photos').findOne({_id:new ObjectId(params.get('photoId'))}); if(photo){const fp=path.join(__dir,photo.path);if(fs.existsSync(fp))fs.unlinkSync(fp);} await deletePhoto(params.get('photoId')); } catch(e){}
-            const p = await getGalleryPhotos(); res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); res.end(getAdminPanelHTML(p,'Deleted'));
-        }); return;
-    }
-
-    if (pathname === '/' || pathname === '/index.html') {
-        const photos = await getGalleryPhotos();
-        res.writeHead(200,{'Content-Type':'text/html;charset=utf-8','Cache-Control':'public, max-age=3600'});
-        res.end(getMainHTML(photos));
+                res.writeHead(302,{
+                    'Location':'/admin',
+                    'Set-Cookie':`sessionId=${sid};HttpOnly;Path=/;Max-Age=7200;SameSite=Lax`
+                }); 
+                res.end();
+            } else { 
+                res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); 
+                res.end(getAdminLoginHTML('Invalid username or password')); 
+            }
+        }); 
         return;
     }
 
+    if (pathname === '/admin/logout') { 
+        sessions.delete(cookies.sessionId); 
+        res.writeHead(302,{
+            'Location':'/admin',
+            'Set-Cookie':'sessionId=;HttpOnly;Path=/;Max-Age=0'
+        }); 
+        res.end(); 
+        return; 
+    }
+
+    if (pathname === '/admin/upload' && req.method === 'POST') {
+        if (!getSession(cookies.sessionId)) { 
+            res.writeHead(302,{'Location':'/admin'}); 
+            res.end(); 
+            return; 
+        }
+        const form = new formidable.IncomingForm({ 
+            uploadDir: GALLERY_DIR, 
+            keepExtensions: true, 
+            maxFileSize: 10*1024*1024 
+        });
+        form.parse(req, async (err, fields, files) => {
+            if (err) { 
+                const p = await getGalleryPhotos();
+                const cm = await getChatMessages('general', 50);
+                res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); 
+                res.end(getAdminPanelHTML(p, cm, '', 'Upload failed: ' + err.message)); 
+                return; 
+            }
+            const pf = Array.isArray(files.photo)?files.photo[0]:files.photo;
+            if (!pf||!pf.originalFilename) { 
+                const p = await getGalleryPhotos();
+                const cm = await getChatMessages('general', 50);
+                res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); 
+                res.end(getAdminPanelHTML(p, cm, '', 'No file selected')); 
+                return; 
+            }
+            if (!['.jpg','.jpeg','.png','.gif','.webp'].includes(path.extname(pf.originalFilename).toLowerCase())) { 
+                const p = await getGalleryPhotos();
+                const cm = await getChatMessages('general', 50);
+                res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); 
+                res.end(getAdminPanelHTML(p, cm, '', 'Invalid file format. Use JPG, PNG, GIF, or WebP')); 
+                return; 
+            }
+            const fn = Date.now()+'_'+pf.originalFilename.replace(/[^a-zA-Z0-9.]/g,'_');
+            try {
+                fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
+                await savePhoto({
+                    path:'/assets/gallery/'+fn, 
+                    caption:fields.caption?(Array.isArray(fields.caption)?fields.caption[0]:fields.caption):''
+                });
+                const p = await getGalleryPhotos();
+                const cm = await getChatMessages('general', 50);
+                res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); 
+                res.end(getAdminPanelHTML(p, cm, 'Photo uploaded successfully!'));
+            } catch(e) { 
+                const p = await getGalleryPhotos();
+                const cm = await getChatMessages('general', 50);
+                res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); 
+                res.end(getAdminPanelHTML(p, cm, '', 'Error saving photo')); 
+            }
+        }); 
+        return;
+    }
+
+    if (pathname === '/admin/delete' && req.method === 'POST') {
+        if (!getSession(cookies.sessionId)) { 
+            res.writeHead(302,{'Location':'/admin'}); 
+            res.end(); 
+            return; 
+        }
+        let body = ''; 
+        req.on('data',c=>body+=c); 
+        req.on('end',async()=>{
+            const params = new URLSearchParams(body);
+            try { 
+                const photo = await db.collection('gallery_photos').findOne({_id:new ObjectId(params.get('photoId'))}); 
+                if(photo){
+                    const fp=path.join(__dir,photo.path);
+                    if(fs.existsSync(fp)) fs.unlinkSync(fp);
+                } 
+                await deletePhoto(params.get('photoId')); 
+            } catch(e){
+                console.error('Delete error:', e);
+            }
+            const p = await getGalleryPhotos();
+            const cm = await getChatMessages('general', 50);
+            res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'}); 
+            res.end(getAdminPanelHTML(p, cm, 'Photo deleted'));
+        }); 
+        return;
+    }
+
+    if (pathname === '/admin/delete-chat' && req.method === 'POST') {
+        if (!getSession(cookies.sessionId)) { 
+            res.writeHead(302,{'Location':'/admin'}); 
+            res.end(); 
+            return; 
+        }
+        let body = ''; 
+        req.on('data',c=>body+=c); 
+        req.on('end',async()=>{
+            const params = new URLSearchParams(body);
+            await deleteChatMessage(params.get('messageId'));
+            res.writeHead(302,{'Location':'/admin'}); 
+            res.end();
+        }); 
+        return;
+    }
+
+    // Main page
+    if (pathname === '/' || pathname === '/index.html') {
+        const photos = await getGalleryPhotos();
+        const chatMessages = await getChatMessages('general', 10);
+        res.writeHead(200,{
+            'Content-Type':'text/html;charset=utf-8',
+            'Cache-Control':'public, max-age=3600'
+        });
+        res.end(getMainHTML(photos, chatMessages));
+        return;
+    }
+
+    // 404 handler
     res.writeHead(404,{'Content-Type':'text/html;charset=utf-8'});
-    res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>404</title><style>body{background:#f8fafc;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center}h1{font-size:100px;color:#ff0050}</style></head><body><div><h1>404</h1><p>Page not found</p><a href="/">Go Home</a></div></body></html>`);
+    res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>404 - Page Not Found</title><style>body{background:linear-gradient(135deg,#f8fafc,#e2e8f0);font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center}h1{font-size:120px;background:linear-gradient(135deg,#ff0050,#ff6b00);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}p{color:#64748b;font-size:1.1em;margin-bottom:30px}a{display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#ff0050,#ff6b00);color:#fff;text-decoration:none;border-radius:12px;font-weight:600;transition:all .3s}a:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(255,0,80,.3)}</style></head><body><div><h1>404</h1><p>Oops! Page not found</p><a href="/">🏠 Back to Home</a></div></body></html>`);
 });
 
 async function start() {
-    await connectDB();
-    server.listen(PORT, () => console.log(`Server running: http://localhost:${PORT}`));
+    const dbConnected = await connectDB();
+    if (dbConnected) {
+        console.log('✅ Database connected successfully');
+    } else {
+        console.log('⚠️ Database connection failed, running in offline mode');
+    }
+    
+    server.listen(PORT, () => {
+        console.log(`🚀 Server running at http://localhost:${PORT}`);
+        console.log(`📁 Serving assets from: ${ASSETS_DIR}`);
+        console.log(`🎵 Cover music directory: ${COVER_MUSIC_DIR}`);
+        console.log(`🖼️ Gallery directory: ${GALLERY_DIR}`);
+        console.log(`💬 Chat uploads directory: ${CHAT_UPLOADS_DIR}`);
+    });
 }
 
 start();
-server.on('error', e => { if (e.code === 'EADDRINUSE') process.exit(1); });
+
+server.on('error', e => { 
+    if (e.code === 'EADDRINUSE') {
+        console.error('❌ Port is already in use');
+        process.exit(1); 
+    }
+    console.error('Server error:', e);
+});
