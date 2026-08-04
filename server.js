@@ -128,64 +128,44 @@ function getMainHTML(galleryPhotos = []) {
                 </div>
                 <h2 class="section-heading">Cover Music</h2>
             </div>
-            <div class="spotify-player">
-                <div class="spotify-now-playing">
-                    <div class="spotify-album-art" id="nowPlayingCover">
-                        <div class="spotify-default-art">
-                            <svg viewBox="0 0 24 24" width="56" height="56"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-                        </div>
+            <div class="music-player">
+                <div class="music-player-main">
+                    <div class="music-album-art" id="albumArt">
+                        <span>🎵</span>
                     </div>
-                    <div class="spotify-track-info">
-                        <div class="spotify-track-name" id="nowPlayingTitle">Select a song</div>
-                        <div class="spotify-track-artist" id="nowPlayingArtist">Cover Songs Collection</div>
-                        <div class="spotify-progress">
-                            <div class="spotify-progress-bar" id="progressBar">
-                                <div class="spotify-progress-fill" id="progressFill"></div>
-                            </div>
-                            <div class="spotify-time">
-                                <span id="currentTime">0:00</span>
-                                <span id="totalTime">0:00</span>
+                    <div class="music-track-info">
+                        <div class="music-track-name" id="currentTitle">Select a song</div>
+                        <div class="music-track-artist" id="currentArtist">Cover Songs Collection</div>
+                        <div class="music-progress-container" onclick="seekAudio(event)">
+                            <div class="music-progress-bar">
+                                <div class="music-progress-fill" id="progressFill"></div>
                             </div>
                         </div>
-                        <div class="spotify-controls">
-                            <button class="spotify-btn" onclick="prevSong()">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-                            </button>
-                            <button class="spotify-btn spotify-play-btn" id="playPauseBtn" onclick="togglePlay()">
-                                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
-                                    <path id="playIcon" d="M8 5v14l11-7z"/>
-                                    <path id="pauseIcon" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" style="display:none"/>
-                                </svg>
-                            </button>
-                            <button class="spotify-btn" onclick="nextSong()">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-                            </button>
+                        <div class="music-time">
+                            <span id="currentTime">0:00</span>
+                            <span id="totalTime">0:00</span>
                         </div>
-                        <div class="spotify-volume">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
-                            <input type="range" class="spotify-volume-slider" id="volumeSlider" min="0" max="100" value="70" onchange="setVol(this.value)">
+                        <div class="music-controls">
+                            <button class="music-btn" id="playBtn" onclick="togglePlay()">▶</button>
                         </div>
                     </div>
                 </div>
-                <div class="spotify-playlist-container">
-                    <div class="spotify-playlist-header">
+                <div class="music-playlist">
+                    <div class="music-playlist-header">
                         <h3>Playlist</h3>
-                        <span class="spotify-song-count">${coverSongs.length} songs</span>
+                        <span>${coverSongs.length} songs</span>
                     </div>
-                    <div class="spotify-playlist" id="playlist">
-                        ${coverSongs.map((s, i) => `
-                        <div class="spotify-playlist-item" data-index="${i}" data-audio="${s.audioUrl}" data-cover="${s.coverUrl || ''}" onclick="playSong(${i})">
-                            <div class="spotify-track-number">${(i+1).toString().padStart(2,'0')}</div>
-                            <div class="spotify-track-cover-small">${s.coverUrl ? `<img src="${s.coverUrl}" alt="" loading="lazy">` : '<div class="spotify-default-art-small"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>'}</div>
-                            <div class="spotify-track-details">
-                                <div class="spotify-track-title">${s.title}</div>
-                                <div class="spotify-track-artist-small">${s.artist}</div>
-                            </div>
-                            <div class="spotify-equalizer">
-                                <span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span>
-                            </div>
-                        </div>`).join('')}
-                    </div>
+                    ${coverSongs.map((s, i) => `
+                    <div class="song-row" id="song-${i}" onclick="playSong('${s.audioUrl}', '${s.title.replace(/'/g, "\\'")}', '${s.artist.replace(/'/g, "\\'")}', '${s.coverUrl ? s.coverUrl.replace(/'/g, "\\'") : ''}', ${i})">
+                        <div class="song-number">${(i+1).toString().padStart(2,'0')}</div>
+                        <div class="song-cover-small">
+                            ${s.coverUrl ? `<img src="${s.coverUrl}" alt="">` : '<span>🎵</span>'}
+                        </div>
+                        <div class="song-details">
+                            <div class="song-title">${s.title}</div>
+                            <div class="song-artist">${s.artist}</div>
+                        </div>
+                    </div>`).join('')}
                 </div>
             </div>
         </section>`;
@@ -257,18 +237,10 @@ function getMainHTML(galleryPhotos = []) {
     --red-500: #ef4444;
     --red-600: #dc2626;
     --red-700: #b91c1c;
-    --amber-50: #fffbeb;
-    --amber-100: #fef3c7;
-    --amber-600: #d97706;
-    --blue-50: #eff6ff;
-    --blue-100: #dbeafe;
-    --blue-600: #2563eb;
-    --blue-700: #1d4ed8;
     --pink: #ff0050;
     --cyan: #00f2ea;
     --fb: #1877f2;
     --spotify: #1db954;
-    --spotify-black: #191414;
     --radius: 12px;
     --radius-lg: 16px;
     --radius-xl: 20px;
@@ -302,14 +274,9 @@ body {
     50% { box-shadow: 0 0 0 16px rgba(239,68,68,0); }
 }
 
-@keyframes equalizer {
-    0%, 100% { height: 4px; }
-    50% { height: 14px; }
-}
-
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 [data-animate] { opacity: 0; }
@@ -465,10 +432,7 @@ body {
 
 .verified-icon-bg { background: linear-gradient(135deg, var(--green-500), var(--green-600)); }
 .danger-icon-bg { background: linear-gradient(135deg, var(--red-500), var(--red-600)); }
-.compare-icon-bg { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
-.warning-icon-bg { background: linear-gradient(135deg, #f59e0b, var(--amber-600)); }
-.update-icon-bg { background: linear-gradient(135deg, #3b82f6, var(--blue-600)); }
-.spotify-icon-bg { background: linear-gradient(135deg, var(--spotify), #169c46); }
+.spotify-icon-bg { background: linear-gradient(135deg, #1db954, #169c46); }
 .gallery-icon-bg { background: linear-gradient(135deg, #6366f1, #a855f7); }
 
 .section-heading {
@@ -854,125 +818,43 @@ body {
 
 .carousel-arrow:hover { background: var(--red-500); color: #fff; border-color: var(--red-500); }
 
-.comparison-table-wrap {
-    overflow-x: auto;
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--border);
+/* Music Player Styles */
+.music-player {
     background: #fff;
+    border-radius: var(--radius-xl);
+    border: 2px solid var(--border);
+    overflow: hidden;
     box-shadow: var(--shadow);
 }
 
-.comparison-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.88em;
-}
-
-.comparison-table th {
-    background: #f1f5f9;
-    padding: 14px 16px;
-    text-align: left;
-    font-weight: 700;
-    border-bottom: 2px solid var(--border);
-}
-
-.comparison-table td {
-    padding: 12px 16px;
-    border-bottom: 1px solid #f1f5f9;
-}
-
-.comparison-table .col-official { background: #f0fdf4; border-left: 3px solid var(--green-500); }
-.comparison-table .col-fake { background: #fef2f2; border-left: 3px solid var(--red-500); }
-
-.check { color: var(--green-500); font-weight: 700; }
-.cross { color: var(--red-500); font-weight: 700; }
-
-.warning-section {
-    background: #fffbeb;
-    border: 2px solid #fde68a;
-    border-radius: var(--radius-2xl);
-    padding: 28px;
-}
-
-.warning-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 16px;
-    margin-top: 16px;
-}
-
-.warning-card {
-    background: #fff;
-    border-radius: var(--radius-lg);
-    padding: 20px;
-    border: 1px solid #fde68a;
-    transition: all 0.25s;
-}
-
-.warning-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
-
-.warning-card-icon { font-size: 1.8em; margin-bottom: 8px; }
-.warning-card h4 { font-size: 0.95em; font-weight: 700; margin-bottom: 4px; }
-.warning-card p { font-size: 0.82em; color: var(--text-secondary); line-height: 1.5; }
-
-.updates-section {
-    background: #eff6ff;
-    border: 2px solid #bfdbfe;
-    border-radius: var(--radius-2xl);
-    padding: 28px;
-    text-align: center;
-}
-
-.updates-section h3 { font-size: 1.1em; font-weight: 700; color: var(--blue-700); margin-bottom: 6px; }
-.updates-section p { color: var(--blue-600); font-size: 0.85em; margin-bottom: 14px; }
-
-.update-tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-
-.update-tag {
-    background: #fff;
-    color: var(--blue-700);
-    padding: 6px 14px;
-    border-radius: 18px;
-    font-size: 0.78em;
-    font-weight: 600;
-    border: 1px solid #bfdbfe;
-}
-
-.spotify-player {
-    background: var(--spotify-black);
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    box-shadow: var(--shadow-xl);
-}
-
-.spotify-now-playing {
+.music-player-main {
     display: flex;
     gap: 20px;
     padding: 24px;
-    background: linear-gradient(135deg, #282828, #191414);
+    background: linear-gradient(135deg, #f8fafc, #fff);
 }
 
-@media (max-width: 680px) { .spotify-now-playing { flex-direction: column; align-items: center; text-align: center; } }
+@media (max-width: 680px) { .music-player-main { flex-direction: column; align-items: center; text-align: center; } }
 
-.spotify-album-art {
-    width: 150px; height: 150px;
-    border-radius: 10px;
-    overflow: hidden;
-    flex-shrink: 0;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.4);
-}
-
-.spotify-album-art img { width: 100%; height: 100%; object-fit: cover; }
-
-.spotify-default-art {
-    width: 100%; height: 100%;
+.music-album-art {
+    width: 120px;
+    height: 120px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #1db954, #169c46);
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--spotify), #169c46);
+    font-size: 3em;
+    flex-shrink: 0;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
-.spotify-track-info {
+.music-album-art.playing {
+    animation: spin 8s linear infinite;
+}
+
+.music-track-info {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -980,186 +862,146 @@ body {
     min-width: 180px;
 }
 
-.spotify-track-name {
-    font-size: 1.3em;
+.music-track-name {
+    font-size: 1.2em;
     font-weight: 700;
-    color: #fff;
+    color: var(--text);
     margin-bottom: 3px;
 }
 
-.spotify-track-artist {
+.music-track-artist {
     font-size: 0.85em;
-    color: #b3b3b3;
-    margin-bottom: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
 }
 
-.spotify-progress { margin-bottom: 14px; }
+.music-progress-container {
+    width: 100%;
+    height: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
 
-.spotify-progress-bar {
+.music-progress-bar {
     width: 100%;
     height: 4px;
-    background: rgba(255,255,255,0.2);
+    background: #e2e8f0;
     border-radius: 2px;
-    cursor: pointer;
-    margin-bottom: 5px;
+    overflow: hidden;
 }
 
-.spotify-progress-fill {
+.music-progress-fill {
     height: 100%;
-    background: var(--spotify);
+    background: linear-gradient(90deg, #1db954, #169c46);
     border-radius: 2px;
     width: 0%;
     transition: width 0.1s linear;
 }
 
-.spotify-time {
+.music-time {
     display: flex;
     justify-content: space-between;
     font-size: 0.68em;
-    color: #b3b3b3;
+    color: var(--text-muted);
+    margin-bottom: 12px;
 }
 
-.spotify-controls {
+.music-controls {
     display: flex;
     align-items: center;
-    gap: 14px;
-    margin-bottom: 14px;
+    gap: 10px;
 }
 
-.spotify-btn {
-    background: none;
-    border: none;
-    color: #b3b3b3;
-    cursor: pointer;
-    padding: 5px;
+.music-btn {
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
-    transition: all 0.2s;
+    background: linear-gradient(135deg, #1db954, #169c46);
+    color: #fff;
+    border: none;
+    font-size: 1.2em;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: all 0.2s;
 }
 
-.spotify-btn:hover { color: #fff; transform: scale(1.1); }
+.music-btn:hover { transform: scale(1.08); box-shadow: 0 4px 15px rgba(29,185,84,0.3); }
 
-.spotify-play-btn {
-    background: #fff;
-    color: #191414;
-    width: 44px; height: 44px;
-    border-radius: 50%;
+.music-playlist {
+    max-height: 320px;
+    overflow-y: auto;
+    border-top: 1px solid var(--border);
 }
 
-.spotify-play-btn:hover { transform: scale(1.08); }
-
-.spotify-volume {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #b3b3b3;
-}
-
-.spotify-volume-slider {
-    width: 90px; height: 3px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: rgba(255,255,255,0.2);
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-}
-
-.spotify-volume-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 12px; height: 12px;
-    border-radius: 50%;
-    background: #fff;
-    cursor: pointer;
-}
-
-.spotify-playlist-container { max-height: 360px; overflow-y: auto; }
-
-.spotify-playlist-header {
+.music-playlist-header {
     padding: 12px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid #f1f5f9;
     display: flex;
     justify-content: space-between;
     align-items: center;
     position: sticky;
     top: 0;
-    background: #191414;
+    background: #fff;
     z-index: 1;
 }
 
-.spotify-playlist-header h3 { font-size: 0.95em; font-weight: 700; color: #fff; }
-.spotify-song-count { font-size: 0.75em; color: #b3b3b3; }
+.music-playlist-header h3 { font-size: 0.95em; font-weight: 700; color: var(--text); }
+.music-playlist-header span { font-size: 0.75em; color: var(--text-muted); }
 
-.spotify-playlist-item {
+.song-row {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 10px 20px;
     cursor: pointer;
     transition: all 0.2s;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
+    border-bottom: 1px solid #f8fafc;
 }
 
-.spotify-playlist-item:hover { background: rgba(255,255,255,0.05); }
-.spotify-playlist-item.active { background: rgba(29,185,84,0.1); }
+.song-row:hover { background: #f8fafc; }
+.song-row.active { background: #f0fdf4; border-left: 3px solid #1db954; }
 
-.spotify-track-number {
+.song-number {
     font-size: 0.8em;
-    color: #b3b3b3;
+    color: var(--text-muted);
     width: 24px;
     text-align: center;
     font-weight: 600;
 }
 
-.spotify-track-cover-small {
-    width: 38px; height: 38px;
-    border-radius: 5px;
+.song-cover-small {
+    width: 38px;
+    height: 38px;
+    border-radius: 6px;
     overflow: hidden;
     flex-shrink: 0;
-    background: #282828;
-}
-
-.spotify-track-cover-small img { width: 100%; height: 100%; object-fit: cover; }
-
-.spotify-default-art-small {
-    width: 100%; height: 100%;
+    background: #e2e8f0;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--spotify), #169c46);
+    font-size: 1.2em;
 }
 
-.spotify-track-details { flex: 1; min-width: 0; }
+.song-cover-small img { width: 100%; height: 100%; object-fit: cover; }
 
-.spotify-track-title {
+.song-details { flex: 1; min-width: 0; }
+
+.song-title {
     font-weight: 600;
     font-size: 0.84em;
-    color: #fff;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.spotify-track-artist-small { font-size: 0.72em; color: #b3b3b3; }
+.song-artist { font-size: 0.72em; color: var(--text-muted); }
 
-.spotify-equalizer { display: none; gap: 2px; align-items: flex-end; height: 16px; }
-
-.spotify-playlist-item.active .spotify-equalizer { display: flex; }
-
-.eq-bar {
-    width: 3px;
-    background: var(--spotify);
-    border-radius: 1px;
-    animation: equalizer 0.8s infinite;
-}
-
-.eq-bar:nth-child(1) { animation-delay: 0s; }
-.eq-bar:nth-child(2) { animation-delay: 0.2s; }
-.eq-bar:nth-child(3) { animation-delay: 0.4s; }
-.eq-bar:nth-child(4) { animation-delay: 0.6s; }
-
+/* Gallery Styles */
 .gallery-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -1270,11 +1112,28 @@ body {
     .hero-img { width: 100px; height: 100px; }
     .section-heading { font-size: 1.2em; }
     .official-card { padding: 22px; }
-    .spotify-album-art { width: 120px; height: 120px; }
+    .music-album-art { width: 100px; height: 100px; }
     .lightbox-nav { width: 36px; height: 36px; }
     .lightbox-prev { left: 8px; }
     .lightbox-next { right: 8px; }
 }
+
+/* Toast notification */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 24px;
+    border-radius: 10px;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9em;
+    z-index: 9999;
+    animation: fadeUp 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+.toast.success { background: #22c55e; }
+.toast.err { background: #ef4444; }
 </style>
 </head>
 <body>
@@ -1436,100 +1295,6 @@ body {
     </div>
 </section>
 
-<section class="section" data-animate>
-    <div class="section-header">
-        <div class="section-icon compare-icon-bg">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M3 5v14h18V5H3zm16 2v2H5V7h14zm0 4v2H5v-2h14zm0 4v2H5v-2h14z"/></svg>
-        </div>
-        <h2 class="section-heading">Account Comparison</h2>
-    </div>
-    <div class="comparison-table-wrap">
-        <table class="comparison-table">
-            <thead>
-                <tr>
-                    <th>Feature</th>
-                    <th>✅ Official</th>
-                    <th>❌ Fake</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>Verification</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Verified</td>
-                    <td class="col-fake"><span class="cross">✗</span> Not Verified</td>
-                </tr>
-                <tr>
-                    <td><strong>Username</strong></td>
-                    <td class="col-official"><span class="check">✓</span> @baiillamaach_official</td>
-                    <td class="col-fake"><span class="cross">✗</span> Similar names</td>
-                </tr>
-                <tr>
-                    <td><strong>Content</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Original</td>
-                    <td class="col-fake"><span class="cross">✗</span> Stolen</td>
-                </tr>
-                <tr>
-                    <td><strong>Trust</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Safe</td>
-                    <td class="col-fake"><span class="cross">✗</span> Dangerous</td>
-                </tr>
-                <tr>
-                    <td><strong>Reports</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Clean</td>
-                    <td class="col-fake"><span class="cross">✗</span> Multiple Reports</td>
-                </tr>
-                <tr>
-                    <td><strong>Owner</strong></td>
-                    <td class="col-official"><span class="check">✓</span> Official</td>
-                    <td class="col-fake"><span class="cross">✗</span> Impersonator</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-</section>
-
-<div class="warning-section" data-animate>
-    <div class="section-header">
-        <div class="section-icon warning-icon-bg">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
-        </div>
-        <h2 class="section-heading">How to Stay Safe</h2>
-    </div>
-    <div class="warning-grid">
-        <div class="warning-card">
-            <div class="warning-card-icon">🔍</div>
-            <h4>Verify First</h4>
-            <p>Check username carefully. Official: @baiillamaach_official</p>
-        </div>
-        <div class="warning-card">
-            <div class="warning-card-icon">🚫</div>
-            <h4>Never Share Info</h4>
-            <p>Fake accounts ask for passwords or money. Never share them.</p>
-        </div>
-        <div class="warning-card">
-            <div class="warning-card-icon">📢</div>
-            <h4>Report Fast</h4>
-            <p>Use platform report feature when you spot a fake account.</p>
-        </div>
-        <div class="warning-card">
-            <div class="warning-card-icon">🔗</div>
-            <h4>Use Official Links</h4>
-            <p>Only use links on this page to access the real account.</p>
-        </div>
-    </div>
-</div>
-
-<div class="updates-section" data-animate>
-    <h3>🔄 Latest Updates</h3>
-    <p>Stay informed about impersonation attempts and security.</p>
-    <div class="update-tags">
-        <span class="update-tag">📌 New fakes detected weekly</span>
-        <span class="update-tag">🔒 Verification active</span>
-        <span class="update-tag">🛡️ Community reporting</span>
-        <span class="update-tag">📢 Awareness ongoing</span>
-    </div>
-</div>
-
 ${coverSongsHTML}
 
 ${galleryHTML}
@@ -1540,9 +1305,10 @@ ${galleryHTML}
     <p>© ${DATA.celebrity.fullName} • Official Verification Hub</p>
 </footer>
 
-<audio id="audioPlayer" preload="auto"></audio>
+<audio id="coverAudio" preload="auto" style="display:none"></audio>
 
 <script>
+// Intersection Observer for animations
 const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
         if (entry.isIntersecting) entry.target.classList.add('animated');
@@ -1551,11 +1317,13 @@ const observer = new IntersectionObserver((entries) => {
 
 document.querySelectorAll('[data-animate]').forEach(el => observer.observe(el));
 
+// Scroll progress
 window.addEventListener('scroll', () => {
     const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
     document.getElementById('scrollProgress').style.width = pct + '%';
 });
 
+// Carousel
 let currentSlide = 0;
 const totalSlides = ${totalFake};
 const track = document.getElementById('fakeCarouselTrack');
@@ -1583,6 +1351,7 @@ function goToSlide(i) {
 
 autoSlide = setInterval(() => moveCarousel(1), 5000);
 
+// Touch swipe for carousel
 const carousel = document.getElementById('fakeCarousel');
 let touchX = 0;
 carousel.addEventListener('touchstart', e => { touchX = e.changedTouches[0].screenX; });
@@ -1591,6 +1360,7 @@ carousel.addEventListener('touchend', e => {
     if (Math.abs(diff) > 40) moveCarousel(diff > 0 ? 1 : -1);
 });
 
+// Copy username buttons
 document.querySelectorAll('.copy-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         navigator.clipboard.writeText(this.dataset.username).then(() => {
@@ -1601,73 +1371,140 @@ document.querySelectorAll('.copy-btn').forEach(btn => {
     });
 });
 
-let cur = -1, playing = false, ap = document.getElementById('audioPlayer'), items = document.querySelectorAll('.spotify-playlist-item');
+// Toast notification function
+function showToast(msg, type) {
+    var toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 3000);
+}
 
-function loadSong(i) {
-    if (!items.length || i < 0 || i >= items.length) return;
-    cur = i; const it = items[i];
-    ap.src = it.dataset.audio;
-    document.getElementById('nowPlayingTitle').textContent = it.querySelector('.spotify-track-title').textContent;
-    document.getElementById('nowPlayingArtist').textContent = it.querySelector('.spotify-track-artist-small').textContent;
-    const cc = document.getElementById('nowPlayingCover');
-    if (it.dataset.cover) {
-        cc.innerHTML = '<img src="' + it.dataset.cover + '" alt="">';
+// Music player variables
+var currentAudio = null;
+var isPlaying = false;
+var coverAudio = document.getElementById('coverAudio');
+var playBtn = document.getElementById('playBtn');
+var progressFill = document.getElementById('progressFill');
+var currentTimeEl = document.getElementById('currentTime');
+var totalTimeEl = document.getElementById('totalTime');
+var albumArt = document.getElementById('albumArt');
+
+// Play song function
+function playSong(url, title, artist, cover, index) {
+    if (currentAudio === url) {
+        togglePlay();
+        return;
+    }
+    if (currentAudio) {
+        coverAudio.pause();
+    }
+    currentAudio = url;
+    coverAudio.src = url;
+    document.getElementById('currentTitle').textContent = title;
+    document.getElementById('currentArtist').textContent = artist;
+    
+    if (cover) {
+        albumArt.innerHTML = '<img src="' + cover + '" style="width:100%;height:100%;object-fit:cover">';
     } else {
-        cc.innerHTML = '<div class="spotify-default-art"><svg viewBox="0 0 24 24" width="56" height="56"><path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>';
+        albumArt.innerHTML = '<span>🎵</span>';
     }
-    document.querySelectorAll('.spotify-playlist-item').forEach(el => el.classList.remove('active'));
-    it.classList.add('active');
-    document.getElementById('progressFill').style.width = '0%';
-    document.getElementById('currentTime').textContent = '0:00';
-    document.getElementById('totalTime').textContent = '0:00';
-    ap.play().then(() => { playing = true; upPlayBtn(); }).catch(() => {});
+    
+    progressFill.style.width = '0%';
+    currentTimeEl.textContent = '0:00';
+    totalTimeEl.textContent = '0:00';
+    
+    document.querySelectorAll('.song-row').forEach(function(el) {
+        el.classList.remove('active');
+    });
+    
+    var songItem = document.getElementById('song-' + index);
+    if (songItem) songItem.classList.add('active');
+    
+    coverAudio.play().then(function() {
+        isPlaying = true;
+        playBtn.textContent = '⏸';
+        albumArt.classList.add('playing');
+    }).catch(function() {
+        showToast('Playback error', 'err');
+    });
 }
 
-function playSong(i) { if (i === cur) togglePlay(); else loadSong(i); }
-
+// Toggle play/pause
 function togglePlay() {
-    if (!ap.src && items.length > 0) { loadSong(0); return; }
-    if (playing) ap.pause(); else ap.play();
-    playing = !playing; upPlayBtn();
+    if (!coverAudio.src || coverAudio.src === window.location.href) {
+        showToast('Select a song first', 'err');
+        return;
+    }
+    if (isPlaying) {
+        coverAudio.pause();
+        isPlaying = false;
+        playBtn.textContent = '▶';
+        albumArt.classList.remove('playing');
+    } else {
+        coverAudio.play().then(function() {
+            isPlaying = true;
+            playBtn.textContent = '⏸';
+            albumArt.classList.add('playing');
+        }).catch(function() {
+            showToast('Playback failed', 'err');
+        });
+    }
 }
 
-function upPlayBtn() {
-    document.getElementById('playIcon').style.display = playing ? 'none' : 'block';
-    document.getElementById('pauseIcon').style.display = playing ? 'block' : 'none';
+// Seek audio position
+function seekAudio(event) {
+    if (!coverAudio.duration) return;
+    var rect = event.currentTarget.getBoundingClientRect();
+    var seekPosition = (event.clientX - rect.left) / rect.width;
+    coverAudio.currentTime = seekPosition * coverAudio.duration;
 }
 
-function nextSong() { if (items.length) loadSong((cur + 1) % items.length); }
-function prevSong() { if (items.length) loadSong(cur <= 0 ? items.length - 1 : cur - 1); }
-function setVol(v) { ap.volume = v / 100; }
+// Format time helper
+function formatTime(seconds) {
+    if (isNaN(seconds)) return '0:00';
+    var mins = Math.floor(seconds / 60);
+    var secs = Math.floor(seconds % 60);
+    return mins + ':' + String(secs).padStart(2, '0');
+}
 
-ap.addEventListener('timeupdate', () => {
-    if (ap.duration) {
-        document.getElementById('progressFill').style.width = (ap.currentTime / ap.duration) * 100 + '%';
-        const m = Math.floor(ap.currentTime / 60), s = Math.floor(ap.currentTime % 60);
-        document.getElementById('currentTime').textContent = m + ':' + s.toString().padStart(2, '0');
+// Audio event listeners
+coverAudio.addEventListener('timeupdate', function() {
+    if (coverAudio.duration) {
+        var progress = (coverAudio.currentTime / coverAudio.duration) * 100;
+        progressFill.style.width = progress + '%';
+        currentTimeEl.textContent = formatTime(coverAudio.currentTime);
     }
 });
 
-ap.addEventListener('loadedmetadata', () => {
-    const m = Math.floor(ap.duration / 60), s = Math.floor(ap.duration % 60);
-    document.getElementById('totalTime').textContent = m + ':' + s.toString().padStart(2, '0');
+coverAudio.addEventListener('loadedmetadata', function() {
+    totalTimeEl.textContent = formatTime(coverAudio.duration);
 });
 
-ap.addEventListener('ended', nextSong);
-
-document.getElementById('progressBar').addEventListener('click', e => {
-    const r = e.target.getBoundingClientRect();
-    ap.currentTime = ((e.clientX - r.left) / r.width) * ap.duration;
+coverAudio.addEventListener('ended', function() {
+    isPlaying = false;
+    playBtn.textContent = '▶';
+    albumArt.classList.remove('playing');
+    progressFill.style.width = '0%';
+    currentTimeEl.textContent = '0:00';
+    currentAudio = null;
 });
 
-ap.volume = 0.7;
+coverAudio.addEventListener('error', function() {
+    showToast('Audio file not found', 'err');
+    isPlaying = false;
+    playBtn.textContent = '▶';
+    albumArt.classList.remove('playing');
+});
 
+// Gallery lightbox
 let galleryIdx = 0;
 const galleryImgs = document.querySelectorAll('.gallery-image');
 const lightbox = document.getElementById('galleryLightbox');
 const lightboxImg = document.getElementById('lightboxImage');
 
 function openGalleryLightbox(i) {
+    if (!galleryImgs.length) return;
     galleryIdx = i;
     lightboxImg.src = galleryImgs[i].src;
     lightbox.classList.add('active');
@@ -1680,6 +1517,7 @@ function closeGalleryLightbox() {
 }
 
 function navigateGallery(dir) {
+    if (!galleryImgs.length) return;
     galleryIdx = (galleryIdx + dir + galleryImgs.length) % galleryImgs.length;
     lightboxImg.src = galleryImgs[galleryIdx].src;
 }
