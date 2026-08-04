@@ -6,25 +6,246 @@ const crypto = require('crypto');
 const { MongoClient, ObjectId } = require('mongodb');
 const formidable = require('formidable');
 const bcrypt = require('bcryptjs');
+const WebSocket = require('ws');
 
+// ==================== CONFIGURATION ====================
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/milow?retryWrites=true&w=majority';
-const DB_NAME = 'verification_hub';
+const DB_NAME = process.env.DB_NAME || 'verification_hub';
+const NODE_ENV = process.env.NODE_ENV || 'production';
 
-let db, mongoClient;
+// ==================== GLOBAL ERROR HANDLERS ====================
+process.on('uncaughtException', (err) => {
+    console.error('UNCAUGHT EXCEPTION:', err.message);
+    console.error(err.stack);
+    // Don't exit - keep alive for Render
+});
 
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('UNHANDLED REJECTION:', reason);
+    // Don't exit - keep alive for Render
+});
+
+// ==================== VALIDATE ENVIRONMENT ====================
+function validateEnv() {
+    const warnings = [];
+    if (!MONGO_URI) warnings.push('MONGO_URI is not set. Using default.');
+    if (!PORT) warnings.push('PORT is not set. Using 3000.');
+    if (warnings.length > 0) {
+        console.warn('⚠️  Environment Warnings:');
+        warnings.forEach(w => console.warn(`   - ${w}`));
+    }
+    console.log('✅ Environment validated');
+}
+validateEnv();
+
+// ==================== PATHS & DIRECTORIES ====================
 const __dir = path.resolve();
 const ASSETS_DIR = path.join(__dir, 'assets');
 const GALLERY_DIR = path.join(__dir, 'assets', 'gallery');
 const COVER_MUSIC_DIR = path.join(__dir, 'assets', 'covermusic');
-const CHAT_UPLOADS_DIR = path.join(__dir, 'assets', 'chat_uploads');
 
-[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR, CHAT_UPLOADS_DIR].forEach(dir => {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+// Create directories if they don't exist
+[ASSETS_DIR, GALLERY_DIR, COVER_MUSIC_DIR].forEach(dir => {
+    try {
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+            console.log(`📁 Created directory: ${dir}`);
+        }
+    } catch (err) {
+        console.error(`❌ Failed to create directory ${dir}:`, err.message);
+    }
 });
 
-// Enhanced image paths with new assets
-const IMAGES = {
+// ==================== DATABASE CONNECTION ====================
+let db = null;
+let mongoClient = null;
+let dbConnected = false;
+
+async function connectDB(retries = 5) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            console.log(`🔌 Connecting to MongoDB (attempt ${attempt}/${retries})...`);
+            mongoClient = new MongoClient(MONGO_URI, {
+                maxPoolSize: 5, // Limit connections for Render Free
+                serverSelectionTimeoutMS: 10000,
+                connectTimeoutMS: 10000,
+            });
+            await mongoClient.connect();
+            db = mongoClient.db(DB_NAME);
+            
+            // Create indexes
+            await db.collection('admin_users').createIndex({ username: 1 }, { unique: true });
+            await db.collection('chat_messages').createIndex({ userId: 1, timestamp: -1 });
+            await db.collection('chat_users').createIndex({ email: 1 }, { unique: true });
+            await db.collection('gallery_photos').createIndex({ uploadedAt: -1 });
+            
+            // Create default admin if not exists
+            const admins = db.collection('admin_users');
+            const exists = await admins.findOne({ username: 'admin' });
+            if (!exists) {
+                await admins.insertOne({
+                    username: 'admin',
+                    password: await bcrypt.hash('admin123', 10),
+                    createdAt: new Date()
+                });
+                console.log('👤 Default admin user created');
+            }
+            
+            dbConnected = true;
+            console.log('✅ MongoDB connected successfully');
+            return true;
+        } catch (err) {
+            console.error(`❌ MongoDB connection attempt ${attempt} failed:`, err.message);
+            if (attempt < retries) {
+                const delay = attempt * 2000;
+                console.log(`⏳ Retrying in ${delay/1000}s...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+    console.warn('⚠️  MongoDB connection failed after all retries. Running without database.');
+    dbConnected = false;
+    return false;
+}
+
+// ==================== HELPER FUNCTIONS ====================
+function getCoverSongs() {
+    try {
+        if (!fs.existsSync(COVER_MUSIC_DIR)) return [];
+        const files = fs.readdirSync(COVER_MUSIC_DIR);
+        const audioExts = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.wma', '.opus', '.weba'];
+        const audioFiles = files.filter(f => {
+            const ext = path.extname(f).toLowerCase();
+            return audioExts.includes(ext) && f !== '.gitkeep';
+        });
+        return audioFiles.map((file, index) => {
+            const ext = path.extname(file);
+            const baseName = path.basename(file, ext);
+            const displayName = baseName
+                .replace(/[-_]/g, ' ')
+                .replace(/\b\w/g, l => l.toUpperCase())
+                .trim() || `Track ${index + 1}`;
+            return {
+                id: `track_${index}`,
+                title: displayName,
+                artist: 'Baiilla Maach',
+                audioUrl: `/assets/covermusic/${encodeURIComponent(file)}`,
+                fileName: file
+            };
+        }).sort((a, b) => a.title.localeCompare(b.title));
+    } catch (e) {
+        console.error('Error reading cover music:', e.message);
+        return [];
+    }
+}
+
+async function getGalleryPhotos() {
+    if (!dbConnected || !db) return [];
+    try {
+        return await db.collection('gallery_photos').find({}).sort({ uploadedAt: -1 }).toArray();
+    } catch (e) {
+        console.error('Error fetching gallery:', e.message);
+        return [];
+    }
+}
+
+async function savePhoto(d) {
+    if (!dbConnected || !db) return null;
+    try {
+        return await db.collection('gallery_photos').insertOne({ ...d, uploadedAt: new Date() });
+    } catch (e) {
+        console.error('Error saving photo:', e.message);
+        return null;
+    }
+}
+
+async function deletePhoto(id) {
+    if (!dbConnected || !db) return null;
+    try {
+        return await db.collection('gallery_photos').deleteOne({ _id: new ObjectId(id) });
+    } catch (e) {
+        console.error('Error deleting photo:', e.message);
+        return null;
+    }
+}
+
+async function verifyAdmin(u, p) {
+    if (!dbConnected || !db) return u === 'admin' && p === 'admin123';
+    try {
+        const a = await db.collection('admin_users').findOne({ username: u });
+        if (!a) return false;
+        return await bcrypt.compare(p, a.password);
+    } catch (e) {
+        console.error('Error verifying admin:', e.message);
+        return false;
+    }
+}
+
+// Session management
+const sessions = new Map();
+const SESSION_TIMEOUT = 7200000; // 2 hours
+
+function createSession(u) {
+    const id = crypto.randomBytes(32).toString('hex');
+    sessions.set(id, { username: u, createdAt: Date.now() });
+    // Clean up expired sessions periodically
+    if (sessions.size > 100) {
+        const now = Date.now();
+        for (const [key, val] of sessions) {
+            if (now - val.createdAt > SESSION_TIMEOUT) sessions.delete(key);
+        }
+    }
+    return id;
+}
+
+function getSession(id) {
+    if (!id) return null;
+    const s = sessions.get(id);
+    if (!s) return null;
+    if (Date.now() - s.createdAt > SESSION_TIMEOUT) {
+        sessions.delete(id);
+        return null;
+    }
+    return s;
+}
+
+function parseCookies(h) {
+    const c = {};
+    if (h) {
+        h.split(';').forEach(x => {
+            const parts = x.split('=');
+            c[parts[0].trim()] = parts[1] ? parts[1].trim() : '';
+        });
+    }
+    return c;
+}
+
+// MIME types
+const MIME_TYPES = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    '.m4a': 'audio/mp4',
+    '.aac': 'audio/aac',
+    '.flac': 'audio/flac',
+    '.wma': 'audio/x-ms-wma',
+    '.opus': 'audio/opus',
+    '.weba': 'audio/webm',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.html': 'text/html',
+};
+
+// ==================== DATA ====================
+const ASSETS = {
     profile: "/assets/tiktok_video_Aj2NO.jpeg",
     fbProfile: "/assets/fb_profile.jpg",
     official: "/assets/orginalss.png",
@@ -33,288 +254,146 @@ const IMAGES = {
     fakeDetect: "/assets/Fakedetect .png",
     realId: "/assets/real-id-ss.png",
     checkMark: "/assets/check-mark.png",
-    communication: "/assets/communication.png",
     flag: "/assets/flag.png",
-    messageIcon: "/assets/messageicon.gif",
-    microphone: "/assets/microphone-in-hand.gif",
     report: "/assets/report.png",
+    communication: "/assets/communication.png",
     socialMedia: "/assets/social-media.png",
-    tiktokIcon: "/assets/tiktokicon.png"
+    tiktokIcon: "/assets/tiktokicon.png",
+    messageIcon: "/assets/messageicon.gif",
+    microphoneIcon: "/assets/microphone-in-hand.gif",
+    realVoice: "/assets/realvoice.mp3",
+    fakeSong: "/assets/7 lak like but its fake.mp3"
 };
 
-// Function to manually load cover songs from specific files
-function getManualCoverSongs() {
-    const manualSongs = [
-        { file: '#1.mp3', title: 'Cover Song 1', artist: 'Baiilla Maach' },
-        { file: '#2.mp3', title: 'Cover Song 2', artist: 'Baiilla Maach' },
-        { file: '#3.mp3', title: 'Cover Song 3', artist: 'Baiilla Maach' },
-        { file: '#4.mp3', title: 'Cover Song 4', artist: 'Baiilla Maach' },
-        { file: '#5.mp3', title: 'Cover Song 5', artist: 'Baiilla Maach' },
-        { file: '#6.mp3', title: 'Cover Song 6', artist: 'Baiilla Maach' },
-        { file: '#7.mp3', title: 'Cover Song 7', artist: 'Baiilla Maach' },
-        { file: '#8.mp3', title: 'Cover Song 8', artist: 'Baiilla Maach' },
-        { file: '#9.mp3', title: 'Cover Song 9', artist: 'Baiilla Maach' },
-        { file: '7 lak like but its fake.mp3', title: '7 Lak Like But Its Fake', artist: 'Baiilla Maach' },
-        { file: 'realvoice.mp3', title: 'Real Voice Verification', artist: 'Baiilla Maach' }
-    ];
-
-    return manualSongs.filter(song => {
-        return fs.existsSync(path.join(COVER_MUSIC_DIR, song.file));
-    }).map((song, index) => ({
-        id: `track_${index}`,
-        title: song.title,
-        artist: song.artist,
-        audioUrl: `/assets/covermusic/${song.file}`,
-        fileName: song.file
-    }));
-}
-
-// Database connection
-async function connectDB() {
-    try {
-        mongoClient = new MongoClient(MONGO_URI);
-        await mongoClient.connect();
-        db = mongoClient.db(DB_NAME);
-        
-        // Initialize collections
-        const collections = ['admin_users', 'gallery_photos', 'chat_messages', 'chat_users'];
-        for (const col of collections) {
-            const exists = await db.listCollections({ name: col }).hasNext();
-            if (!exists) await db.createCollection(col);
-        }
-        
-        // Create default admin
-        const admins = db.collection('admin_users');
-        const adminExists = await admins.findOne({ username: 'admin' });
-        if (!adminExists) {
-            await admins.insertOne({ 
-                username: 'admin', 
-                password: await bcrypt.hash('admin123', 10), 
-                createdAt: new Date() 
-            });
-        }
-        
-        return true;
-    } catch (e) {
-        console.error('Database connection error:', e);
-        return false;
-    }
-}
-
-// Gallery functions
-async function getGalleryPhotos() {
-    if (!db) return [];
-    try { 
-        return await db.collection('gallery_photos').find({}).sort({ uploadedAt: -1 }).toArray(); 
-    } catch (e) { return []; }
-}
-
-async function savePhoto(data) {
-    if (!db) return null;
-    return await db.collection('gallery_photos').insertOne({ ...data, uploadedAt: new Date() });
-}
-
-async function deletePhoto(id) {
-    if (!db) return null;
-    return await db.collection('gallery_photos').deleteOne({ _id: new ObjectId(id) });
-}
-
-// Chat functions
-async function saveChatUser(userData) {
-    if (!db) return null;
-    const users = db.collection('chat_users');
-    const existing = await users.findOne({ email: userData.email });
-    if (existing) {
-        await users.updateOne({ email: userData.email }, { $set: { lastActive: new Date() } });
-        return existing;
-    }
-    const result = await users.insertOne({ ...userData, createdAt: new Date(), lastActive: new Date() });
-    return { _id: result.insertedId, ...userData };
-}
-
-async function saveChatMessage(messageData) {
-    if (!db) return null;
-    return await db.collection('chat_messages').insertOne({ ...messageData, timestamp: new Date() });
-}
-
-async function getChatMessages(userId) {
-    if (!db) return [];
-    return await db.collection('chat_messages')
-        .find({ $or: [{ userId: userId }, { toUserId: userId }] })
-        .sort({ timestamp: 1 })
-        .toArray();
-}
-
-async function getAllChatUsers() {
-    if (!db) return [];
-    return await db.collection('chat_users').find({}).sort({ lastActive: -1 }).toArray();
-}
-
-// Admin verification
-async function verifyAdmin(username, password) {
-    if (!db) return username === 'admin' && password === 'admin123';
-    const admin = await db.collection('admin_users').findOne({ username });
-    if (!admin) return false;
-    return await bcrypt.compare(password, admin.password);
-}
-
-// Session management
-const sessions = new Map();
-function createSession(username) { 
-    const id = crypto.randomBytes(32).toString('hex'); 
-    sessions.set(id, { username, createdAt: Date.now() }); 
-    setTimeout(() => sessions.delete(id), 7200000); 
-    return id; 
-}
-function getSession(id) { 
-    const s = sessions.get(id); 
-    if (!s) return null; 
-    if (Date.now() - s.createdAt > 7200000) { 
-        sessions.delete(id); 
-        return null; 
-    } 
-    return s; 
-}
-function parseCookies(header) { 
-    const cookies = {}; 
-    if (header) header.split(';').forEach(cookie => { 
-        const parts = cookie.split('='); 
-        cookies[parts[0].trim()] = parts[1] ? parts[1].trim() : ''; 
-    }); 
-    return cookies; 
-}
-
-// Main celebrities data
-const CELEBRITY_DATA = {
-    name: "Baiilla Maach",
-    fullName: "Baiilla Maach Official",
-    photo: IMAGES.profile,
-    fbPhoto: IMAGES.fbProfile,
-    bio: "Official Entertainment Profile | Verified Creator",
-    username: "@baiillamaach_official",
-    fbUsername: "@BaiillaMaachOfficial",
-    tiktokUrl: "https://tiktok.com/@baiillamaach_official",
-    fbUrl: "https://www.facebook.com/profile.php?id=61575202118828",
-    verificationBadge: IMAGES.checkMark,
-    realIdProof: IMAGES.realId,
+const DATA = {
+    celebrity: {
+        name: "Baiilla Maach",
+        fullName: "Baiilla Maach Official",
+        photo: ASSETS.profile,
+        bio: "Official Entertainment Profile | Verified Creator",
+        username: "@baiillamaach_official",
+        followers: "2.5M+",
+        likes: "50M+"
+    },
+    facebookOfficial: {
+        name: "Baiilla Maach Official",
+        username: "@baiillamaach_official",
+        url: "https://www.facebook.com/profile.php?id=61575202118828",
+        profilePic: ASSETS.fbProfile,
+        verified: true,
+        followers: "500K+",
+        category: "Entertainment"
+    },
+    tiktokOfficial: {
+        username: "@baiillamaach_official",
+        url: "https://tiktok.com/@baiillamaach_official",
+        verified: true
+    },
     fakeAccounts: [
-        { 
-            platform: "TikTok", 
-            username: "@baiilla_mach", 
-            profileUrl: "https://tiktok.com/@baiilla_mach", 
-            screenshot: IMAGES.danger, 
-            reason: "Copies official logo and content to deceive followers. Uses similar name to confuse fans." 
+        {
+            platform: "TikTok",
+            username: "@baiilla_mach",
+            profileUrl: "https://tiktok.com/@baiilla_mach",
+            screenshot: ASSETS.danger,
+            reason: "Copies official logo and content to deceive followers. Uses similar name to confuse fans.",
+            reported: 150
         },
-        { 
-            platform: "TikTok", 
-            username: "@hammad_fams0", 
-            profileUrl: "https://tiktok.com/@hammad_fams0", 
-            screenshot: IMAGES.fraud, 
-            reason: "Uses official name and photo to mislead followers. Impersonating with fake content." 
+        {
+            platform: "TikTok",
+            username: "@hammad_fams0",
+            profileUrl: "https://tiktok.com/@hammad_fams0",
+            screenshot: ASSETS.fraud,
+            reason: "Uses official name and photo to mislead followers. Stolen content detected.",
+            reported: 89
         }
-    ],
-    features: [
-        { icon: IMAGES.communication, title: "Direct Chat", desc: "Chat directly with verified account" },
-        { icon: IMAGES.report, title: "Report Fakes", desc: "Help us identify fake accounts" },
-        { icon: IMAGES.socialMedia, title: "Social Links", desc: "All official social media links" },
-        { icon: IMAGES.flag, title: "Verified Badge", desc: "Look for verification before following" }
     ]
 };
 
-// Main HTML template with advanced UI
-function getMainHTML(galleryPhotos = [], isChatPage = false) {
-    const coverSongs = getManualCoverSongs();
-    
-    // Features section HTML
-    const featuresHTML = CELEBRITY_DATA.features.map(f => `
-        <div class="feature-card">
-            <div class="feature-icon">
-                <img src="${f.icon}" alt="${f.title}" width="48">
-            </div>
-            <h3 class="feature-title">${f.title}</h3>
-            <p class="feature-desc">${f.desc}</p>
-        </div>
-    `).join('');
+// ==================== HTML GENERATION ====================
+function getMainHTML(galleryPhotos = []) {
+    const coverSongs = getCoverSongs();
+    const totalFake = DATA.fakeAccounts.length;
 
-    // Music player HTML
-    let musicPlayerHTML = '';
+    // Music section HTML
+    let coverSongsHTML = '';
     if (coverSongs.length > 0) {
-        musicPlayerHTML = `
+        coverSongsHTML = `
         <section class="section music-section" data-animate>
             <div class="container">
                 <div class="section-header">
-                    <h2 class="section-title">🎵 Official Cover Songs</h2>
-                    <p class="section-subtitle">Original covers by Baiilla Maach - Listen & Verify</p>
+                    <div class="section-tag">
+                        <span class="tag-dot"></span><span>Music</span>
+                    </div>
+                    <h2 class="section-title">Cover <span class="accent">Music</span></h2>
+                    <p class="section-subtitle">Official cover songs by ${DATA.celebrity.name}</p>
                 </div>
-                <div class="premium-music-player">
-                    <div class="player-main">
-                        <div class="player-artwork">
-                            <img src="${IMAGES.profile}" alt="Now Playing">
-                            <div class="playing-animation">
-                                <span></span><span></span><span></span>
-                            </div>
-                        </div>
-                        <div class="player-info">
-                            <h4 class="track-title">Select a Track</h4>
-                            <p class="track-artist">Baiilla Maach</p>
-                            <div class="player-controls">
-                                <button class="ctrl-btn" onclick="prevTrack()">⏮</button>
-                                <button class="play-btn" id="mainPlayBtn" onclick="togglePlay()">▶️</button>
-                                <button class="ctrl-btn" onclick="nextTrack()">⏭</button>
-                            </div>
-                            <div class="progress-bar">
-                                <div class="progress" id="progressBar"></div>
-                            </div>
-                            <div class="time-display">
-                                <span id="currentTime">0:00</span> / <span id="duration">0:00</span>
+                <div class="music-player">
+                    <div class="music-now-playing">
+                        <div class="music-album-art" id="albumArt"><i class="fas fa-music"></i></div>
+                        <div class="music-track-info">
+                            <div class="music-track-name" id="currentTitle">Select a song</div>
+                            <div class="music-track-artist" id="currentArtist">Tap to play</div>
+                            <div class="music-progress">
+                                <div class="music-progress-bar" onclick="seekAudio(event)">
+                                    <div class="music-progress-fill" id="progressFill"></div>
+                                </div>
+                                <div class="music-time">
+                                    <span id="currentTime">0:00</span>
+                                    <span id="totalTime">0:00</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="playlist-container">
-                        ${coverSongs.map((song, i) => `
-                            <div class="playlist-item ${i === 0 ? 'active' : ''}" onclick="playTrack(${i})">
-                                <span class="track-number">${String(i + 1).padStart(2, '0')}</span>
-                                <span class="track-name">${song.title}</span>
-                                <span class="track-duration">--:--</span>
+                    <div class="music-controls">
+                        <button class="music-btn" onclick="previousTrack()" title="Previous"><i class="fas fa-backward"></i></button>
+                        <button class="music-btn music-play-btn" id="playBtn" onclick="togglePlay()"><i class="fas fa-play" id="playIcon"></i></button>
+                        <button class="music-btn" onclick="nextTrack()" title="Next"><i class="fas fa-forward"></i></button>
+                    </div>
+                    <div class="music-playlist">
+                        <div class="music-playlist-header">Playlist · ${coverSongs.length} songs</div>
+                        ${coverSongs.map((s, i) => `
+                        <div class="song-item" id="song-${i}" data-audio="${s.audioUrl}" onclick="playSong(${i})">
+                            <div class="song-number">${(i+1).toString().padStart(2,'0')}</div>
+                            <div class="song-details">
+                                <div class="song-title">${s.title}</div>
+                                <div class="song-artist">${s.artist}</div>
                             </div>
-                        `).join('')}
+                            <div class="song-duration" id="duration-${i}">--:--</div>
+                        </div>`).join('')}
                     </div>
                 </div>
             </div>
         </section>`;
     }
 
-    // Gallery HTML
+    // Gallery section HTML
     let galleryHTML = '';
     if (galleryPhotos.length > 0) {
         galleryHTML = `
         <section class="section gallery-section" data-animate>
             <div class="container">
                 <div class="section-header">
-                    <h2 class="section-title">📸 Official Gallery</h2>
-                    <p class="section-subtitle">Verified photos & moments from Baiilla Maach</p>
+                    <div class="section-tag"><span class="tag-dot"></span><span>Gallery</span></div>
+                    <h2 class="section-title">Official <span class="accent">Gallery</span></h2>
+                    <p class="section-subtitle">Verified photos and screenshots</p>
                 </div>
                 <div class="gallery-grid">
-                    ${galleryPhotos.map((photo, index) => `
-                        <div class="gallery-item" onclick="openLightbox(${index})">
-                            <div class="gallery-img-wrapper">
-                                <img src="${photo.path}" alt="${photo.caption || 'Gallery Image'}" loading="lazy">
-                                <div class="gallery-overlay">
-                                    <span class="zoom-icon">🔍</span>
-                                </div>
-                            </div>
-                            ${photo.caption ? `<p class="gallery-caption">${photo.caption}</p>` : ''}
+                    ${galleryPhotos.map((p, i) => `
+                    <div class="gallery-card" onclick="openGalleryLightbox(${i})">
+                        <div class="gallery-card-inner">
+                            <img src="${p.path}" alt="${p.caption || 'Gallery'}" class="gallery-image" loading="lazy">
+                            <div class="gallery-overlay"><i class="fas fa-search-plus" style="color:#fff;font-size:1.5em;"></i></div>
                         </div>
-                    `).join('')}
+                        ${p.caption ? `<p class="gallery-caption">${p.caption}</p>` : ''}
+                    </div>`).join('')}
                 </div>
             </div>
         </section>
-        <!-- Lightbox -->
         <div class="lightbox" id="galleryLightbox">
-            <span class="close-lightbox" onclick="closeLightbox()">✕</span>
-            <img id="lightboxImg" src="" alt="">
-            <button class="lightbox-nav prev" onclick="changeLightbox(-1)">❮</button>
-            <button class="lightbox-nav next" onclick="changeLightbox(1)">❯</button>
+            <button class="lightbox-close" onclick="closeGalleryLightbox()"><i class="fas fa-times"></i></button>
+            <button class="lightbox-nav lightbox-prev" onclick="navigateGallery(-1)"><i class="fas fa-chevron-left"></i></button>
+            <img class="lightbox-image" id="lightboxImage" src="" alt="">
+            <button class="lightbox-nav lightbox-next" onclick="navigateGallery(1)"><i class="fas fa-chevron-right"></i></button>
         </div>`;
     }
 
@@ -322,2464 +401,936 @@ function getMainHTML(galleryPhotos = [], isChatPage = false) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Official Verification Hub for Baiilla Maach. Identify real vs fake accounts.">
 <meta name="theme-color" content="#ff6600">
-<meta name="description" content="${CELEBRITY_DATA.fullName} - Official Verification Hub. Verify authentic accounts and report fakes.">
-<title>${CELEBRITY_DATA.fullName} | Official Verification Hub</title>
+<title>${DATA.celebrity.fullName} | Official Verification Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 :root {
     --primary: #ff6600;
-    --primary-dark: #e55a00;
+    --primary-dark: #cc5500;
     --primary-light: #ff8533;
-    --secondary: #1a1a2e;
-    --accent: #00c853;
-    --danger: #ff1744;
-    --warning: #ffab00;
-    --dark: #121212;
-    --light: #f5f5f5;
+    --secondary: #135360;
+    --facebook: #1877f2;
+    --tiktok: #000000;
+    --tiktok-pink: #ff0050;
+    --tiktok-cyan: #00f2ea;
+    --verified: #1d9bf0;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --dark: #0f172a;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --gray-900: #0f172a;
     --white: #ffffff;
-    --gray: #666666;
-    --border: #e0e0e0;
-    --radius: 16px;
     --radius-sm: 8px;
-    --shadow: 0 4px 20px rgba(0,0,0,0.08);
-    --shadow-hover: 0 8px 30px rgba(0,0,0,0.15);
-    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --radius: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-2xl: 24px;
+    --radius-full: 9999px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05);
+    --shadow-xl: 0 20px 25px rgba(0,0,0,0.1), 0 10px 10px rgba(0,0,0,0.04);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-    background: linear-gradient(135deg, #fafafa 0%, #f0f0f0 100%);
-    color: #333;
-    line-height: 1.6;
-    overflow-x: hidden;
-}
-
-/* Premium Header */
-.premium-header {
-    background: rgba(255,255,255,0.95);
-    backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 0;
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-    transition: var(--transition);
-}
-
-.premium-header.scrolled {
-    box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 20px;
-}
-
-.header-content {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.logo-section {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.logo-img {
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid var(--primary);
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(255,102,0,0.4); }
-    70% { box-shadow: 0 0 0 10px rgba(255,102,0,0); }
-    100% { box-shadow: 0 0 0 0 rgba(255,102,0,0); }
-}
-
-.logo-text {
-    font-size: 1.2em;
-    font-weight: 700;
-    color: var(--secondary);
-}
-
-.header-actions {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-}
-
-.chat-btn, .admin-btn {
-    padding: 10px 24px;
-    border-radius: 50px;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 0.95em;
-    transition: var(--transition);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.chat-btn {
-    background: linear-gradient(135deg, #00c853, #00e676);
-    color: white;
-    box-shadow: 0 4px 15px rgba(0,200,83,0.3);
-}
-
-.chat-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0,200,83,0.4);
-}
-
-.admin-btn {
-    background: var(--white);
-    color: var(--primary);
-    border: 2px solid var(--primary);
-}
-
-.admin-btn:hover {
-    background: var(--primary);
-    color: white;
-}
-
-/* Hero Section */
-.hero-section {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    padding: 80px 0 60px;
-    position: relative;
-    overflow: hidden;
-}
-
-.hero-section::before {
-    content: '';
-    position: absolute;
-    width: 200%;
-    height: 200%;
-    top: -50%;
-    left: -50%;
-    background: radial-gradient(circle at 50% 50%, rgba(255,102,0,0.1) 0%, transparent 50%);
-    animation: rotate 30s linear infinite;
-}
-
-@keyframes rotate {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-.hero-content {
-    position: relative;
-    z-index: 2;
-    text-align: center;
-    color: white;
-}
-
-.hero-profile-wrapper {
-    position: relative;
-    display: inline-block;
-}
-
-.hero-profile-img {
-    width: 140px;
-    height: 140px;
-    border-radius: 50%;
-    border: 4px solid var(--primary);
-    object-fit: cover;
-    box-shadow: 0 0 40px rgba(255,102,0,0.3);
-}
-
-.verified-badge-hero {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    width: 32px;
-    height: 32px;
-    background: var(--accent);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 3px solid white;
-    animation: bounce 1s infinite;
-}
-
-@keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-}
-
-.hero-name {
-    font-size: 3em;
-    font-weight: 800;
-    margin: 20px 0 10px;
-    background: linear-gradient(135deg, #fff 0%, #ff8533 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.hero-username {
-    font-size: 1.2em;
-    opacity: 0.9;
-    margin-bottom: 8px;
-}
-
-.hero-bio {
-    font-size: 1.1em;
-    opacity: 0.8;
-    margin-bottom: 20px;
-}
-
-.verification-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(0,200,83,0.2);
-    padding: 10px 24px;
-    border-radius: 50px;
-    border: 1px solid rgba(0,200,83,0.3);
-    margin-bottom: 25px;
-    animation: glow 2s infinite;
-}
-
-@keyframes glow {
-    0%, 100% { box-shadow: 0 0 20px rgba(0,200,83,0.2); }
-    50% { box-shadow: 0 0 30px rgba(0,200,83,0.4); }
-}
-
-.verification-text {
-    font-weight: 600;
-    color: #00e676;
-}
-
-.social-links-hero {
-    display: flex;
-    gap: 16px;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-
-.social-link-btn {
-    padding: 12px 28px;
-    border-radius: 50px;
-    text-decoration: none;
-    font-weight: 600;
-    transition: var(--transition);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: white;
-    border: 2px solid transparent;
-}
-
-.social-link-btn.tiktok {
-    background: rgba(0,0,0,0.6);
-    border-color: rgba(255,255,255,0.2);
-}
-
-.social-link-btn.tiktok:hover {
-    background: #000;
-    border-color: #ff0050;
-    transform: translateY(-2px);
-}
-
-.social-link-btn.facebook {
-    background: rgba(24,119,242,0.6);
-    border-color: rgba(255,255,255,0.2);
-}
-
-.social-link-btn.facebook:hover {
-    background: #1877f2;
-    border-color: white;
-    transform: translateY(-2px);
-}
-
-/* Sections */
-.section {
-    padding: 80px 0;
-    position: relative;
-}
-
-.section:nth-child(even) {
-    background: white;
-}
-
-.section-header {
-    text-align: center;
-    margin-bottom: 50px;
-}
-
-.section-title {
-    font-size: 2.5em;
-    font-weight: 800;
-    color: var(--secondary);
-    margin-bottom: 10px;
-}
-
-.section-subtitle {
-    font-size: 1.1em;
-    color: var(--gray);
-}
-
-/* Features Grid */
-.features-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 24px;
-    margin-top: 30px;
-}
-
-.feature-card {
-    background: white;
-    padding: 30px;
-    border-radius: var(--radius);
-    text-align: center;
-    box-shadow: var(--shadow);
-    transition: var(--transition);
-    border: 1px solid var(--border);
-}
-
-.feature-card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--shadow-hover);
-    border-color: var(--primary);
-}
-
-.feature-icon {
-    margin-bottom: 15px;
-}
-
-.feature-title {
-    font-size: 1.3em;
-    font-weight: 700;
-    margin-bottom: 8px;
-    color: var(--secondary);
-}
-
-.feature-desc {
-    color: var(--gray);
-    font-size: 0.95em;
-}
-
-/* Official Account Card */
-.official-account-section {
-    background: linear-gradient(135deg, #f8fff8 0%, #e8f5e9 100%);
-}
-
-.official-card {
-    background: white;
-    border-radius: var(--radius);
-    padding: 40px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 30px;
-    box-shadow: var(--shadow);
-    border: 2px solid #c8e6c9;
-    align-items: center;
-}
-
-.account-info h3 {
-    font-size: 1.8em;
-    margin-bottom: 20px;
-    color: var(--secondary);
-}
-
-.info-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 15px;
-    padding: 10px;
-    background: #f5f5f5;
-    border-radius: var(--radius-sm);
-}
-
-.info-icon {
-    width: 24px;
-    height: 24px;
-}
-
-.info-label {
-    font-weight: 600;
-    color: var(--gray);
-}
-
-.info-value {
-    color: var(--secondary);
-    font-weight: 500;
-}
-
-.account-preview {
-    text-align: center;
-}
-
-.preview-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 30px;
-    border-radius: var(--radius);
-    color: white;
-}
-
-.preview-avatar {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    border: 3px solid white;
-    margin-bottom: 15px;
-}
-
-.preview-name {
-    font-size: 1.2em;
-    font-weight: 700;
-    margin-bottom: 5px;
-}
-
-.preview-username {
-    opacity: 0.9;
-    margin-bottom: 15px;
-}
-
-.follow-btn {
-    background: white;
-    color: #667eea;
-    padding: 10px 30px;
-    border-radius: 50px;
-    text-decoration: none;
-    font-weight: 600;
-    display: inline-block;
-    transition: var(--transition);
-}
-
-.follow-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-}
-
-/* Fake Accounts Section */
-.fake-accounts-section {
-    background: linear-gradient(135deg, #fff5f5 0%, #ffebee 100%);
-}
-
-.fake-accounts-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    gap: 30px;
-}
-
-.fake-card {
-    background: white;
-    border-radius: var(--radius);
-    overflow: hidden;
-    box-shadow: var(--shadow);
-    border: 2px solid #ffcdd2;
-    transition: var(--transition);
-    position: relative;
-}
-
-.fake-card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--shadow-hover);
-}
-
-.fake-card-badge {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: var(--danger);
-    color: white;
-    padding: 5px 15px;
-    border-radius: 50px;
-    font-weight: 700;
-    font-size: 0.9em;
-    z-index: 2;
-}
-
-.fake-screenshot {
-    position: relative;
-    height: 250px;
-    overflow: hidden;
-}
-
-.fake-screenshot img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.fake-card-content {
-    padding: 20px;
-}
-
-.fake-username {
-    font-size: 1.3em;
-    font-weight: 700;
-    margin-bottom: 8px;
-    color: var(--secondary);
-}
-
-.fake-platform {
-    color: var(--primary);
-    font-weight: 600;
-    margin-bottom: 10px;
-}
-
-.fake-reason {
-    color: var(--gray);
-    margin-bottom: 15px;
-    line-height: 1.6;
-}
-
-.report-btn {
-    background: var(--danger);
-    color: white;
-    padding: 10px 20px;
-    border-radius: 50px;
-    text-decoration: none;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: var(--transition);
-}
-
-.report-btn:hover {
-    background: #d50000;
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(255,23,68,0.3);
-}
-
-/* Verification Proof Section */
-.verification-proof-section {
-    background: white;
-}
-
-.proof-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 24px;
-}
-
-.proof-card {
-    background: #f8f9fa;
-    border-radius: var(--radius);
-    padding: 30px;
-    text-align: center;
-    border: 1px solid var(--border);
-    transition: var(--transition);
-}
-
-.proof-card:hover {
-    border-color: var(--accent);
-    box-shadow: var(--shadow);
-}
-
-.proof-img {
-    max-width: 100%;
-    border-radius: var(--radius-sm);
-    margin-bottom: 15px;
-}
-
-.proof-title {
-    font-weight: 700;
-    font-size: 1.1em;
-    color: var(--secondary);
-}
-
-/* Music Player */
-.premium-music-player {
-    background: white;
-    border-radius: var(--radius);
-    overflow: hidden;
-    box-shadow: var(--shadow);
-    border: 1px solid var(--border);
-}
-
-.player-main {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 24px;
-    padding: 30px;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    color: white;
-}
-
-.player-artwork {
-    position: relative;
-    width: 120px;
-    height: 120px;
-}
-
-.player-artwork img {
-    width: 100%;
-    height: 100%;
-    border-radius: var(--radius-sm);
-    object-fit: cover;
-}
-
-.playing-animation {
-    display: flex;
-    gap: 3px;
-    justify-content: center;
-    margin-top: 10px;
-}
-
-.playing-animation span {
-    width: 3px;
-    height: 15px;
-    background: var(--primary);
-    border-radius: 3px;
-    animation: equalizer 0.8s infinite;
-}
-
-.playing-animation span:nth-child(2) { animation-delay: 0.2s; }
-.playing-animation span:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes equalizer {
-    0%, 100% { height: 15px; }
-    50% { height: 5px; }
-}
-
-.track-title {
-    font-size: 1.3em;
-    font-weight: 700;
-    margin-bottom: 5px;
-}
-
-.track-artist {
-    opacity: 0.8;
-    margin-bottom: 15px;
-}
-
-.player-controls {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 15px;
-}
-
-.ctrl-btn {
-    background: rgba(255,255,255,0.1);
-    border: none;
-    color: white;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.2em;
-    transition: var(--transition);
-}
-
-.ctrl-btn:hover {
-    background: rgba(255,255,255,0.2);
-}
-
-.play-btn {
-    width: 56px;
-    height: 56px;
-    background: var(--primary);
-    border: none;
-    color: white;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.5em;
-    transition: var(--transition);
-    box-shadow: 0 4px 15px rgba(255,102,0,0.4);
-}
-
-.play-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 20px rgba(255,102,0,0.6);
-}
-
-.progress-bar {
-    background: rgba(255,255,255,0.2);
-    height: 4px;
-    border-radius: 2px;
-    margin-bottom: 5px;
-    cursor: pointer;
-}
-
-.progress {
-    background: var(--primary);
-    height: 100%;
-    border-radius: 2px;
-    width: 0%;
-    transition: width 0.1s linear;
-}
-
-.time-display {
-    font-size: 0.85em;
-    opacity: 0.8;
-}
-
-.playlist-container {
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.playlist-item {
-    display: flex;
-    align-items: center;
-    padding: 12px 24px;
-    cursor: pointer;
-    transition: var(--transition);
-    border-bottom: 1px solid #f0f0f0;
-    gap: 12px;
-}
-
-.playlist-item:hover {
-    background: #f8f9fa;
-}
-
-.playlist-item.active {
-    background: #fff3e0;
-    border-left: 3px solid var(--primary);
-}
-
-.track-number {
-    font-weight: 700;
-    color: var(--gray);
-    min-width: 30px;
-}
-
-.track-name {
-    flex: 1;
-    font-weight: 500;
-}
-
-.track-duration {
-    color: var(--gray);
-    font-size: 0.9em;
-}
-
-/* Gallery */
-.gallery-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
-}
-
-.gallery-item {
-    border-radius: var(--radius);
-    overflow: hidden;
-    box-shadow: var(--shadow);
-    transition: var(--transition);
-    cursor: pointer;
-}
-
-.gallery-item:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--shadow-hover);
-}
-
-.gallery-img-wrapper {
-    position: relative;
-    height: 250px;
-    overflow: hidden;
-}
-
-.gallery-img-wrapper img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: var(--transition);
-}
-
-.gallery-item:hover .gallery-img-wrapper img {
-    transform: scale(1.1);
-}
-
-.gallery-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: var(--transition);
-}
-
-.gallery-item:hover .gallery-overlay {
-    opacity: 1;
-}
-
-.zoom-icon {
-    font-size: 2em;
-}
-
-.gallery-caption {
-    padding: 12px;
-    text-align: center;
-    font-weight: 500;
-    background: white;
-}
-
-/* Lightbox */
-.lightbox {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.95);
-    z-index: 2000;
-    align-items: center;
-    justify-content: center;
-}
-
-.lightbox.active {
-    display: flex;
-}
-
-.lightbox img {
-    max-width: 90%;
-    max-height: 90%;
-    border-radius: var(--radius-sm);
-}
-
-.close-lightbox {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    color: white;
-    font-size: 2em;
-    cursor: pointer;
-    background: rgba(255,255,255,0.1);
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.lightbox-nav {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: rgba(255,255,255,0.1);
-    color: white;
-    border: none;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    font-size: 1.5em;
-    cursor: pointer;
-    transition: var(--transition);
-}
-
-.lightbox-nav:hover {
-    background: rgba(255,255,255,0.2);
-}
-
-.lightbox-nav.prev { left: 20px; }
-.lightbox-nav.next { right: 20px; }
-
-/* Footer */
-.premium-footer {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    color: white;
-    padding: 60px 0 30px;
-}
-
-.footer-content {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 40px;
-    margin-bottom: 40px;
-}
-
-.footer-section h3 {
-    font-size: 1.3em;
-    margin-bottom: 20px;
-    color: var(--primary);
-}
-
-.footer-section p {
-    opacity: 0.8;
-    line-height: 1.8;
-}
-
-.footer-links {
-    list-style: none;
-}
-
-.footer-links li {
-    margin-bottom: 10px;
-}
-
-.footer-links a {
-    color: white;
-    text-decoration: none;
-    opacity: 0.8;
-    transition: var(--transition);
-}
-
-.footer-links a:hover {
-    opacity: 1;
-    padding-left: 5px;
-}
-
-.footer-bottom {
-    text-align: center;
-    padding-top: 30px;
-    border-top: 1px solid rgba(255,255,255,0.1);
-    opacity: 0.7;
-}
-
-/* Animations */
-[data-animate] {
-    opacity: 0;
-    transform: translateY(30px);
-    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-[data-animate].animated {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .hero-name { font-size: 2em; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--gray-50); color: var(--gray-800); line-height: 1.6; overflow-x: hidden; }
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideInLeft { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideInRight { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes verifiedPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(29,155,240,0.4); } 50% { box-shadow: 0 0 0 12px rgba(29,155,240,0); } }
+@keyframes dangerPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 50% { box-shadow: 0 0 0 12px rgba(239,68,68,0); } }
+
+[data-animate] { opacity: 0; }
+[data-animate].animated { animation: fadeUp 0.8s cubic-bezier(0.16,1,0.3,1) forwards; }
+[data-animate-left] { opacity: 0; }
+[data-animate-left].animated { animation: slideInLeft 0.8s cubic-bezier(0.16,1,0.3,1) forwards; }
+[data-animate-right] { opacity: 0; }
+[data-animate-right].animated { animation: slideInRight 0.8s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--gray-100); }
+::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 4px; }
+
+.scroll-progress { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg,var(--primary),var(--tiktok-pink),var(--tiktok-cyan)); z-index: 10001; transition: width 0.1s linear; }
+
+.navbar { position: sticky; top: 0; z-index: 1000; background: rgba(255,255,255,0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--gray-200); padding: 0; box-shadow: var(--shadow-sm); }
+.navbar .container { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+.nav-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+.nav-logo { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--primary); object-fit: cover; }
+.nav-title { font-weight: 700; font-size: 1.1em; color: var(--gray-900); }
+.nav-actions { display: flex; align-items: center; gap: 12px; }
+.btn-nav { padding: 8px 18px; border-radius: var(--radius-full); font-weight: 600; font-size: 0.85em; text-decoration: none; transition: all 0.3s; border: 2px solid transparent; cursor: pointer; }
+.btn-chat { background: var(--primary); color: var(--white); display: flex; align-items: center; gap: 6px; border: none; }
+.btn-chat:hover { background: var(--primary-dark); transform: translateY(-1px); }
+.btn-admin { background: transparent; color: var(--gray-600); border-color: var(--gray-300); }
+.btn-admin:hover { background: var(--gray-100); border-color: var(--gray-400); }
+
+.hero { position: relative; background: linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%); padding: 80px 0 60px; overflow: hidden; }
+.hero::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at 30% 50%,rgba(255,102,0,0.08) 0%,transparent 50%),radial-gradient(circle at 70% 50%,rgba(255,0,80,0.06) 0%,transparent 50%); animation: spin 30s linear infinite; }
+.hero-particles { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+.particle { position: absolute; width: 4px; height: 4px; background: var(--primary); border-radius: 50%; animation: float 6s ease-in-out infinite; }
+.particle:nth-child(1) { top: 20%; left: 10%; animation-delay: 0s; }
+.particle:nth-child(2) { top: 60%; left: 80%; animation-delay: 1s; }
+.particle:nth-child(3) { top: 40%; left: 50%; animation-delay: 2s; }
+.particle:nth-child(4) { top: 70%; left: 30%; animation-delay: 3s; }
+.particle:nth-child(5) { top: 30%; left: 70%; animation-delay: 4s; }
+.hero .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 2; }
+.hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+@media (max-width:968px) { .hero-grid { grid-template-columns: 1fr; text-align: center; } }
+.hero-content { color: var(--white); }
+.hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 8px 18px; border-radius: var(--radius-full); font-size: 0.8em; font-weight: 600; margin-bottom: 24px; color: var(--white); }
+.hero-badge .dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; animation: verifiedPulse 2s infinite; }
+.hero-title { font-size: 3.2em; font-weight: 900; line-height: 1.1; margin-bottom: 16px; letter-spacing: -0.5px; }
+.hero-title .highlight { background: linear-gradient(135deg,var(--primary),var(--tiktok-pink)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.hero-subtitle { font-size: 1.1em; opacity: 0.9; margin-bottom: 24px; line-height: 1.6; }
+.hero-stats { display: flex; gap: 24px; margin-bottom: 28px; flex-wrap: wrap; justify-content: center; }
+.stat-item { text-align: center; padding: 12px 20px; background: rgba(255,255,255,0.08); border-radius: var(--radius-lg); border: 1px solid rgba(255,255,255,0.1); }
+.stat-value { font-size: 1.5em; font-weight: 800; color: var(--primary); }
+.stat-label { font-size: 0.75em; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.5px; }
+.hero-buttons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.btn-hero { padding: 14px 28px; border-radius: var(--radius-full); font-weight: 700; font-size: 0.95em; text-decoration: none; transition: all 0.3s; display: inline-flex; align-items: center; gap: 8px; }
+.btn-hero-primary { background: linear-gradient(135deg,var(--primary),var(--primary-dark)); color: var(--white); box-shadow: 0 8px 25px rgba(255,102,0,0.3); }
+.btn-hero-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(255,102,0,0.4); }
+.btn-hero-outline { border: 2px solid rgba(255,255,255,0.3); color: var(--white); }
+.btn-hero-outline:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.5); }
+.hero-visual { display: flex; justify-content: center; align-items: center; }
+.hero-profile-card { background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-2xl); padding: 40px; text-align: center; max-width: 380px; width: 100%; }
+.hero-profile-img { width: 120px; height: 120px; border-radius: 50%; border: 4px solid var(--primary); object-fit: cover; margin-bottom: 16px; box-shadow: 0 0 30px rgba(255,102,0,0.3); }
+.hero-profile-name { font-size: 1.3em; font-weight: 700; color: var(--white); margin-bottom: 4px; }
+.hero-profile-username { font-size: 0.9em; color: var(--gray-400); margin-bottom: 12px; }
+.verified-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--verified); color: var(--white); padding: 6px 16px; border-radius: var(--radius-full); font-size: 0.8em; font-weight: 700; animation: verifiedPulse 2.5s infinite; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.section { padding: 80px 0; }
+.section-header { text-align: center; margin-bottom: 50px; }
+.section-tag { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,102,0,0.08); border: 1px solid rgba(255,102,0,0.15); padding: 6px 18px; border-radius: var(--radius-full); font-size: 0.75em; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--primary); margin-bottom: 16px; }
+.section-tag .tag-dot { width: 7px; height: 7px; background: var(--primary); border-radius: 50%; }
+.section-title { font-size: 2.5em; font-weight: 800; color: var(--gray-900); margin-bottom: 12px; letter-spacing: -0.3px; }
+.section-title .accent { color: var(--primary); }
+.section-subtitle { font-size: 1.05em; color: var(--gray-500); max-width: 600px; margin: 0 auto; }
+
+.fb-official-section { background: var(--white); }
+.fb-official-card { background: var(--white); border: 2px solid var(--gray-200); border-radius: var(--radius-2xl); overflow: hidden; box-shadow: var(--shadow-lg); transition: all 0.3s; }
+.fb-official-card:hover { box-shadow: var(--shadow-xl); transform: translateY(-2px); }
+.fb-card-header { background: linear-gradient(135deg,var(--facebook),#0d5fd9); padding: 32px; color: var(--white); display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.fb-profile-pic { width: 100px; height: 100px; border-radius: 50%; border: 4px solid var(--white); object-fit: cover; box-shadow: var(--shadow-lg); }
+.fb-info h3 { font-size: 1.3em; font-weight: 700; margin-bottom: 4px; }
+.fb-info p { font-size: 0.9em; opacity: 0.9; }
+.fb-verified-icon { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: var(--radius-full); font-size: 0.8em; font-weight: 600; margin-top: 8px; }
+.fb-card-body { padding: 24px 32px; }
+.fb-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 24px; }
+@media (max-width:600px) { .fb-stats { grid-template-columns: repeat(2,1fr); } }
+.fb-stat { text-align: center; padding: 16px; background: var(--gray-50); border-radius: var(--radius); }
+.fb-stat-value { font-size: 1.2em; font-weight: 800; color: var(--gray-900); }
+.fb-stat-label { font-size: 0.75em; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+.fb-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn-facebook { background: var(--facebook); color: var(--white); padding: 12px 24px; border-radius: var(--radius-full); font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.3s; }
+.btn-facebook:hover { background: #0d5fd9; transform: translateY(-1px); }
+.btn-tiktok { background: #000; color: #fff; padding: 12px 24px; border-radius: var(--radius-full); font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.3s; }
+.btn-tiktok:hover { background: #333; transform: translateY(-1px); }
+
+.fake-section { background: #fef2f2; }
+.fake-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(350px,1fr)); gap: 24px; }
+@media (max-width:480px) { .fake-grid { grid-template-columns: 1fr; } }
+.fake-card { background: var(--white); border: 2px solid #fecaca; border-radius: var(--radius-xl); padding: 24px; position: relative; overflow: hidden; transition: all 0.3s; }
+.fake-card:hover { border-color: var(--danger); box-shadow: var(--shadow-lg); transform: translateY(-3px); }
+.fake-card-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-25deg); font-size: 6em; font-weight: 900; color: rgba(239,68,68,0.03); pointer-events: none; letter-spacing: 10px; white-space: nowrap; }
+.fake-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.fake-card-badge { background: var(--danger); color: var(--white); padding: 4px 14px; border-radius: var(--radius-full); font-size: 0.7em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; animation: dangerPulse 2s infinite; }
+.fake-screenshot { border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; border: 3px solid #fecaca; }
+.fake-screenshot img { width: 100%; display: block; }
+.fake-detail { display: flex; justify-content: space-between; padding: 8px 12px; background: #fef2f2; border-radius: var(--radius-sm); margin-bottom: 8px; font-size: 0.85em; }
+.fake-detail-label { color: var(--danger); font-weight: 600; }
+.fake-detail-value { color: var(--gray-700); font-weight: 700; }
+.fake-reason { background: #fff; border: 2px solid #fee2e2; border-radius: var(--radius); padding: 12px; margin: 12px 0; font-size: 0.85em; color: var(--danger); line-height: 1.5; }
+.fake-actions { display: flex; gap: 8px; }
+.btn-danger { background: linear-gradient(135deg,var(--danger),#dc2626); color: var(--white); padding: 10px 20px; border-radius: var(--radius-full); font-weight: 700; font-size: 0.85em; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: all 0.3s; flex: 1; justify-content: center; }
+.btn-danger:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(239,68,68,0.3); }
+.btn-copy { background: var(--white); color: var(--danger); border: 2px solid #fecaca; padding: 10px 20px; border-radius: var(--radius-full); font-weight: 700; font-size: 0.85em; cursor: pointer; transition: all 0.3s; display: inline-flex; align-items: center; gap: 6px; flex: 1; justify-content: center; }
+.btn-copy:hover { background: #fef2f2; border-color: var(--danger); }
+.btn-copy.copied { background: var(--success) !important; color: var(--white) !important; border-color: var(--success) !important; }
+
+.evidence-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 24px; }
+.evidence-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-xl); padding: 24px; text-align: center; transition: all 0.3s; }
+.evidence-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-3px); }
+.evidence-icon { width: 64px; height: 64px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 1.8em; }
+.evidence-icon.real { background: #f0fdf4; color: var(--success); }
+.evidence-icon.fake { background: #fef2f2; color: var(--danger); }
+.evidence-icon.warning { background: #fffbeb; color: var(--warning); }
+.evidence-card h4 { font-weight: 700; margin-bottom: 8px; color: var(--gray-900); }
+.evidence-card p { font-size: 0.9em; color: var(--gray-500); }
+
+.music-section { background: var(--gray-50); }
+.music-player { background: var(--white); border-radius: var(--radius-2xl); border: 1px solid var(--gray-200); overflow: hidden; box-shadow: var(--shadow-md); max-width: 800px; margin: 0 auto; }
+.music-now-playing { background: linear-gradient(135deg,#ff6600,#cc5500); color: var(--white); padding: 24px; display: flex; align-items: center; gap: 20px; }
+.music-album-art { width: 90px; height: 90px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 2.5em; overflow: hidden; }
+.music-album-art.playing { animation: spin 10s linear infinite; }
+.music-album-art img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.music-track-info { flex: 1; min-width: 0; }
+.music-track-name { font-size: 1.1em; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-track-artist { font-size: 0.85em; opacity: 0.9; margin-top: 2px; }
+.music-progress { margin-top: 12px; }
+.music-progress-bar { width: 100%; height: 5px; background: rgba(255,255,255,0.3); border-radius: 3px; cursor: pointer; overflow: hidden; }
+.music-progress-fill { height: 100%; background: var(--white); border-radius: 3px; width: 0%; transition: width 0.1s linear; }
+.music-time { display: flex; justify-content: space-between; font-size: 0.7em; margin-top: 4px; opacity: 0.8; }
+.music-controls { display: flex; align-items: center; justify-content: center; gap: 20px; padding: 16px; }
+.music-btn { background: none; border: none; cursor: pointer; color: var(--gray-600); transition: all 0.2s; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1em; }
+.music-btn:hover { color: var(--primary); background: var(--gray-100); }
+.music-play-btn { width: 56px; height: 56px; background: linear-gradient(135deg,var(--primary),var(--primary-dark)); color: var(--white); border-radius: 50%; font-size: 1.2em; }
+.music-play-btn:hover { background: var(--primary-dark); color: var(--white); transform: scale(1.05); }
+.music-playlist { max-height: 300px; overflow-y: auto; }
+.music-playlist-header { padding: 12px 20px; background: var(--gray-50); font-weight: 600; font-size: 0.85em; color: var(--gray-500); position: sticky; top: 0; }
+.song-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; cursor: pointer; transition: all 0.2s; border-bottom: 1px solid var(--gray-100); }
+.song-item:hover { background: var(--gray-50); }
+.song-item.active { background: #fff7f0; border-left: 3px solid var(--primary); }
+.song-number { font-size: 0.85em; color: var(--gray-400); font-weight: 600; width: 28px; text-align: center; }
+.song-details { flex: 1; min-width: 0; }
+.song-title { font-weight: 600; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.song-artist { font-size: 0.75em; color: var(--gray-500); }
+.song-duration { font-size: 0.8em; color: var(--gray-400); }
+
+.gallery-section { background: var(--white); }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(250px,1fr)); gap: 20px; }
+.gallery-card { border-radius: var(--radius-xl); overflow: hidden; cursor: pointer; transition: all 0.3s; box-shadow: var(--shadow); }
+.gallery-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+.gallery-card-inner { position: relative; overflow: hidden; }
+.gallery-image { width: 100%; height: 220px; object-fit: cover; display: block; transition: transform 0.4s; }
+.gallery-card:hover .gallery-image { transform: scale(1.05); }
+.gallery-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; }
+.gallery-card:hover .gallery-overlay { opacity: 1; }
+.gallery-caption { padding: 12px 16px; font-size: 0.85em; color: var(--gray-600); text-align: center; }
+
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: none; align-items: center; justify-content: center; }
+.lightbox.active { display: flex; }
+.lightbox-close { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--white); width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2em; z-index: 10001; }
+.lightbox-image { max-width: 90vw; max-height: 85vh; object-fit: contain; border-radius: var(--radius); }
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--white); width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1em; transition: all 0.3s; }
+.lightbox-nav:hover { background: rgba(255,255,255,0.25); }
+.lightbox-prev { left: 20px; }
+.lightbox-next { right: 20px; }
+
+.chat-widget { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
+.chat-toggle { width: 60px; height: 60px; background: linear-gradient(135deg,var(--primary),var(--primary-dark)); color: var(--white); border-radius: 50%; border: none; cursor: pointer; font-size: 1.5em; box-shadow: 0 8px 25px rgba(255,102,0,0.3); transition: all 0.3s; display: flex; align-items: center; justify-content: center; position: relative; }
+.chat-toggle:hover { transform: scale(1.1); }
+.chat-notification { position: absolute; top: -4px; right: -4px; background: var(--danger); color: var(--white); width: 22px; height: 22px; border-radius: 50%; font-size: 0.65em; font-weight: 700; display: none; align-items: center; justify-content: center; }
+.chat-window { position: fixed; bottom: 100px; right: 24px; width: 380px; height: 520px; background: var(--white); border-radius: var(--radius-xl); box-shadow: var(--shadow-xl); display: none; flex-direction: column; overflow: hidden; z-index: 9998; }
+.chat-window.open { display: flex; }
+.chat-header { background: linear-gradient(135deg,var(--primary),var(--primary-dark)); color: var(--white); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+.chat-header h4 { font-weight: 600; font-size: 0.95em; }
+.chat-close { background: none; border: none; color: var(--white); cursor: pointer; font-size: 1.2em; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.chat-message { max-width: 80%; padding: 10px 16px; border-radius: 18px; font-size: 0.88em; line-height: 1.5; word-wrap: break-word; }
+.chat-message.sent { background: var(--primary); color: var(--white); align-self: flex-end; border-bottom-right-radius: 4px; }
+.chat-message.received { background: var(--gray-100); color: var(--gray-800); align-self: flex-start; border-bottom-left-radius: 4px; }
+.chat-message .msg-time { font-size: 0.65em; opacity: 0.7; margin-top: 4px; text-align: right; }
+.chat-input-area { padding: 12px 16px; border-top: 1px solid var(--gray-200); display: flex; gap: 8px; }
+.chat-input { flex: 1; padding: 10px 14px; border: 2px solid var(--gray-200); border-radius: var(--radius-full); font-size: 0.88em; outline: none; font-family: inherit; }
+.chat-input:focus { border-color: var(--primary); }
+.chat-send-btn { width: 44px; height: 44px; background: var(--primary); color: var(--white); border: none; border-radius: 50%; cursor: pointer; font-size: 1em; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+.chat-send-btn:hover { background: var(--primary-dark); }
+.chat-login { padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+.chat-login h4 { text-align: center; color: var(--gray-700); margin-bottom: 8px; }
+.chat-login input { padding: 12px 16px; border: 2px solid var(--gray-200); border-radius: var(--radius); font-size: 0.9em; outline: none; font-family: inherit; }
+.chat-login input:focus { border-color: var(--primary); }
+.chat-login .btn-login { background: var(--primary); color: var(--white); padding: 12px; border: none; border-radius: var(--radius); font-weight: 600; cursor: pointer; font-size: 0.95em; }
+
+.footer { background: var(--gray-900); color: var(--gray-400); padding: 40px 0; text-align: center; }
+.footer-content { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.footer-social { display: flex; gap: 16px; justify-content: center; margin-bottom: 20px; }
+.footer-social a { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.1); color: var(--white); display: flex; align-items: center; justify-content: center; text-decoration: none; transition: all 0.3s; }
+.footer-social a:hover { background: var(--primary); }
+
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: var(--radius); color: var(--white); font-weight: 600; z-index: 10002; animation: fadeUp 0.3s ease; }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+
+@media (max-width:768px) {
+    .hero-title { font-size: 2em; }
     .section-title { font-size: 1.8em; }
-    .official-card { grid-template-columns: 1fr; }
-    .player-main { grid-template-columns: 1fr; text-align: center; }
-    .player-artwork { margin: 0 auto; }
-    .player-controls { justify-content: center; }
-    .fake-accounts-grid { grid-template-columns: 1fr; }
-    .header-actions { gap: 8px; }
-    .chat-btn, .admin-btn { padding: 8px 16px; font-size: 0.85em; }
+    .hero-grid { gap: 40px; }
+    .fb-stats { grid-template-columns: repeat(2,1fr); }
+    .fake-grid { grid-template-columns: 1fr; }
+    .chat-window { width: calc(100vw - 32px); right: 16px; bottom: 90px; height: 60vh; }
+}
+@media (max-width:480px) {
+    .section { padding: 50px 0; }
+    .hero { padding: 60px 0 40px; }
+    .hero-profile-card { padding: 24px; }
+    .hero-profile-img { width: 80px; height: 80px; }
+    .music-now-playing { flex-direction: column; text-align: center; }
 }
 </style>
 </head>
 <body>
 
-<header class="premium-header" id="header">
+<div class="scroll-progress" id="scrollProgress"></div>
+
+<nav class="navbar">
     <div class="container">
-        <div class="header-content">
-            <div class="logo-section">
-                <img src="${IMAGES.profile}" alt="Logo" class="logo-img">
-                <span class="logo-text">${CELEBRITY_DATA.name}</span>
-            </div>
-            <div class="header-actions">
-                <a href="/chat" class="chat-btn">
-                    <span>💬</span> Support Chat
-                </a>
-                <a href="/admin" class="admin-btn">
-                    <span>🔐</span> Admin
-                </a>
-            </div>
+        <a href="/" class="nav-brand">
+            <img src="${DATA.celebrity.photo}" alt="Logo" class="nav-logo" onerror="this.style.display='none'">
+            <span class="nav-title">Verification Hub</span>
+        </a>
+        <div class="nav-actions">
+            <button class="btn-nav btn-chat" onclick="toggleChat()"><i class="fas fa-comment-dots"></i> Chat</button>
+            <a href="/admin" class="btn-nav btn-admin"><i class="fas fa-lock"></i> Admin</a>
         </div>
     </div>
-</header>
+</nav>
 
-<!-- Hero Section -->
-<section class="hero-section">
-    <div class="hero-content container">
-        <div class="hero-profile-wrapper">
-            <img src="${IMAGES.profile}" alt="${CELEBRITY_DATA.name}" class="hero-profile-img">
-            <div class="verified-badge-hero">✓</div>
-        </div>
-        <h1 class="hero-name">${CELEBRITY_DATA.fullName}</h1>
-        <p class="hero-username">${CELEBRITY_DATA.username}</p>
-        <p class="hero-bio">${CELEBRITY_DATA.bio}</p>
-        <div class="verification-status">
-            <span>✅</span>
-            <span class="verification-text">VERIFIED OFFICIAL ACCOUNT</span>
-        </div>
-        <div class="social-links-hero">
-            <a href="${CELEBRITY_DATA.tiktokUrl}" target="_blank" class="social-link-btn tiktok">
-                <img src="${IMAGES.tiktokIcon}" width="20" alt="TikTok"> TikTok
-            </a>
-            <a href="${CELEBRITY_DATA.fbUrl}" target="_blank" class="social-link-btn facebook">
-                <span>📘</span> Facebook
-            </a>
-        </div>
-    </div>
-</section>
-
-<!-- Features Section -->
-<section class="section" data-animate>
+<section class="hero" data-animate>
+    <div class="hero-particles"><div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div></div>
     <div class="container">
-        <div class="section-header">
-            <h2 class="section-title">Why Trust This Hub?</h2>
-            <p class="section-subtitle">Everything you need to verify the authentic Baiilla Maach</p>
-        </div>
-        <div class="features-grid">
-            ${featuresHTML}
-        </div>
-    </div>
-</section>
-
-<!-- Official Account Section -->
-<section class="section official-account-section" data-animate>
-    <div class="container">
-        <div class="section-header">
-            <h2 class="section-title">✅ Official Verified Account</h2>
-            <p class="section-subtitle">The ONLY authentic Baiilla Maach accounts</p>
-        </div>
-        <div class="official-card">
-            <div class="account-info">
-                <h3>Verified Details</h3>
-                <div class="info-row">
-                    <img src="${IMAGES.checkMark}" class="info-icon" alt="Verified">
-                    <div>
-                        <span class="info-label">Status:</span>
-                        <span class="info-value" style="color: #00c853;">● Active & Verified</span>
-                    </div>
+        <div class="hero-grid">
+            <div class="hero-content">
+                <div class="hero-badge"><span class="dot"></span>OFFICIALLY VERIFIED</div>
+                <h1 class="hero-title">${DATA.celebrity.fullName}<br><span class="highlight">Real Account</span></h1>
+                <p class="hero-subtitle">${DATA.celebrity.bio} — Beware of fake accounts impersonating this profile. Only trust accounts listed on this page.</p>
+                <div class="hero-stats">
+                    <div class="stat-item"><div class="stat-value">${DATA.celebrity.followers}</div><div class="stat-label">Followers</div></div>
+                    <div class="stat-item"><div class="stat-value">${DATA.celebrity.likes}</div><div class="stat-label">Likes</div></div>
+                    <div class="stat-item"><div class="stat-value">${totalFake}</div><div class="stat-label">Fakes Found</div></div>
                 </div>
-                <div class="info-row">
-                    <span>📱</span>
-                    <div>
-                        <span class="info-label">TikTok:</span>
-                        <span class="info-value">${CELEBRITY_DATA.username}</span>
-                    </div>
-                </div>
-                <div class="info-row">
-                    <span>📘</span>
-                    <div>
-                        <span class="info-label">Facebook:</span>
-                        <span class="info-value">${CELEBRITY_DATA.fbUsername}</span>
-                    </div>
-                </div>
-                <div class="info-row">
-                    <img src="${IMAGES.realId}" class="info-icon" alt="ID Proof">
-                    <div>
-                        <span class="info-label">Identity Verified:</span>
-                        <span class="info-value" style="color: #00c853;">Real ID Confirmed</span>
-                    </div>
+                <div class="hero-buttons">
+                    <a href="#facebook-official" class="btn-hero btn-hero-primary"><i class="fab fa-facebook"></i> Official Facebook</a>
+                    <a href="#fake-accounts" class="btn-hero btn-hero-outline"><i class="fas fa-exclamation-triangle"></i> View Fakes</a>
                 </div>
             </div>
-            <div class="account-preview">
-                <div class="preview-card">
-                    <img src="${IMAGES.fbProfile}" alt="Facebook Profile" class="preview-avatar">
-                    <p class="preview-name">Baiilla Maach</p>
-                    <p class="preview-username">${CELEBRITY_DATA.fbUsername}</p>
-                    <a href="${CELEBRITY_DATA.fbUrl}" target="_blank" class="follow-btn">Follow on Facebook</a>
+            <div class="hero-visual">
+                <div class="hero-profile-card">
+                    <img src="${DATA.celebrity.photo}" alt="${DATA.celebrity.name}" class="hero-profile-img" onerror="this.style.display='none'">
+                    <div class="hero-profile-name">${DATA.celebrity.name}</div>
+                    <div class="hero-profile-username">${DATA.celebrity.username}</div>
+                    <div class="verified-badge"><i class="fas fa-check-circle"></i> VERIFIED</div>
                 </div>
             </div>
         </div>
     </div>
 </section>
 
-<!-- Fake Accounts Section -->
-<section class="section fake-accounts-section" data-animate>
-    <div class="container">
-        <div class="section-header">
-            <h2 class="section-title">⚠️ Beware of Fake Accounts</h2>
-            <p class="section-subtitle">${CELEBRITY_DATA.fakeAccounts.length} fake accounts detected - Report them immediately</p>
+<main>
+    <section class="section fb-official-section" id="facebook-official" data-animate>
+        <div class="container">
+            <div class="section-header">
+                <div class="section-tag"><span class="tag-dot"></span><span>Official Account</span></div>
+                <h2 class="section-title">Facebook <span class="accent">Verified Profile</span></h2>
+                <p class="section-subtitle">This is the ONLY authentic Facebook account. Report any others.</p>
+            </div>
+            <div class="fb-official-card">
+                <div class="fb-card-header">
+                    <img src="${DATA.facebookOfficial.profilePic}" alt="FB Profile" class="fb-profile-pic" onerror="this.style.display='none'">
+                    <div class="fb-info">
+                        <h3>${DATA.facebookOfficial.name}</h3>
+                        <p>${DATA.facebookOfficial.username} · ${DATA.facebookOfficial.category}</p>
+                        <div class="fb-verified-icon"><i class="fas fa-check-circle"></i> Facebook Verified</div>
+                    </div>
+                </div>
+                <div class="fb-card-body">
+                    <div class="fb-stats">
+                        <div class="fb-stat"><div class="fb-stat-value">${DATA.facebookOfficial.followers}</div><div class="fb-stat-label">Followers</div></div>
+                        <div class="fb-stat"><div class="fb-stat-value" style="color:var(--success);"><i class="fas fa-shield-halved"></i></div><div class="fb-stat-label">Verified</div></div>
+                        <div class="fb-stat"><div class="fb-stat-value">100%</div><div class="fb-stat-label">Authentic</div></div>
+                        <div class="fb-stat"><div class="fb-stat-value" style="color:var(--success);"><i class="fas fa-lock"></i></div><div class="fb-stat-label">Secure</div></div>
+                    </div>
+                    <div class="fb-actions">
+                        <a href="${DATA.facebookOfficial.url}" target="_blank" rel="noopener" class="btn-facebook"><i class="fab fa-facebook"></i> Visit Official Profile</a>
+                        <a href="${DATA.tiktokOfficial.url}" target="_blank" rel="noopener" class="btn-tiktok"><i class="fab fa-tiktok"></i> TikTok</a>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="fake-accounts-grid">
-            ${CELEBRITY_DATA.fakeAccounts.map(account => `
+    </section>
+
+    <section class="section fake-section" id="fake-accounts" data-animate>
+        <div class="container">
+            <div class="section-header">
+                <div class="section-tag" style="background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.15);color:var(--danger);"><span class="tag-dot" style="background:var(--danger);"></span><span>Warning</span></div>
+                <h2 class="section-title" style="color:var(--danger);">Fake Accounts <span style="color:var(--danger);">Detected</span></h2>
+                <p class="section-subtitle">${totalFake} fake account${totalFake > 1 ? 's' : ''} found. Report them immediately to protect others.</p>
+            </div>
+            <div class="fake-grid">
+                ${DATA.fakeAccounts.map((a, i) => `
                 <div class="fake-card">
-                    <div class="fake-card-badge">FAKE</div>
-                    <div class="fake-screenshot">
-                        <img src="${account.screenshot}" alt="Fake Account">
+                    <div class="fake-card-watermark">FAKE</div>
+                    <div class="fake-card-header"><span style="font-weight:700;color:var(--danger);">⚠️ Fake Account #${i+1}</span><span class="fake-card-badge">Dangerous</span></div>
+                    <div class="fake-screenshot"><img src="${a.screenshot}" alt="Fake Account Screenshot" loading="lazy" onerror="this.style.display='none'"></div>
+                    <div class="fake-detail"><span class="fake-detail-label">Platform</span><span class="fake-detail-value">${a.platform}</span></div>
+                    <div class="fake-detail"><span class="fake-detail-label">Username</span><span class="fake-detail-value">${a.username}</span></div>
+                    <div class="fake-detail"><span class="fake-detail-label">Reports</span><span class="fake-detail-value">${a.reported}+ reports</span></div>
+                    <div class="fake-reason"><i class="fas fa-exclamation-circle"></i> ${a.reason}</div>
+                    <div class="fake-actions">
+                        <a href="${a.profileUrl}" target="_blank" rel="noopener" class="btn-danger"><i class="fas fa-flag"></i> Report</a>
+                        <button class="btn-copy" data-username="${a.username}" onclick="copyUsername(this)"><i class="fas fa-copy"></i> Copy</button>
                     </div>
-                    <div class="fake-card-content">
-                        <h3 class="fake-username">${account.username}</h3>
-                        <p class="fake-platform">📍 ${account.platform}</p>
-                        <p class="fake-reason">${account.reason}</p>
-                        <a href="${account.profileUrl}" target="_blank" class="report-btn">
-                            <img src="${IMAGES.report}" width="20" alt="Report"> Report This Account
-                        </a>
-                    </div>
+                </div>`).join('')}
+            </div>
+        </div>
+    </section>
+
+    <section class="section" data-animate>
+        <div class="container">
+            <div class="section-header">
+                <div class="section-tag"><span class="tag-dot"></span><span>Evidence</span></div>
+                <h2 class="section-title">Verification <span class="accent">Proof</span></h2>
+                <p class="section-subtitle">How to identify the real account vs fake accounts</p>
+            </div>
+            <div class="evidence-grid">
+                <div class="evidence-card">
+                    <div class="evidence-icon real"><i class="fas fa-check-circle"></i></div>
+                    <h4>Facebook Verified Badge</h4>
+                    <p>Real account has the blue verified checkmark from Facebook</p>
                 </div>
-            `).join('')}
+                <div class="evidence-card">
+                    <div class="evidence-icon fake"><i class="fas fa-times-circle"></i></div>
+                    <h4>Fake Detection</h4>
+                    <p>Fake accounts use similar names and stolen content</p>
+                </div>
+                <div class="evidence-card">
+                    <div class="evidence-icon warning"><i class="fas fa-id-card"></i></div>
+                    <h4>Real ID Verification</h4>
+                    <p>Official account has proper verification documentation</p>
+                </div>
+            </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<!-- Verification Proof Section -->
-<section class="section verification-proof-section" data-animate>
-    <div class="container">
-        <div class="section-header">
-            <h2 class="section-title">🔒 Identity Proof</h2>
-            <p class="section-subtitle">Evidence of official verification</p>
-        </div>
-        <div class="proof-grid">
-            <div class="proof-card">
-                <img src="${IMAGES.realId}" alt="Real ID" class="proof-img">
-                <p class="proof-title">Real ID Verification</p>
-            </div>
-            <div class="proof-card">
-                <img src="${IMAGES.fakeDetect}" alt="Fake Detection" class="proof-img">
-                <p class="proof-title">Fake Account Detection</p>
-            </div>
-            <div class="proof-card">
-                <img src="${IMAGES.microphone}" alt="Voice Note" class="proof-img">
-                <p class="proof-title">Real Voice Note</p>
-            </div>
-        </div>
-    </div>
-</section>
+    ${coverSongsHTML}
+    ${galleryHTML}
+</main>
 
-${musicPlayerHTML}
-
-${galleryHTML}
-
-<!-- Footer -->
-<footer class="premium-footer">
-    <div class="container">
-        <div class="footer-content">
-            <div class="footer-section">
-                <h3>About This Hub</h3>
-                <p>This is the ONLY official verification hub for Baiilla Maach. We help fans identify authentic accounts and avoid scams.</p>
-            </div>
-            <div class="footer-section">
-                <h3>Quick Links</h3>
-                <ul class="footer-links">
-                    <li><a href="${CELEBRITY_DATA.tiktokUrl}" target="_blank">Official TikTok</a></li>
-                    <li><a href="${CELEBRITY_DATA.fbUrl}" target="_blank">Official Facebook</a></li>
-                    <li><a href="/chat">Support Chat</a></li>
-                    <li><a href="/admin">Admin Panel</a></li>
-                </ul>
-            </div>
-            <div class="footer-section">
-                <h3>Contact</h3>
-                <p>Use our support chat for any verification queries or to report fake accounts.</p>
-            </div>
+<footer class="footer">
+    <div class="footer-content">
+        <div class="footer-social">
+            <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener"><i class="fab fa-tiktok"></i></a>
+            <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" rel="noopener"><i class="fab fa-facebook"></i></a>
+            <a href="#" onclick="toggleChat()"><i class="fas fa-comment"></i></a>
         </div>
-        <div class="footer-bottom">
-            <p>© 2024 ${CELEBRITY_DATA.fullName}. All Rights Reserved.</p>
-            <p style="margin-top: 10px;">⚠️ This is the only official verification hub</p>
-        </div>
+        <p>© ${DATA.celebrity.fullName} · Official Verification Hub · All Rights Reserved</p>
     </div>
 </footer>
 
-<!-- Hidden audio element -->
-<audio id="audioPlayer" preload="metadata"></audio>
+<div class="chat-widget">
+    <button class="chat-toggle" onclick="toggleChat()">
+        <i class="fas fa-comment-dots"></i>
+        <div class="chat-notification" id="chatNotification">0</div>
+    </button>
+    <div class="chat-window" id="chatWindow">
+        <div class="chat-header">
+            <h4><i class="fas fa-headset"></i> Live Support</h4>
+            <button class="chat-close" onclick="toggleChat()"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="chatBody"></div>
+    </div>
+</div>
+
+<audio id="audioPlayer" preload="auto"></audio>
 
 <script>
-// Gallery data for lightbox
-const galleryPhotos = ${JSON.stringify(galleryPhotos)};
-let currentLightboxIndex = 0;
+// Intersection Observer
+const observer = new IntersectionObserver((entries) => { entries.forEach(entry => { if(entry.isIntersecting) entry.target.classList.add('animated'); }); }, { threshold: 0.1 });
+document.querySelectorAll('[data-animate],[data-animate-left],[data-animate-right]').forEach(el => observer.observe(el));
 
-// Music player state
-const tracks = ${JSON.stringify(coverSongs)};
-let currentTrack = 0;
-let isPlaying = false;
-const audioPlayer = document.getElementById('audioPlayer');
+// Scroll Progress
+window.addEventListener('scroll', () => {
+    const pct = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+    document.getElementById('scrollProgress').style.width = pct + '%';
+});
 
-// Initialize first track
-if (tracks.length > 0) {
-    audioPlayer.src = tracks[0].audioUrl;
-    audioPlayer.load();
-}
-
-// Music Player Functions
-function playTrack(index) {
-    if (index >= 0 && index < tracks.length) {
-        currentTrack = index;
-        audioPlayer.src = tracks[index].audioUrl;
-        audioPlayer.load();
-        audioPlayer.play();
-        isPlaying = true;
-        updatePlayButton();
-        updateActiveTrack();
-        updateTrackInfo();
-    }
-}
-
-function togglePlay() {
-    if (audioPlayer.paused) {
-        audioPlayer.play();
-        isPlaying = true;
-    } else {
-        audioPlayer.pause();
-        isPlaying = false;
-    }
-    updatePlayButton();
-}
-
-function prevTrack() {
-    currentTrack = (currentTrack - 1 + tracks.length) % tracks.length;
-    playTrack(currentTrack);
-}
-
-function nextTrack() {
-    currentTrack = (currentTrack + 1) % tracks.length;
-    playTrack(currentTrack);
-}
-
-function updatePlayButton() {
-    const playBtn = document.getElementById('mainPlayBtn');
-    if (playBtn) {
-        playBtn.textContent = isPlaying ? '⏸️' : '▶️';
-    }
-}
-
-function updateActiveTrack() {
-    document.querySelectorAll('.playlist-item').forEach((item, index) => {
-        item.classList.toggle('active', index === currentTrack);
+// Copy Username
+function copyUsername(btn) {
+    navigator.clipboard.writeText(btn.dataset.username).then(() => {
+        btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i> Copy'; btn.classList.remove('copied'); }, 2000);
     });
 }
 
-function updateTrackInfo() {
-    if (tracks[currentTrack]) {
-        document.querySelector('.track-title').textContent = tracks[currentTrack].title;
-        document.querySelector('.track-artist').textContent = tracks[currentTrack].artist;
-    }
+// ==================== MUSIC PLAYER ====================
+const audioPlayer = document.getElementById('audioPlayer');
+const songItems = document.querySelectorAll('.song-item');
+let currentTrackIndex = -1;
+let isPlaying = false;
+let playlist = [];
+songItems.forEach((item, index) => {
+    playlist.push({ index, url: item.getAttribute('data-audio'), title: item.querySelector('.song-title').textContent, artist: item.querySelector('.song-artist').textContent, element: item });
+});
+
+function playSong(index) {
+    if(index === currentTrackIndex) { togglePlay(); return; }
+    currentTrackIndex = index;
+    const song = playlist[index];
+    audioPlayer.src = song.url;
+    audioPlayer.load();
+    document.getElementById('currentTitle').textContent = song.title;
+    document.getElementById('currentArtist').textContent = song.artist;
+    document.getElementById('albumArt').innerHTML = '<i class="fas fa-music"></i>';
+    songItems.forEach(item => item.classList.remove('active'));
+    song.element.classList.add('active');
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('currentTime').textContent = '0:00';
+    document.getElementById('totalTime').textContent = '0:00';
+    audioPlayer.play().then(() => { isPlaying = true; updatePlayButton(); document.getElementById('albumArt').classList.add('playing'); }).catch(() => {});
 }
 
-// Progress bar
+function togglePlay() {
+    if(currentTrackIndex === -1 && playlist.length > 0) { playSong(0); return; }
+    if(isPlaying) { audioPlayer.pause(); isPlaying = false; document.getElementById('albumArt').classList.remove('playing'); }
+    else { audioPlayer.play().then(() => { isPlaying = true; document.getElementById('albumArt').classList.add('playing'); }).catch(() => {}); }
+    updatePlayButton();
+}
+
+function updatePlayButton() { document.getElementById('playIcon').className = isPlaying ? 'fas fa-pause' : 'fas fa-play'; }
+
+function nextTrack() { if(playlist.length) playSong((currentTrackIndex + 1) % playlist.length); }
+function previousTrack() { if(playlist.length) playSong(currentTrackIndex <= 0 ? playlist.length - 1 : currentTrackIndex - 1); }
+
+function seekAudio(event) {
+    if(!audioPlayer.duration) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    audioPlayer.currentTime = ((event.clientX - rect.left) / rect.width) * audioPlayer.duration;
+}
+
+function formatTime(seconds) {
+    if(isNaN(seconds)) return '0:00';
+    const m = Math.floor(seconds / 60), s = Math.floor(seconds % 60);
+    return m + ':' + String(s).padStart(2, '0');
+}
+
 audioPlayer.addEventListener('timeupdate', () => {
-    const progress = (audioPlayer.currentTime / audioPlayer.duration) * 100;
-    document.getElementById('progressBar').style.width = progress + '%';
-    
-    const currentMinutes = Math.floor(audioPlayer.currentTime / 60);
-    const currentSeconds = Math.floor(audioPlayer.currentTime % 60);
-    const durationMinutes = Math.floor(audioPlayer.duration / 60) || 0;
-    const durationSeconds = Math.floor(audioPlayer.duration % 60) || 0;
-    
-    document.getElementById('currentTime').textContent = 
-        currentMinutes + ':' + String(currentSeconds).padStart(2, '0');
-    document.getElementById('duration').textContent = 
-        durationMinutes + ':' + String(durationSeconds).padStart(2, '0');
+    if(audioPlayer.duration) {
+        document.getElementById('progressFill').style.width = (audioPlayer.currentTime / audioPlayer.duration) * 100 + '%';
+        document.getElementById('currentTime').textContent = formatTime(audioPlayer.currentTime);
+    }
 });
 
-audioPlayer.addEventListener('ended', nextTrack);
-
-// Click on progress bar
-document.querySelector('.progress-bar').addEventListener('click', (e) => {
-    const rect = e.target.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    audioPlayer.currentTime = percent * audioPlayer.duration;
+audioPlayer.addEventListener('loadedmetadata', () => {
+    document.getElementById('totalTime').textContent = formatTime(audioPlayer.duration);
+    const dEl = document.getElementById('duration-' + currentTrackIndex);
+    if(dEl) dEl.textContent = formatTime(audioPlayer.duration);
 });
 
-// Gallery Lightbox Functions
-function openLightbox(index) {
-    currentLightboxIndex = index;
-    const lightbox = document.getElementById('galleryLightbox');
-    const lightboxImg = document.getElementById('lightboxImg');
-    lightboxImg.src = galleryPhotos[index].path;
+audioPlayer.addEventListener('ended', () => { nextTrack(); });
+audioPlayer.addEventListener('error', () => { isPlaying = false; updatePlayButton(); document.getElementById('albumArt').classList.remove('playing'); });
+audioPlayer.volume = 0.8;
+
+// Pre-load durations
+playlist.forEach((song, index) => {
+    const temp = new Audio();
+    temp.addEventListener('loadedmetadata', () => {
+        const dEl = document.getElementById('duration-' + index);
+        if(dEl) dEl.textContent = formatTime(temp.duration);
+    });
+    temp.src = song.url;
+});
+
+// ==================== GALLERY LIGHTBOX ====================
+let galleryIdx = 0;
+const galleryImgs = document.querySelectorAll('.gallery-image');
+const lightbox = document.getElementById('galleryLightbox');
+const lightboxImg = document.getElementById('lightboxImage');
+
+function openGalleryLightbox(i) {
+    if(!galleryImgs.length) return;
+    galleryIdx = i;
+    lightboxImg.src = galleryImgs[i].src;
     lightbox.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
 
-function closeLightbox() {
-    document.getElementById('galleryLightbox').classList.remove('active');
-    document.body.style.overflow = 'auto';
+function closeGalleryLightbox() { lightbox.classList.remove('active'); document.body.style.overflow = ''; }
+function navigateGallery(dir) {
+    if(!galleryImgs.length) return;
+    galleryIdx = (galleryIdx + dir + galleryImgs.length) % galleryImgs.length;
+    lightboxImg.src = galleryImgs[galleryIdx].src;
 }
 
-function changeLightbox(direction) {
-    currentLightboxIndex = (currentLightboxIndex + direction + galleryPhotos.length) % galleryPhotos.length;
-    document.getElementById('lightboxImg').src = galleryPhotos[currentLightboxIndex].path;
+lightbox.addEventListener('click', e => { if(e.target === lightbox) closeGalleryLightbox(); });
+document.addEventListener('keydown', e => {
+    if(e.key === 'Escape') closeGalleryLightbox();
+    if(e.key === 'ArrowLeft' && lightbox.classList.contains('active')) navigateGallery(-1);
+    if(e.key === 'ArrowRight' && lightbox.classList.contains('active')) navigateGallery(1);
+});
+
+// ==================== CHAT SYSTEM ====================
+let chatUser = null;
+let ws = null;
+let chatMessages = [];
+
+function toggleChat() {
+    const window = document.getElementById('chatWindow');
+    window.classList.toggle('open');
+    if(window.classList.contains('open') && !chatUser) showChatLogin();
+    else if(window.classList.contains('open') && chatUser) loadChatMessages();
 }
 
-// Close lightbox with Escape key
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeLightbox();
-    if (e.key === 'ArrowLeft') changeLightbox(-1);
-    if (e.key === 'ArrowRight') changeLightbox(1);
-});
+function showChatLogin() {
+    document.getElementById('chatBody').innerHTML = '<div class="chat-login"><h4>Start Chat</h4><input type="text" id="chatName" placeholder="Your Name"><input type="email" id="chatEmail" placeholder="Your Email"><button class="btn-login" onclick="startChat()">Start Chatting</button></div>';
+}
 
-// Scroll animations
-const observerOptions = {
-    threshold: 0.1,
-    rootMargin: '0px 0px -50px 0px'
-};
+async function startChat() {
+    const name = document.getElementById('chatName').value.trim();
+    const email = document.getElementById('chatEmail').value.trim();
+    if(!name || !email) return alert('Please fill all fields');
+    try {
+        const res = await fetch('/chat/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name, email}) });
+        const data = await res.json();
+        if(data.success) { chatUser = data.user; connectWebSocket(); loadChatMessages(); }
+        else alert(data.error || 'Login failed');
+    } catch(e) { alert('Connection error'); }
+}
 
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            entry.target.classList.add('animated');
-            observer.unobserve(entry.target);
-        }
-    });
-}, observerOptions);
+function connectWebSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(protocol + '//' + window.location.host);
+    ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        chatMessages.push(msg);
+        renderMessages();
+    };
+    ws.onclose = () => { setTimeout(connectWebSocket, 3000); };
+}
 
-document.querySelectorAll('[data-animate]').forEach(el => {
-    observer.observe(el);
-});
+async function loadChatMessages() {
+    if(!chatUser) return;
+    try {
+        const res = await fetch('/chat/messages?userId=' + chatUser._id);
+        const data = await res.json();
+        chatMessages = data.messages || [];
+        renderMessages();
+    } catch(e) { console.error('Load messages error:', e); }
+}
 
-// Header scroll effect
-window.addEventListener('scroll', () => {
-    const header = document.getElementById('header');
-    if (window.scrollY > 50) {
-        header.classList.add('scrolled');
-    } else {
-        header.classList.remove('scrolled');
-    }
-});
+function renderMessages() {
+    const html = chatMessages.map(m => {
+        const isSent = chatUser && (m.userId === chatUser._id || m.senderId === chatUser._id);
+        const time = new Date(m.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        return '<div class="chat-message ' + (isSent ? 'sent' : 'received') + '"><div>' + m.message + '</div><div class="msg-time">' + time + '</div></div>';
+    }).join('');
+    document.getElementById('chatBody').innerHTML = '<div class="chat-messages" id="chatMessages">' + html + '</div><div class="chat-input-area"><input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." onkeypress="if(event.key===\'Enter\')sendMessage()"><button class="chat-send-btn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button></div>';
+    const msgDiv = document.getElementById('chatMessages');
+    if(msgDiv) msgDiv.scrollTop = msgDiv.scrollHeight;
+}
 
-// Update track durations
-tracks.forEach((track, index) => {
-    const tempAudio = new Audio();
-    tempAudio.src = track.audioUrl;
-    tempAudio.addEventListener('loadedmetadata', () => {
-        const minutes = Math.floor(tempAudio.duration / 60);
-        const seconds = Math.floor(tempAudio.duration % 60);
-        const durationEl = document.querySelectorAll('.track-duration')[index];
-        if (durationEl) {
-            durationEl.textContent = minutes + ':' + String(seconds).padStart(2, '0');
-        }
-    });
-});
+function sendMessage() {
+    const input = document.getElementById('chatInput');
+    if(!input || !input.value.trim() || !ws) return;
+    const msg = { userId: chatUser._id, senderName: chatUser.name, message: input.value.trim(), timestamp: new Date().toISOString(), type: 'text' };
+    ws.send(JSON.stringify(msg));
+    chatMessages.push(msg);
+    renderMessages();
+    input.value = '';
+}
 </script>
 </body>
 </html>`;
 }
 
-// Chat page HTML
-function getChatHTML(userData = null) {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Support Chat | Baiilla Maach Official</title>
-<style>
-:root {
-    --primary: #ff6600;
-    --primary-dark: #e55a00;
-    --secondary: #1a1a2e;
-    --accent: #00c853;
-    --danger: #ff1744;
-    --dark: #121212;
-    --light: #f5f5f5;
-    --white: #ffffff;
-    --gray: #666666;
+// ==================== ADMIN HTML PAGES ====================
+function getAdminLoginHTML(error = '') {
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Login</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Montserrat',sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh}.box{background:#fff;border:2px solid #e2e8f0;border-radius:20px;padding:40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.08)}h2{text-align:center;color:#ff6600;margin-bottom:30px}.fg{margin-bottom:20px}label{display:block;margin-bottom:8px;color:#475569;font-weight:600;font-size:.9em}input{width:100%;padding:12px 16px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:10px;font-size:1em;outline:none;font-family:inherit}input:focus{border-color:#ff6600}.btn{width:100%;padding:14px;background:#ff6600;color:#fff;border:none;border-radius:10px;font-size:1em;font-weight:600;cursor:pointer;font-family:inherit}.btn:hover{background:#cc5500}.error{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px;text-align:center}.back{text-align:center;margin-top:20px}a{color:#64748b;text-decoration:none}a:hover{color:#ff6600}</style></head><body><div class="box"><h2>Admin Login</h2>${error?`<div class="error">${error}</div>`:''}<form method="POST" action="/admin/login"><div class="fg"><label>Username</label><input type="text" name="username" required></div><div class="fg"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">Login</button></form><div class="back"><a href="/">← Back to Home</a></div></div></body></html>`;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    color: white;
-    min-height: 100vh;
+function getAdminPanelHTML(photos = [], msg = '', err = '') {
+    const phtml = photos.map(p => `<div class="pc"><img src="${p.path}" class="pi"><div class="info">${p.caption?`<p>${p.caption}</p>`:''}<p class="dt">${new Date(p.uploadedAt).toLocaleDateString()}</p></div><form method="POST" action="/admin/delete"><input type="hidden" name="photoId" value="${p._id}"><button class="del" onclick="return confirm('Delete?')">Delete</button></form></div>`).join('');
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Admin Panel</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Montserrat',sans-serif;background:#f8fafc;color:#0f172a}.hdr{background:#fff;padding:20px 30px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e2e8f0;flex-wrap:wrap;gap:10px}.hdr h2{color:#ff6600}.hdr a{color:#64748b;text-decoration:none;padding:8px 16px;border:2px solid #e2e8f0;border-radius:8px;margin-left:10px;font-weight:600}.hdr a:hover{background:#ff6600;color:#fff;border-color:#ff6600}.cnt{max-width:1100px;margin:0 auto;padding:30px 20px}.up{background:#fff;border:2px solid #e2e8f0;border-radius:16px;padding:30px;margin-bottom:30px}.up h3{color:#ff6600;margin-bottom:20px}.fg{margin-bottom:15px}label{display:block;margin-bottom:6px;color:#475569;font-weight:600}input,textarea{width:100%;padding:10px 14px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:8px;font-size:.95em;outline:none;font-family:inherit}input:focus,textarea:focus{border-color:#ff6600}.bu{background:#22c55e;color:#fff;padding:12px 24px;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit}.bu:hover{background:#16a34a}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:20px}.pc{background:#fff;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden}.pc:hover{border-color:#ff6600}.pi{width:100%;height:200px;object-fit:cover}.info{padding:12px}.dt{font-size:.75em;color:#94a3b8;margin-top:2px}.del{background:#fef2f2;color:#dc2626;border:2px solid #fecaca;padding:6px 12px;border-radius:6px;cursor:pointer;margin:0 12px 12px;width:calc(100% - 24px);font-weight:600}.del:hover{background:#ef4444;color:#fff}.msg{background:#f0fdf4;border:2px solid #bbf7d0;color:#166534;padding:12px;border-radius:8px;margin-bottom:20px}.err{background:#fef2f2;border:2px solid #fecaca;color:#dc2626;padding:12px;border-radius:8px;margin-bottom:20px}</style></head><body><div class="hdr"><h2>Admin Panel</h2><div><a href="/">Home</a><a href="/admin/logout">Logout</a></div></div><div class="cnt">${msg?`<div class="msg">${msg}</div>`:''}${err?`<div class="err">${err}</div>`:''}<div class="up"><h3>Upload Photo</h3><form method="POST" action="/admin/upload" enctype="multipart/form-data"><div class="fg"><label>Select Photo</label><input type="file" name="photo" accept="image/*" required></div><div class="fg"><label>Caption</label><input type="text" name="caption"></div><button type="submit" class="bu">Upload</button></form></div><h3 style="margin-bottom:20px">Gallery (${photos.length})</h3>${photos.length?`<div class="grid">${phtml}</div>`:'<p style="color:#94a3b8;text-align:center;padding:40px">No photos</p>'}</div></body></html>`;
 }
 
-.chat-container {
-    max-width: 800px;
-    margin: 0 auto;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    background: rgba(255,255,255,0.05);
-    backdrop-filter: blur(10px);
-}
-
-.chat-header {
-    background: rgba(255,102,0,0.2);
-    padding: 15px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.chat-header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.chat-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 2px solid var(--primary);
-}
-
-.chat-title {
-    font-size: 1.1em;
-    font-weight: 600;
-}
-
-.chat-status {
-    font-size: 0.85em;
-    color: #00c853;
-}
-
-.back-btn {
-    background: rgba(255,255,255,0.1);
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 20px;
-    cursor: pointer;
-    text-decoration: none;
-    font-size: 0.9em;
-}
-
-.chat-messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.message {
-    max-width: 70%;
-    padding: 12px 16px;
-    border-radius: 18px;
-    margin-bottom: 5px;
-    word-wrap: break-word;
-    position: relative;
-}
-
-.message.sent {
-    background: var(--primary);
-    align-self: flex-end;
-    border-bottom-right-radius: 4px;
-}
-
-.message.received {
-    background: rgba(255,255,255,0.1);
-    align-self: flex-start;
-    border-bottom-left-radius: 4px;
-}
-
-.message-time {
-    font-size: 0.7em;
-    opacity: 0.7;
-    margin-top: 4px;
-}
-
-.message-image {
-    max-width: 200px;
-    border-radius: 12px;
-    cursor: pointer;
-}
-
-.message-audio {
-    max-width: 200px;
-}
-
-.chat-input-area {
-    padding: 15px 20px;
-    background: rgba(0,0,0,0.3);
-    border-top: 1px solid rgba(255,255,255,0.1);
-}
-
-.input-row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.message-input {
-    flex: 1;
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.2);
-    color: white;
-    padding: 12px 16px;
-    border-radius: 25px;
-    font-size: 0.95em;
-    outline: none;
-    transition: all 0.3s;
-}
-
-.message-input:focus {
-    border-color: var(--primary);
-    background: rgba(255,255,255,0.15);
-}
-
-.attach-btn {
-    background: rgba(255,255,255,0.1);
-    border: none;
-    color: white;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.2em;
-    transition: all 0.3s;
-}
-
-.attach-btn:hover {
-    background: rgba(255,255,255,0.2);
-}
-
-.send-btn {
-    background: var(--primary);
-    border: none;
-    color: white;
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.2em;
-    transition: all 0.3s;
-}
-
-.send-btn:hover {
-    background: var(--primary-dark);
-    transform: scale(1.05);
-}
-
-.login-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.9);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-.login-form {
-    background: white;
-    padding: 30px;
-    border-radius: 15px;
-    width: 90%;
-    max-width: 400px;
-    color: #333;
-}
-
-.login-form h2 {
-    margin-bottom: 20px;
-    color: var(--secondary);
-}
-
-.form-group {
-    margin-bottom: 15px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: 500;
-    color: #555;
-}
-
-.form-group input {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 0.95em;
-}
-
-.submit-btn {
-    width: 100%;
-    background: var(--primary);
-    color: white;
-    border: none;
-    padding: 12px;
-    border-radius: 8px;
-    font-size: 1em;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.submit-btn:hover {
-    background: var(--primary-dark);
-}
-
-.voice-record-btn {
-    background: var(--danger);
-    border: none;
-    color: white;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.2em;
-    transition: all 0.3s;
-    animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(255,23,68,0.4); }
-    70% { box-shadow: 0 0 0 10px rgba(255,23,68,0); }
-    100% { box-shadow: 0 0 0 0 rgba(255,23,68,0); }
-}
-</style>
-</head>
-<body>
-<div class="chat-container">
-    <div class="chat-header">
-        <div class="chat-header-left">
-            <img src="/assets/tiktok_video_Aj2NO.jpeg" alt="Baiilla Maach" class="chat-avatar">
-            <div>
-                <div class="chat-title">Baiilla Maach Support</div>
-                <div class="chat-status">● Online</div>
-            </div>
-        </div>
-        <a href="/" class="back-btn">← Back</a>
-    </div>
-    
-    <div class="chat-messages" id="chatMessages">
-        <div class="message received">
-            Welcome to Baiilla Maach Official Support! How can we help you?
-            <div class="message-time">Just now</div>
-        </div>
-    </div>
-    
-    <div class="chat-input-area">
-        <div class="input-row">
-            <input type="file" id="imageInput" accept="image/*" style="display: none;">
-            <input type="file" id="audioInput" accept="audio/*" style="display: none;">
-            <button class="attach-btn" onclick="document.getElementById('imageInput').click()">📎</button>
-            <input type="text" class="message-input" id="messageInput" placeholder="Type your message...">
-            <button class="voice-record-btn" id="voiceRecordBtn">🎤</button>
-            <button class="send-btn" onclick="sendMessage()">➤</button>
-        </div>
-    </div>
-</div>
-
-${!userData ? `
-<div class="login-overlay" id="loginOverlay">
-    <div class="login-form">
-        <h2>Start Chat Support</h2>
-        <form onsubmit="login(event)">
-            <div class="form-group">
-                <label>Your Name</label>
-                <input type="text" id="userName" required>
-            </div>
-            <div class="form-group">
-                <label>Email or Phone</label>
-                <input type="text" id="userEmail" required>
-            </div>
-            <button type="submit" class="submit-btn">Start Chat</button>
-        </form>
-    </div>
-</div>
-` : ''}
-
-<script>
-let mediaRecorder;
-let audioChunks = [];
-let isRecording = false;
-
-async function login(e) {
-    e.preventDefault();
-    const name = document.getElementById('userName').value;
-    const email = document.getElementById('userEmail').value;
-    
-    try {
-        const response = await fetch('/chat/login', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({name, email})
-        });
-        
-        if (response.ok) {
-            document.getElementById('loginOverlay').style.display = 'none';
-            loadMessages();
-        }
-    } catch (error) {
-        console.error('Login failed:', error);
-    }
-}
-
-async function sendMessage() {
-    const input = document.getElementById('messageInput');
-    const message = input.value.trim();
-    
-    if (!message) return;
-    
-    try {
-        const response = await fetch('/chat/send', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message, type: 'text'})
-        });
-        
-        if (response.ok) {
-            input.value = '';
-            loadMessages();
-        }
-    } catch (error) {
-        console.error('Send failed:', error);
-    }
-}
-
-async function loadMessages() {
-    try {
-        const response = await fetch('/chat/messages');
-        const messages = await response.json();
-        
-        const container = document.getElementById('chatMessages');
-        container.innerHTML = messages.map(msg => `
-            <div class="message ${msg.userId ? 'sent' : 'received'}">
-                ${msg.type === 'image' ? 
-                    '<img src="' + msg.content + '" class="message-image" onclick="window.open(this.src)">' :
-                    msg.type === 'audio' ?
-                    '<audio controls class="message-audio"><source src="' + msg.content + '"></audio>' :
-                    msg.content
-                }
-                <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
-            </div>
-        `).join('');
-        
-        container.scrollTop = container.scrollHeight;
-    } catch (error) {
-        console.error('Load messages failed:', error);
-    }
-}
-
-// Voice recording
-document.getElementById('voiceRecordBtn').addEventListener('click', async () => {
-    if (!isRecording) {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-            
-            mediaRecorder.ondataavailable = (event) => {
-                audioChunks.push(event.data);
-            };
-            
-            mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                const formData = new FormData();
-                formData.append('audio', audioBlob, 'voice_message.webm');
-                
-                try {
-                    const response = await fetch('/chat/upload-audio', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    if (response.ok) {
-                        loadMessages();
-                    }
-                } catch (error) {
-                    console.error('Audio upload failed:', error);
-                }
-            };
-            
-            mediaRecorder.start();
-            isRecording = true;
-            document.getElementById('voiceRecordBtn').style.background = '#ff0000';
-        } catch (error) {
-            console.error('Microphone access denied:', error);
-            alert('Please allow microphone access to record voice messages');
-        }
-    } else {
-        mediaRecorder.stop();
-        isRecording = false;
-        document.getElementById('voiceRecordBtn').style.background = '#ff1744';
-    }
-});
-
-// Image upload
-document.getElementById('imageInput').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const formData = new FormData();
-    formData.append('image', file);
-    
-    try {
-        const response = await fetch('/chat/upload-image', {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (response.ok) {
-            loadMessages();
-        }
-    } catch (error) {
-        console.error('Image upload failed:', error);
-    }
-});
-
-// Auto-refresh messages
-setInterval(loadMessages, 3000);
-
-// Load messages on start
-${userData ? 'loadMessages();' : ''}
-
-// Enter to send
-document.getElementById('messageInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendMessage();
-});
-</script>
-</body>
-</html>`;
-}
-
-// Admin panel HTML
-function getAdminHTML(chatUsers = [], messages = []) {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Panel | Baiilla Maach Hub</title>
-<style>
-:root {
-    --primary: #ff6600;
-    --primary-dark: #e55a00;
-    --secondary: #1a1a2e;
-    --accent: #00c853;
-    --danger: #ff1744;
-}
-
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #f5f5f5;
-}
-
-.admin-container {
-    display: grid;
-    grid-template-columns: 250px 1fr;
-    min-height: 100vh;
-}
-
-.sidebar {
-    background: var(--secondary);
-    color: white;
-    padding: 20px;
-}
-
-.sidebar h2 {
-    margin-bottom: 30px;
-    color: var(--primary);
-}
-
-.nav-item {
-    padding: 12px;
-    margin-bottom: 8px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.nav-item:hover, .nav-item.active {
-    background: rgba(255,102,0,0.2);
-}
-
-.main-content {
-    padding: 30px;
-    overflow-y: auto;
-}
-
-.chat-panel {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    height: calc(100vh - 60px);
-    display: flex;
-    flex-direction: column;
-}
-
-.chat-header {
-    padding: 15px 20px;
-    border-bottom: 1px solid #eee;
-    background: var(--primary);
-    color: white;
-    border-radius: 12px 12px 0 0;
-}
-
-.chat-messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-}
-
-.chat-input {
-    padding: 15px 20px;
-    border-top: 1px solid #eee;
-    display: flex;
-    gap: 10px;
-}
-
-.chat-input input {
-    flex: 1;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 20px;
-    outline: none;
-}
-
-.chat-input button {
-    background: var(--primary);
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 20px;
-    cursor: pointer;
-    font-weight: 600;
-}
-
-.users-list {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-}
-
-.user-item {
-    padding: 15px 20px;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.user-item:hover {
-    background: #f8f9fa;
-}
-
-.user-item.active {
-    background: #fff3e0;
-    border-left: 3px solid var(--primary);
-}
-
-.user-status {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #00c853;
-}
-
-.logout-btn {
-    background: var(--danger);
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 20px;
-    cursor: pointer;
-    margin-top: auto;
-}
-</style>
-</head>
-<body>
-<div class="admin-container">
-    <div class="sidebar">
-        <h2>Admin Panel</h2>
-        <div class="nav-item active">
-            <span>💬</span> Chat Support
-        </div>
-        <div class="nav-item">
-            <span>📸</span> Gallery
-        </div>
-        <div class="nav-item">
-            <span>🎵</span> Music
-        </div>
-        <a href="/admin/logout" class="logout-btn" style="display: block; text-align: center; text-decoration: none;">Logout</a>
-    </div>
-    
-    <div class="main-content">
-        <div class="users-list">
-            <h3 style="padding: 15px 20px;">Active Users (${chatUsers.length})</h3>
-            ${chatUsers.map(user => `
-                <div class="user-item" onclick="selectUser('${user.email}')">
-                    <div>
-                        <strong>${user.name}</strong>
-                        <div style="font-size: 0.9em; color: #666;">${user.email}</div>
-                    </div>
-                    <div class="user-status"></div>
-                </div>
-            `).join('')}
-        </div>
-        
-        <div class="chat-panel">
-            <div class="chat-header">
-                <strong>Chat with Users</strong>
-            </div>
-            <div class="chat-messages" id="adminChatMessages">
-                <p style="text-align: center; color: #999;">Select a user to view conversation</p>
-            </div>
-            <div class="chat-input">
-                <input type="text" id="adminMessageInput" placeholder="Type your reply...">
-                <button onclick="sendAdminReply()">Send</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-let selectedUser = null;
-
-async function selectUser(email) {
-    selectedUser = email;
-    document.querySelectorAll('.user-item').forEach(item => item.classList.remove('active'));
-    event.currentTarget.classList.add('active');
-    await loadUserMessages(email);
-}
-
-async function loadUserMessages(email) {
-    try {
-        const response = await fetch('/admin/messages/' + email);
-        const messages = await response.json();
-        
-        const container = document.getElementById('adminChatMessages');
-        container.innerHTML = messages.map(msg => `
-            <div style="margin-bottom: 10px; padding: 10px; background: ${msg.type === 'admin' ? '#e3f2fd' : '#f5f5f5'}; border-radius: 8px;">
-                <strong>${msg.type === 'admin' ? 'Admin' : 'User'}:</strong>
-                ${msg.content}
-                <div style="font-size: 0.8em; color: #999;">${new Date(msg.timestamp).toLocaleString()}</div>
-            </div>
-        `).join('');
-        
-        container.scrollTop = container.scrollHeight;
-    } catch (error) {
-        console.error('Load messages failed:', error);
-    }
-}
-
-async function sendAdminReply() {
-    if (!selectedUser) {
-        alert('Please select a user first');
-        return;
-    }
-    
-    const input = document.getElementById('adminMessageInput');
-    const message = input.value.trim();
-    
-    if (!message) return;
-    
-    try {
-        const response = await fetch('/admin/reply', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({email: selectedUser, message})
-        });
-        
-        if (response.ok) {
-            input.value = '';
-            await loadUserMessages(selectedUser);
-        }
-    } catch (error) {
-        console.error('Reply failed:', error);
-    }
-}
-
-// Auto-refresh
-setInterval(() => {
-    if (selectedUser) loadUserMessages(selectedUser);
-}, 3000);
-</script>
-</body>
-</html>`;
-}
-
-// Server creation
+// ==================== HTTP SERVER ====================
 const server = http.createServer(async (req, res) => {
-    const parsedUrl = url.parse(req.url, true);
-    const pathname = parsedUrl.pathname;
-    const method = req.method;
-    
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    
-    if (method === 'OPTIONS') {
-        res.writeHead(200);
-        res.end();
-        return;
-    }
-    
-    // Serve static assets
-    if (pathname.startsWith('/assets/')) {
-        const filePath = path.join(__dir, pathname);
-        if (fs.existsSync(filePath)) {
-            const ext = path.extname(filePath).toLowerCase();
-            const mimeTypes = {
-                '.html': 'text/html',
-                '.css': 'text/css',
-                '.js': 'text/javascript',
-                '.json': 'application/json',
-                '.png': 'image/png',
-                '.jpg': 'image/jpeg',
-                '.jpeg': 'image/jpeg',
-                '.gif': 'image/gif',
-                '.svg': 'image/svg+xml',
-                '.ico': 'image/x-icon',
-                '.mp3': 'audio/mpeg',
-                '.wav': 'audio/wav',
-                '.mp4': 'video/mp4',
-                '.webm': 'audio/webm'
-            };
-            
-            res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
-            fs.createReadStream(filePath).pipe(res);
-        } else {
-            res.writeHead(404);
-            res.end('File not found');
-        }
-        return;
-    }
-    
-    // Main page
-    if (pathname === '/' || pathname === '/index.html') {
-        const galleryPhotos = await getGalleryPhotos();
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(getMainHTML(galleryPhotos));
-        return;
-    }
-    
-    // Chat page
-    if (pathname === '/chat') {
+    try {
+        const parsedUrl = url.parse(req.url, true);
+        const pathname = parsedUrl.pathname;
         const cookies = parseCookies(req.headers.cookie);
-        const session = getSession(cookies.chat_session);
-        let userData = null;
-        
-        if (session) {
-            userData = await db.collection('chat_users').findOne({ email: session.username });
-        }
-        
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(getChatHTML(userData));
-        return;
-    }
-    
-    // Chat login
-    if (pathname === '/chat/login' && method === 'POST') {
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', async () => {
-            try {
-                const data = JSON.parse(body);
-                const user = await saveChatUser({ name: data.name, email: data.email });
-                const sessionId = createSession(data.email);
-                
+
+        // Static assets
+        if (pathname.startsWith('/assets/')) {
+            const assetPath = path.join(__dir, decodeURIComponent(pathname));
+            if (!assetPath.startsWith(ASSETS_DIR)) {
+                res.writeHead(403);
+                res.end('Forbidden');
+                return;
+            }
+            if (fs.existsSync(assetPath)) {
+                const ext = path.extname(assetPath).toLowerCase();
+                const ct = MIME_TYPES[ext] || 'application/octet-stream';
+                const stat = fs.statSync(assetPath);
                 res.writeHead(200, {
-                    'Content-Type': 'application/json',
-                    'Set-Cookie': `chat_session=${sessionId}; Path=/; HttpOnly; Max-Age=7200`
+                    'Content-Type': ct,
+                    'Content-Length': stat.size,
+                    'Cache-Control': 'public, max-age=86400',
+                    'Accept-Ranges': 'bytes'
                 });
-                res.end(JSON.stringify({ success: true, user }));
-            } catch (error) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Login failed' }));
-            }
-        });
-        return;
-    }
-    
-    // Chat send message
-    if (pathname === '/chat/send' && method === 'POST') {
-        const cookies = parseCookies(req.headers.cookie);
-        const session = getSession(cookies.chat_session);
-        
-        if (!session) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Not logged in' }));
-            return;
-        }
-        
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', async () => {
-            try {
-                const data = JSON.parse(body);
-                await saveChatMessage({
-                    userEmail: session.username,
-                    content: data.message,
-                    type: data.type || 'text',
-                    isAdmin: false
-                });
-                
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true }));
-            } catch (error) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Send failed' }));
-            }
-        });
-        return;
-    }
-    
-    // Chat get messages
-    if (pathname === '/chat/messages') {
-        const cookies = parseCookies(req.headers.cookie);
-        const session = getSession(cookies.chat_session);
-        
-        if (!session) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Not logged in' }));
-            return;
-        }
-        
-        try {
-            const messages = await getChatMessages(session.username);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(messages));
-        } catch (error) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify([]));
-        }
-        return;
-    }
-    
-    // Chat upload image
-    if (pathname === '/chat/upload-image' && method === 'POST') {
-        const form = new formidable.IncomingForm();
-        form.uploadDir = CHAT_UPLOADS_DIR;
-        form.keepExtensions = true;
-        
-        form.parse(req, async (err, fields, files) => {
-            if (err) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Upload failed' }));
-                return;
-            }
-            
-            const cookies = parseCookies(req.headers.cookie);
-            const session = getSession(cookies.chat_session);
-            
-            const imageFile = files.image;
-            const imagePath = '/assets/chat_uploads/' + path.basename(imageFile.filepath);
-            
-            await saveChatMessage({
-                userEmail: session ? session.username : 'anonymous',
-                content: imagePath,
-                type: 'image',
-                isAdmin: false
-            });
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
-        });
-        return;
-    }
-    
-    // Chat upload audio
-    if (pathname === '/chat/upload-audio' && method === 'POST') {
-        const form = new formidable.IncomingForm();
-        form.uploadDir = CHAT_UPLOADS_DIR;
-        form.keepExtensions = true;
-        
-        form.parse(req, async (err, fields, files) => {
-            if (err) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Upload failed' }));
-                return;
-            }
-            
-            const cookies = parseCookies(req.headers.cookie);
-            const session = getSession(cookies.chat_session);
-            
-            const audioFile = files.audio;
-            const audioPath = '/assets/chat_uploads/' + path.basename(audioFile.filepath);
-            
-            await saveChatMessage({
-                userEmail: session ? session.username : 'anonymous',
-                content: audioPath,
-                type: 'audio',
-                isAdmin: false
-            });
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
-        });
-        return;
-    }
-    
-    // Admin panel
-    if (pathname === '/admin') {
-        const cookies = parseCookies(req.headers.cookie);
-        const session = getSession(cookies.admin_session);
-        
-        if (!session) {
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Admin Login</title>
-                    <style>
-                        body {
-                            font-family: Arial, sans-serif;
-                            display: flex;
-                            justify-content: center;
-                            align-items: center;
-                            height: 100vh;
-                            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                        }
-                        .login-box {
-                            background: white;
-                            padding: 40px;
-                            border-radius: 16px;
-                            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-                            width: 350px;
-                        }
-                        h2 { color: #1a1a2e; margin-bottom: 30px; text-align: center; }
-                        input {
-                            width: 100%;
-                            padding: 12px;
-                            margin-bottom: 15px;
-                            border: 1px solid #ddd;
-                            border-radius: 8px;
-                            font-size: 1em;
-                        }
-                        button {
-                            width: 100%;
-                            padding: 12px;
-                            background: #ff6600;
-                            color: white;
-                            border: none;
-                            border-radius: 8px;
-                            font-size: 1em;
-                            font-weight: 600;
-                            cursor: pointer;
-                        }
-                        button:hover { background: #e55a00; }
-                    </style>
-                </head>
-                <body>
-                    <div class="login-box">
-                        <h2>🔐 Admin Login</h2>
-                        <form method="POST" action="/admin/login">
-                            <input type="text" name="username" placeholder="Username" required>
-                            <input type="password" name="password" placeholder="Password" required>
-                            <button type="submit">Login</button>
-                        </form>
-                    </div>
-                </body>
-                </html>
-            `);
-            return;
-        }
-        
-        const chatUsers = await getAllChatUsers();
-        const messages = await getChatMessages('all');
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(getAdminHTML(chatUsers, messages));
-        return;
-    }
-    
-    // Admin login
-    if (pathname === '/admin/login' && method === 'POST') {
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', async () => {
-            const params = new URLSearchParams(body);
-            const username = params.get('username');
-            const password = params.get('password');
-            
-            const isValid = await verifyAdmin(username, password);
-            
-            if (isValid) {
-                const sessionId = createSession(username);
-                res.writeHead(302, {
-                    'Location': '/admin',
-                    'Set-Cookie': `admin_session=${sessionId}; Path=/; HttpOnly; Max-Age=7200`
-                });
-                res.end();
+                fs.createReadStream(assetPath).pipe(res);
             } else {
+                res.writeHead(404);
+                res.end('Not Found');
+            }
+            return;
+        }
+
+        // Admin routes
+        if (pathname === '/admin' && req.method === 'GET') {
+            const s = getSession(cookies.sessionId);
+            if (s) {
+                const p = await getGalleryPhotos();
+                res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                res.end(getAdminPanelHTML(p));
+                return;
+            }
+            res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+            res.end(getAdminLoginHTML());
+            return;
+        }
+
+        if (pathname === '/admin/login' && req.method === 'POST') {
+            let body = '';
+            req.on('data', c => body += c);
+            req.on('end', async () => {
+                try {
+                    const params = new URLSearchParams(body);
+                    if (await verifyAdmin(params.get('username'), params.get('password'))) {
+                        const sid = createSession(params.get('username'));
+                        res.writeHead(302, {
+                            'Location': '/admin',
+                            'Set-Cookie': `sessionId=${sid};HttpOnly;Path=/;Max-Age=7200;SameSite=Lax`
+                        });
+                        res.end();
+                    } else {
+                        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                        res.end(getAdminLoginHTML('Invalid credentials'));
+                    }
+                } catch (e) {
+                    res.writeHead(500);
+                    res.end('Server Error');
+                }
+            });
+            return;
+        }
+
+        if (pathname === '/admin/logout') {
+            sessions.delete(cookies.sessionId);
+            res.writeHead(302, {
+                'Location': '/admin',
+                'Set-Cookie': 'sessionId=;HttpOnly;Path=/;Max-Age=0'
+            });
+            res.end();
+            return;
+        }
+
+        if (pathname === '/admin/upload' && req.method === 'POST') {
+            if (!getSession(cookies.sessionId)) {
                 res.writeHead(302, { 'Location': '/admin' });
                 res.end();
-            }
-        });
-        return;
-    }
-    
-    // Admin logout
-    if (pathname === '/admin/logout') {
-        res.writeHead(302, {
-            'Location': '/admin',
-            'Set-Cookie': 'admin_session=; Path=/; Max-Age=0'
-        });
-        res.end();
-        return;
-    }
-    
-    // Admin get user messages
-    if (pathname.startsWith('/admin/messages/')) {
-        const userEmail = pathname.split('/')[3];
-        const messages = await getChatMessages(userEmail);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(messages));
-        return;
-    }
-    
-    // Admin reply to user
-    if (pathname === '/admin/reply' && method === 'POST') {
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', async () => {
-            try {
-                const data = JSON.parse(body);
-                await saveChatMessage({
-                    userEmail: data.email,
-                    content: data.message,
-                    type: 'text',
-                    isAdmin: true
-                });
-                
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true }));
-            } catch (error) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Reply failed' }));
-            }
-        });
-        return;
-    }
-    
-    // Admin gallery upload
-    if (pathname === '/admin/gallery/upload' && method === 'POST') {
-        const form = new formidable.IncomingForm();
-        form.uploadDir = GALLERY_DIR;
-        form.keepExtensions = true;
-        
-        form.parse(req, async (err, fields, files) => {
-            if (err) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Upload failed' }));
                 return;
             }
-            
-            const photoFile = files.photo;
-            const photoPath = '/assets/gallery/' + path.basename(photoFile.filepath);
-            const caption = fields.caption || '';
-            
-            await savePhoto({ path: photoPath, caption });
-            
-            res.writeHead(302, { 'Location': '/admin' });
-            res.end();
-        });
-        return;
+            const form = new formidable.IncomingForm({
+                uploadDir: GALLERY_DIR,
+                keepExtensions: true,
+                maxFileSize: 10 * 1024 * 1024
+            });
+            form.parse(req, async (err, fields, files) => {
+                if (err) {
+                    const p = await getGalleryPhotos();
+                    res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                    res.end(getAdminPanelHTML(p, '', 'Upload error'));
+                    return;
+                }
+                const pf = Array.isArray(files.photo) ? files.photo[0] : files.photo;
+                if (!pf || !pf.originalFilename) {
+                    const p = await getGalleryPhotos();
+                    res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                    res.end(getAdminPanelHTML(p, '', 'No file'));
+                    return;
+                }
+                const ext = path.extname(pf.originalFilename).toLowerCase();
+                if (!['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+                    const p = await getGalleryPhotos();
+                    res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                    res.end(getAdminPanelHTML(p, '', 'Invalid format'));
+                    return;
+                }
+                const fn = Date.now() + '_' + pf.originalFilename.replace(/[^a-zA-Z0-9.]/g, '_');
+                try {
+                    fs.renameSync(pf.filepath, path.join(GALLERY_DIR, fn));
+                    await savePhoto({
+                        path: '/assets/gallery/' + fn,
+                        caption: fields.caption ? (Array.isArray(fields.caption) ? fields.caption[0] : fields.caption) : ''
+                    });
+                    const p = await getGalleryPhotos();
+                    res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                    res.end(getAdminPanelHTML(p, 'Uploaded!'));
+                } catch (e) {
+                    const p = await getGalleryPhotos();
+                    res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                    res.end(getAdminPanelHTML(p, '', 'Save error'));
+                }
+            });
+            return;
+        }
+
+        if (pathname === '/admin/delete' && req.method === 'POST') {
+            if (!getSession(cookies.sessionId)) {
+                res.writeHead(302, { 'Location': '/admin' });
+                res.end();
+                return;
+            }
+            let body = '';
+            req.on('data', c => body += c);
+            req.on('end', async () => {
+                try {
+                    const params = new URLSearchParams(body);
+                    if (dbConnected && db) {
+                        const photo = await db.collection('gallery_photos').findOne({ _id: new ObjectId(params.get('photoId')) });
+                        if (photo) {
+                            const fp = path.join(__dir, photo.path);
+                            if (fs.existsSync(fp)) fs.unlinkSync(fp);
+                        }
+                        await deletePhoto(params.get('photoId'));
+                    }
+                    const p = await getGalleryPhotos();
+                    res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                    res.end(getAdminPanelHTML(p, 'Deleted'));
+                } catch (e) {
+                    const p = await getGalleryPhotos();
+                    res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+                    res.end(getAdminPanelHTML(p, '', 'Delete error'));
+                }
+            });
+            return;
+        }
+
+        // Chat API routes
+        if (pathname === '/chat/login' && req.method === 'POST') {
+            let body = '';
+            req.on('data', c => body += c);
+            req.on('end', async () => {
+                try {
+                    const { name, email } = JSON.parse(body);
+                    if (!dbConnected || !db) {
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, user: { _id: 'guest_' + Date.now(), name, email } }));
+                        return;
+                    }
+                    let user = await db.collection('chat_users').findOne({ email });
+                    if (!user) {
+                        const result = await db.collection('chat_users').insertOne({ name, email, createdAt: new Date() });
+                        user = { _id: result.insertedId.toString(), name, email };
+                    } else {
+                        user = { _id: user._id.toString(), name: user.name, email: user.email };
+                    }
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, user }));
+                } catch (e) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, error: 'Server error' }));
+                }
+            });
+            return;
+        }
+
+        if (pathname === '/chat/messages' && req.method === 'GET') {
+            const userId = parsedUrl.query.userId;
+            if (!dbConnected || !db) {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ messages: [] }));
+                return;
+            }
+            try {
+                const messages = await db.collection('chat_messages').find({
+                    $or: [{ userId }, { senderId: userId }]
+                }).sort({ timestamp: 1 }).limit(100).toArray();
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ messages: messages.map(m => ({ ...m, _id: m._id.toString() })) }));
+            } catch (e) {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ messages: [] }));
+            }
+            return;
+        }
+
+        // Main page
+        if (pathname === '/' || pathname === '/index.html') {
+            const photos = await getGalleryPhotos();
+            res.writeHead(200, {
+                'Content-Type': 'text/html;charset=utf-8',
+                'Cache-Control': 'public, max-age=3600'
+            });
+            res.end(getMainHTML(photos));
+            return;
+        }
+
+        // 404
+        res.writeHead(404, { 'Content-Type': 'text/html;charset=utf-8' });
+        res.end(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>404</title><style>body{background:#f8fafc;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center}h1{font-size:100px;color:#ff6600}</style></head><body><div><h1>404</h1><p>Page not found</p><a href="/">Go Home</a></div></body></html>`);
+    } catch (err) {
+        console.error('Request error:', err.message);
+        if (!res.headersSent) {
+            res.writeHead(500, { 'Content-Type': 'text/html;charset=utf-8' });
+            res.end('<h1>500 Internal Server Error</h1>');
+        }
     }
-    
-    // Admin gallery delete
-    if (pathname.startsWith('/admin/gallery/delete/') && method === 'GET') {
-        const photoId = pathname.split('/')[4];
-        await deletePhoto(photoId);
-        res.writeHead(302, { 'Location': '/admin' });
-        res.end();
-        return;
-    }
-    
-    // 404
-    res.writeHead(404, { 'Content-Type': 'text/html' });
-    res.end('<h1>404 - Page Not Found</h1>');
 });
 
-// Start server
-server.listen(PORT, async () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    const dbConnected = await connectDB();
-    if (dbConnected) {
-        console.log('📦 Connected to MongoDB');
+// ==================== STARTUP ====================
+async function start() {
+    console.log('='.repeat(50));
+    console.log('🚀 Baiilla Maach Verification Hub');
+    console.log('='.repeat(50));
+    console.log(`📅 Started at: ${new Date().toISOString()}`);
+    console.log(`🌍 Environment: ${NODE_ENV}`);
+    console.log(`🔌 Port: ${PORT}`);
+    console.log(`💾 MongoDB: ${MONGO_URI ? 'Configured' : 'Not configured'}`);
+    
+    // Connect to database
+    await connectDB();
+    
+    // Start HTTP server
+    server.listen(PORT, () => {
+        console.log(`✅ Server running on port ${PORT}`);
+        console.log(`📍 Local: http://localhost:${PORT}`);
+        console.log('='.repeat(50));
+    });
+}
+
+// Handle port in use
+server.on('error', (e) => {
+    if (e.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use. Please use a different port.`);
+        process.exit(1);
     } else {
-        console.log('⚠️ Running without database');
+        console.error('❌ Server error:', e.message);
     }
 });
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('📴 SIGTERM received. Shutting down gracefully...');
+    server.close(() => {
+        if (mongoClient) mongoClient.close();
+        console.log('✅ Server closed');
+        process.exit(0);
+    });
+});
+
+start();
