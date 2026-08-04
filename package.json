@@ -1,15 +1,27 @@
 {
-  "name": "verification-hub",
-  "version": "1.0.0",
-  "description": "Celebrity Verification Hub with Admin Panel",
+  "name": "baiilla-maach-verification-hub",
+  "version": "2.0.0",
+  "description": "Baiilla Maach Official Verification Hub - Advanced with Chat, Music, Gallery",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "mongodb": "^6.3.0",
-    "formidable": "^3.5.1",
-    "bcryptjs": "^2.4.3"
-  }
+    "bcryptjs": "^2.4.3",
+    "formidable": "^3.5.1"
+  },
+  "author": "Baiilla Maach Official",
+  "license": "ISC",
+  "keywords": [
+    "verification",
+    "tiktok",
+    "facebook",
+    "chat",
+    "music"
+  ]
 }
