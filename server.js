@@ -316,7 +316,7 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
     <img src="${ASSETS.profile}" alt="Baiilla Maach" onerror="this.style.display='none'">
     <div class="verified-icon"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
   </div>
-  <h1>Baiilla Maach</h1>
+  <h1>Hammad Bin Amir</h1>
   <p class="username">@baiillamaach_official</p>
   <p class="bio">Official Entertainment Profile · Verified Creator</p>
   <div class="hero-stats">
