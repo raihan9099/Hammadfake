@@ -1,4 +1,5 @@
 require('dotenv').config();
+
 process.on('uncaughtException', (e) => { 
     console.error('❌ Uncaught Exception:', e.message);
     console.error(e.stack);
@@ -6,13 +7,6 @@ process.on('uncaughtException', (e) => {
 process.on('unhandledRejection', (e) => { 
     console.error('❌ Unhandled Rejection:', e);
     console.error(e.stack);
-});
-process.on('SIGTERM', () => {
-    console.log('👋 SIGTERM received. Shutting down gracefully...');
-    server.close(() => {
-        console.log('💤 Server closed');
-        process.exit(0);
-    });
 });
 
 const express = require('express');
@@ -444,9 +438,6 @@ const checkAssets = () => {
 // ============================================
 // UTILITY FUNCTIONS
 // ============================================
-const WELCOME_VOICE = fs.existsSync(path.join(__dirname, 'assets/realvoice.mp3'));
-const MANUAL_VOICE = fs.existsSync(path.join(__dirname, 'assets/manualvoice_alert.mp3'));
-
 function getSongs() {
     try {
         const dir = path.join(__dirname, 'assets/covermusic');
@@ -474,30 +465,6 @@ function getSongs() {
 
 function generateToken() {
     return crypto.randomBytes(32).toString('hex');
-}
-
-function formatDate(date) {
-    return new Date(date).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
-}
-
-function formatTime(date) {
-    return new Date(date).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-    });
-}
-
-function getFileSize(bytes) {
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    if (bytes === 0) return '0 Bytes';
-    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
-    return Math.round(bytes / Math.pow(1024, i), 2) + ' ' + sizes[i];
 }
 
 // ============================================
@@ -575,9 +542,6 @@ app.get('/', async (req, res) => {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
 <style>
-/* ============================================
-   CSS VARIABLES & ROOT CONFIGURATION
-   ============================================ */
 :root {
   --white: #ffffff;
   --bg: #f8f9fb;
@@ -614,9 +578,6 @@ app.get('/', async (req, res) => {
   --radius-full: 9999px;
 }
 
-/* ============================================
-   GLOBAL RESET & BASE STYLES
-   ============================================ */
 *, *::before, *::after {
   margin: 0;
   padding: 0;
@@ -662,9 +623,6 @@ input {
   outline: none;
 }
 
-/* ============================================
-   SCROLLBAR STYLES
-   ============================================ */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -684,9 +642,6 @@ input {
   background: var(--gray400);
 }
 
-/* ============================================
-   NAVIGATION BAR
-   ============================================ */
 .nav {
   position: sticky;
   top: 0;
@@ -786,9 +741,6 @@ input {
   height: 16px;
 }
 
-/* ============================================
-   HERO SECTION
-   ============================================ */
 .hero {
   padding: 80px 24px 60px;
   text-align: center;
@@ -967,9 +919,6 @@ input {
   box-shadow: var(--shadow-lg);
 }
 
-/* ============================================
-   SECTION STYLES
-   ============================================ */
 .section {
   padding: 80px 24px;
   position: relative;
@@ -1014,9 +963,6 @@ input {
   font-size: 0.95em;
 }
 
-/* ============================================
-   VERIFIED CARDS
-   ============================================ */
 .verified-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -1150,9 +1096,6 @@ input {
   box-shadow: 0 4px 12px rgba(59,130,246,0.3);
 }
 
-/* ============================================
-   FAKE CARDS
-   ============================================ */
 .fake-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -1265,7 +1208,205 @@ input {
   height: 16px;
 }
 
-/* Continue with more styles... */
+.music-player {
+  display: flex;
+  gap: 24px;
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.music-cover {
+  flex: 0 0 120px;
+}
+
+.music-cover img {
+  width: 120px;
+  height: 120px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.music-info {
+  flex: 1;
+  min-width: 200px;
+}
+
+.music-info h4 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.2em;
+  font-weight: 600;
+  color: var(--gray900);
+  margin-bottom: 2px;
+}
+
+.music-info p {
+  color: var(--gray500);
+  font-size: 0.9em;
+  margin-bottom: 12px;
+}
+
+.music-ctrls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.music-ctrls button {
+  background: var(--gray100);
+  border: none;
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  font-size: 1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  color: var(--gray700);
+}
+
+.music-ctrls button:hover {
+  background: var(--gray200);
+}
+
+.music-ctrls .btn-play {
+  background: var(--orange);
+  color: var(--white);
+  width: 44px;
+  height: 44px;
+  font-size: 1.2em;
+}
+
+.music-ctrls .btn-play:hover {
+  background: var(--orange-dark);
+  transform: scale(1.05);
+}
+
+.music-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--gray200);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+}
+
+.music-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--orange), var(--orange-dark));
+  border-radius: 4px;
+  width: 0%;
+  transition: width 0.1s;
+}
+
+.music-time {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75em;
+  color: var(--gray400);
+  margin-top: 4px;
+}
+
+.music-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.music-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray200);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.music-item:hover {
+  background: var(--gray50);
+  border-color: var(--orange);
+}
+
+.music-item span {
+  color: var(--gray400);
+  font-weight: 600;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+}
+
+.music-item div {
+  color: var(--gray700);
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.music-item.active {
+  border-color: var(--orange);
+  background: var(--orange-light);
+}
+
+.footer {
+  background: var(--gray900);
+  color: var(--white);
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.footer a {
+  color: var(--orange);
+  transition: 0.2s;
+}
+
+.footer a:hover {
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .hero h1 {
+    font-size: 1.8em;
+  }
+  .hero-stats {
+    gap: 16px;
+  }
+  .hero-stat .num {
+    font-size: 1.3em;
+  }
+  .section-heading {
+    font-size: 1.5em;
+  }
+  .verified-grid,
+  .fake-grid {
+    grid-template-columns: 1fr;
+  }
+  .music-player {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  .music-cover {
+    flex: 0 0 auto;
+    margin: 0 auto;
+  }
+  .music-ctrls {
+    justify-content: center;
+  }
+  .nav-links {
+    gap: 6px;
+  }
+  .nav-chat, .nav-admin {
+    padding: 6px 12px;
+    font-size: 0.75em;
+  }
+}
 </style>
 </head>
 <body>
@@ -1277,7 +1418,7 @@ input {
       <span>Baiilla Maach</span>
     </a>
     <div class="nav-links">
-      <a href="/messenger" class="nav-admin">⚡ Admin Panel</a>
+      <a href="/admin" class="nav-admin">⚡ Admin Panel</a>
       <a href="#" class="nav-chat" onclick="openChat();return false;">
         💬 Chat Support
       </a>
@@ -1365,14 +1506,557 @@ input {
   </div>
 </section>
 
-<!-- More sections continue... -->
+<section class="section bg-red">
+  <div class="container">
+    <div class="section-label">⚠️ FAKE ALERT</div>
+    <h2 class="section-heading">Beware of Fake Accounts</h2>
+    <p class="section-desc">These accounts are impersonating Baiilla Maach. Report them immediately.</p>
+    <div class="fake-grid">
+      <div class="fake-card">
+        <div class="fake-img-container">
+          <img src="${ASSETS.baillamachFake}" class="fake-img" alt="Fake Account Screenshot" onerror="this.style.display='none'">
+          <img src="${ASSETS.fakeDetect}" class="fake-detect" alt="Fake Detected">
+        </div>
+        <div class="fake-info">
+          <h3>@baiilla_mach</h3>
+          <p class="plat">📱 TikTok</p>
+          <p>Copies official logo and content to deceive followers into thinking it's the real account.</p>
+          <a href="https://tiktok.com/@baiilla_mach" target="_blank" class="report-btn">
+            <img src="${ASSETS.reportBtn}" alt="Report"> Report Fake Account
+          </a>
+        </div>
+      </div>
+      <div class="fake-card">
+        <div class="fake-img-container">
+          <img src="${ASSETS.hammadFake}" class="fake-img" alt="Fake Account Screenshot" onerror="this.style.display='none'">
+          <img src="${ASSETS.fakeDetect}" class="fake-detect" alt="Fake Detected">
+        </div>
+        <div class="fake-info">
+          <h3>@hammad_fams0</h3>
+          <p class="plat">📱 TikTok</p>
+          <p>Uses official name and photo to mislead followers into thinking it's the real Hammad Bin Amir.</p>
+          <a href="https://tiktok.com/@hammad_fams0" target="_blank" class="report-btn">
+            <img src="${ASSETS.reportBtn}" alt="Report"> Report Fake Account
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+${musicHTML}
+
+<section class="section bg-gray">
+  <div class="container">
+    <div class="section-label">🛡️ SAFETY</div>
+    <h2 class="section-heading">How to Stay Safe</h2>
+    <p class="section-desc">Follow these tips to avoid falling for fake accounts</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;">
+      <div style="background:var(--white);padding:24px;border-radius:var(--radius);border:1px solid var(--gray200);text-align:center;">
+        <div style="font-size:2.5em;margin-bottom:10px;">✅</div>
+        <h4 style="font-family:'Outfit',sans-serif;font-weight:600;">Check the Blue Tick</h4>
+        <p style="color:var(--gray500);font-size:0.9em;margin-top:6px;">Official accounts have a verified blue checkmark on all platforms.</p>
+      </div>
+      <div style="background:var(--white);padding:24px;border-radius:var(--radius);border:1px solid var(--gray200);text-align:center;">
+        <div style="font-size:2.5em;margin-bottom:10px;">🔍</div>
+        <h4 style="font-family:'Outfit',sans-serif;font-weight:600;">Verify the Username</h4>
+        <p style="color:var(--gray500);font-size:0.9em;margin-top:6px;">Official account is @baiillamaach_official. Any variation is likely fake.</p>
+      </div>
+      <div style="background:var(--white);padding:24px;border-radius:var(--radius);border:1px solid var(--gray200);text-align:center;">
+        <div style="font-size:2.5em;margin-bottom:10px;">🚨</div>
+        <h4 style="font-family:'Outfit',sans-serif;font-weight:600;">Report Fakes</h4>
+        <p style="color:var(--gray500);font-size:0.9em;margin-top:6px;">Help keep the community safe by reporting impersonator accounts.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <p style="font-size:0.9em;font-weight:500;">© 2026 Baiilla Maach Official · All Rights Reserved</p>
+    <p style="color:var(--gray400);font-size:0.75em;margin-top:8px;">
+      Verified Creator · Hammad Bin Amir · ${APP_CONFIG.name}
+    </p>
+    <div style="display:flex;justify-content:center;gap:16px;margin-top:12px;flex-wrap:wrap;">
+      <a href="https://tiktok.com/@baiillamaach_official" target="_blank" style="color:var(--gray400);">TikTok</a>
+      <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" style="color:var(--gray400);">Facebook</a>
+    </div>
+  </div>
+</footer>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-// Complete JavaScript functionality
+let socket = null;
+let isChatOpen = false;
+
+function openChat() {
+  if (isChatOpen) return;
+  isChatOpen = true;
+  
+  // Simple chat implementation
+  const username = prompt('Enter your name to start chatting:') || 'Guest';
+  
+  // Create chat UI
+  const chatContainer = document.createElement('div');
+  chatContainer.id = 'chatContainer';
+  chatContainer.style.cssText = \`
+    position: fixed; bottom: 20px; right: 20px; width: 350px; max-width: 90vw;
+    height: 450px; background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    display: flex; flex-direction: column; z-index: 9999; border: 1px solid #e5e7eb;
+    font-family: 'Inter', sans-serif; overflow: hidden; animation: slideUp 0.3s ease;
+  \`;
+  
+  chatContainer.innerHTML = \`
+    <div style="padding:16px 20px; background: linear-gradient(135deg, #f97316, #ea580c); color: white; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+      <span style="font-weight:600;font-family:'Outfit',sans-serif;">💬 Chat Support</span>
+      <button onclick="closeChat()" style="background:none;border:none;color:white;font-size:1.2em;cursor:pointer;">✕</button>
+    </div>
+    <div id="chatMessages" style="flex:1;overflow-y:auto;padding:16px;background:#f9fafb;"></div>
+    <div style="padding:12px;background:white;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0;">
+      <input id="chatInput" type="text" placeholder="Type a message..." style="flex:1;padding:10px 14px;border:1px solid #e5e7eb;border-radius:24px;font-size:0.9em;outline:none;">
+      <button onclick="sendChatMessage()" style="background:#f97316;color:white;border:none;border-radius:50%;width:42px;height:42px;font-size:1.1em;cursor:pointer;transition:0.2s;flex-shrink:0;">➤</button>
+    </div>
+  \`;
+  
+  document.body.appendChild(chatContainer);
+  
+  // Add animation style
+  const style = document.createElement('style');
+  style.textContent = \`
+    @keyframes slideUp {
+      from { opacity:0; transform: translateY(20px) scale(0.95); }
+      to { opacity:1; transform: translateY(0) scale(1); }
+    }
+  \`;
+  document.head.appendChild(style);
+  
+  // Connect to socket
+  socket = io();
+  
+  socket.on('connect', () => {
+    console.log('Connected to chat server');
+    socket.emit('user-join', { username });
+    addChatMessage('System', 'Connected to support!', '#10b981');
+  });
+  
+  socket.on('message', (data) => {
+    if (data.sender === 'System') {
+      addChatMessage('System', data.text, '#6b7280');
+    } else {
+      addChatMessage(data.sender, data.text, '#1f2937');
+    }
+  });
+  
+  // Enter key to send
+  document.getElementById('chatInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendChatMessage();
+  });
+}
+
+function closeChat() {
+  const container = document.getElementById('chatContainer');
+  if (container) container.remove();
+  isChatOpen = false;
+  if (socket) socket.disconnect();
+}
+
+function sendChatMessage() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  
+  const username = document.querySelector('#chatContainer div:first-child span').textContent.replace('💬 Chat Support', '').trim() || 'Guest';
+  socket.emit('message', { text: msg });
+  addChatMessage('You', msg, '#f97316');
+  input.value = '';
+}
+
+function addChatMessage(sender, text, color) {
+  const container = document.getElementById('chatMessages');
+  if (!container) return;
+  
+  const div = document.createElement('div');
+  div.style.cssText = \`
+    margin-bottom: 8px; display: flex; flex-direction: column;
+    align-items: \${sender === 'You' ? 'flex-end' : 'flex-start'};
+  \`;
+  
+  div.innerHTML = \`
+    <span style="font-size:0.7em;font-weight:600;color:\${color};margin-bottom:2px;">\${sender}</span>
+    <span style="background:\${sender === 'You' ? '#f97316' : 'white'};color:\${sender === 'You' ? 'white' : '#1f2937'};padding:8px 14px;border-radius:16px;border-bottom-\${sender === 'You' ? 'right' : 'left'}-radius:4px;max-width:85%;word-wrap:break-word;font-size:0.9em;box-shadow:0 1px 2px rgba(0,0,0,0.05);">\${text}</span>
+  \`;
+  
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+// Music Player
+let songs = ${JSON.stringify(songs)};
+let currentTrack = 0;
+let isPlaying = false;
+let audio = null;
+
+function playTrack(index) {
+  if (!songs.length) return;
+  if (index < 0) index = songs.length - 1;
+  if (index >= songs.length) index = 0;
+  currentTrack = index;
+  
+  document.querySelectorAll('.music-item').forEach(el => el.classList.remove('active'));
+  const trackEl = document.getElementById('track-' + index);
+  if (trackEl) trackEl.classList.add('active');
+  
+  document.getElementById('trackTitle').textContent = songs[index].title;
+  
+  if (audio) {
+    audio.pause();
+    audio = null;
+  }
+  
+  audio = new Audio(songs[index].url);
+  audio.addEventListener('loadedmetadata', () => {
+    document.getElementById('duration').textContent = formatTime(audio.duration);
+  });
+  audio.addEventListener('timeupdate', () => {
+    const progress = (audio.currentTime / audio.duration) * 100;
+    document.getElementById('progressBar').style.width = progress + '%';
+    document.getElementById('currentTime').textContent = formatTime(audio.currentTime);
+  });
+  audio.addEventListener('ended', () => {
+    isPlaying = false;
+    document.getElementById('playBtn').textContent = '▶️';
+    nextTrack();
+  });
+  
+  audio.play();
+  isPlaying = true;
+  document.getElementById('playBtn').textContent = '⏸️';
+}
+
+function togglePlay() {
+  if (!audio) {
+    playTrack(currentTrack);
+    return;
+  }
+  
+  if (isPlaying) {
+    audio.pause();
+    isPlaying = false;
+    document.getElementById('playBtn').textContent = '▶️';
+  } else {
+    audio.play();
+    isPlaying = true;
+    document.getElementById('playBtn').textContent = '⏸️';
+  }
+}
+
+function prevTrack() {
+  playTrack(currentTrack - 1);
+}
+
+function nextTrack() {
+  playTrack(currentTrack + 1);
+}
+
+function seekTrack(e) {
+  if (!audio) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pos = (e.clientX - rect.left) / rect.width;
+  audio.currentTime = pos * audio.duration;
+}
+
+function formatTime(seconds) {
+  if (isNaN(seconds) || !isFinite(seconds)) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+// Initialize first track if available
+if (songs.length > 0) {
+  setTimeout(() => playTrack(0), 500);
+}
+
+// SafeZone button
+console.log('🛡️ Baiilla Maach Verification Hub loaded successfully!');
 </script>
 </body>
 </html>`);
 });
 
-// Continue with more routes and WebSocket handling...
+// ============================================
+// ADMIN ROUTES
+// ============================================
+app.get('/admin', (req, res) => {
+    res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel - Baiilla Maach</title>
+<style>
+  body { font-family: 'Inter', sans-serif; background: #f8f9fb; margin:0; padding:40px 20px; display:flex; justify-content:center; align-items:center; min-height:100vh; }
+  .admin-panel { background:white; border-radius:16px; padding:40px; max-width:400px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.1); }
+  h1 { font-family:'Outfit',sans-serif; font-size:1.5em; margin-bottom:8px; color:#1f2937; }
+  p { color:#6b7280; font-size:0.9em; margin-bottom:24px; }
+  input { width:100%; padding:12px 16px; border:1px solid #e5e7eb; border-radius:10px; margin-bottom:12px; font-size:0.95em; box-sizing:border-box; }
+  button { width:100%; padding:12px; background:#f97316; color:white; border:none; border-radius:10px; font-weight:600; font-size:1em; cursor:pointer; transition:0.2s; }
+  button:hover { background:#ea580c; transform:translateY(-2px); box-shadow:0 4px 12px rgba(249,115,22,0.3); }
+  .error { color:#ef4444; font-size:0.85em; margin-top:8px; display:none; }
+  .success { color:#10b981; font-size:0.85em; margin-top:8px; display:none; }
+</style>
+</head>
+<body>
+<div class="admin-panel">
+  <h1>⚡ Admin Panel</h1>
+  <p>Enter your credentials to access the admin dashboard</p>
+  <form id="adminForm">
+    <input type="text" id="username" placeholder="Username" value="admin" required>
+    <input type="password" id="password" placeholder="Password" required>
+    <div class="error" id="errorMsg">Invalid credentials. Please try again.</div>
+    <div class="success" id="successMsg">✅ Login successful! Redirecting...</div>
+    <button type="submit">Login</button>
+  </form>
+</div>
+<script>
+document.getElementById('adminForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  
+  const errorMsg = document.getElementById('errorMsg');
+  const successMsg = document.getElementById('successMsg');
+  errorMsg.style.display = 'none';
+  successMsg.style.display = 'none';
+  
+  if (username === 'admin' && password === 'admin123') {
+    successMsg.style.display = 'block';
+    setTimeout(() => {
+      window.location.href = '/admin/dashboard';
+    }, 1500);
+  } else {
+    errorMsg.style.display = 'block';
+  }
+});
+</script>
+</body>
+</html>
+    `);
+});
+
+app.get('/admin/dashboard', (req, res) => {
+    res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - Baiilla Maach Admin</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',sans-serif; background:#f8f9fb; padding:20px; }
+  .dashboard { max-width:1200px; margin:0 auto; }
+  .header { display:flex; justify-content:space-between; align-items:center; padding:20px 0; border-bottom:1px solid #e5e7eb; margin-bottom:30px; }
+  .header h1 { font-family:'Outfit',sans-serif; font-weight:700; color:#1f2937; }
+  .header a { background:#f97316; color:white; padding:8px 20px; border-radius:24px; text-decoration:none; font-weight:600; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:20px; margin-bottom:30px; }
+  .stat-card { background:white; padding:20px; border-radius:12px; border:1px solid #e5e7eb; text-align:center; }
+  .stat-card .num { font-size:2em; font-weight:700; color:#1f2937; }
+  .stat-card .label { color:#6b7280; font-size:0.85em; }
+  .section { background:white; border-radius:12px; border:1px solid #e5e7eb; padding:20px; margin-bottom:20px; }
+  .section h2 { font-size:1.1em; margin-bottom:12px; color:#1f2937; }
+  .section table { width:100%; border-collapse:collapse; font-size:0.9em; }
+  .section th { text-align:left; padding:8px 12px; background:#f9fafb; border-bottom:2px solid #e5e7eb; }
+  .section td { padding:8px 12px; border-bottom:1px solid #f3f4f6; }
+  .section tr:hover { background:#f9fafb; }
+  .badge { background:#10b981; color:white; padding:2px 10px; border-radius:12px; font-size:0.7em; font-weight:600; }
+  .badge.warning { background:#f59e0b; }
+  .btn { background:#f97316; color:white; border:none; padding:6px 16px; border-radius:8px; cursor:pointer; font-weight:500; transition:0.2s; }
+  .btn:hover { background:#ea580c; }
+</style>
+</head>
+<body>
+<div class="dashboard">
+  <div class="header">
+    <h1>⚡ Admin Dashboard</h1>
+    <a href="/">← Back to Site</a>
+  </div>
+  
+  <div class="stats" id="stats">
+    <div class="stat-card"><div class="num" id="userCount">0</div><div class="label">Total Users</div></div>
+    <div class="stat-card"><div class="num" id="msgCount">0</div><div class="label">Total Messages</div></div>
+    <div class="stat-card"><div class="num" id="onlineCount">0</div><div class="label">Users Online</div></div>
+  </div>
+  
+  <div class="section">
+    <h2>👥 Recent Users</h2>
+    <div id="userList"><p style="color:#6b7280;">Loading users...</p></div>
+  </div>
+  
+  <div class="section">
+    <h2>📨 Recent Messages</h2>
+    <div id="msgList"><p style="color:#6b7280;">Loading messages...</p></div>
+  </div>
+</div>
+
+<script>
+async function fetchStats() {
+  try {
+    const res = await fetch('/api/admin/stats');
+    const data = await res.json();
+    document.getElementById('userCount').textContent = data.users || 0;
+    document.getElementById('msgCount').textContent = data.messages || 0;
+    document.getElementById('onlineCount').textContent = data.online || 0;
+  } catch(e) { console.error('Stats error:', e); }
+}
+
+async function fetchUsers() {
+  try {
+    const res = await fetch('/api/admin/users');
+    const users = await res.json();
+    const container = document.getElementById('userList');
+    if (!users.length) {
+      container.innerHTML = '<p style="color:#6b7280;">No users registered yet.</p>';
+      return;
+    }
+    let html = '<table><tr><th>Name</th><th>Email</th><th>Status</th><th>Joined</th></tr>';
+    users.forEach(u => {
+      html += \`<tr><td>\${u.name}</td><td>\${u.email}</td><td><span class="badge \${u.isOnline ? '' : 'warning'}">\${u.isOnline ? '🟢 Online' : '⚪ Offline'}</span></td><td>\${new Date(u.createdAt).toLocaleDateString()}</td></tr>\`;
+    });
+    html += '</table>';
+    container.innerHTML = html;
+  } catch(e) { console.error('Users error:', e); }
+}
+
+async function fetchMessages() {
+  try {
+    const res = await fetch('/api/admin/messages');
+    const msgs = await res.json();
+    const container = document.getElementById('msgList');
+    if (!msgs.length) {
+      container.innerHTML = '<p style="color:#6b7280;">No messages yet.</p>';
+      return;
+    }
+    let html = '<table><tr><th>From</th><th>To</th><th>Message</th><th>Time</th></tr>';
+    msgs.slice(0, 10).forEach(m => {
+      const msg = m.message?.substring(0, 50) + (m.message?.length > 50 ? '...' : '');
+      html += \`<tr><td>\${m.sender}</td><td>\${m.receiver}</td><td>\${msg || '(file)'}</td><td>\${new Date(m.timestamp).toLocaleString()}</td></tr>\`;
+    });
+    html += '</table>';
+    container.innerHTML = html;
+  } catch(e) { console.error('Messages error:', e); }
+}
+
+fetchStats();
+fetchUsers();
+fetchMessages();
+
+setInterval(fetchStats, 10000);
+</script>
+</body>
+</html>
+    `);
+});
+
+// ============================================
+// API ROUTES
+// ============================================
+app.get('/api/admin/stats', async (req, res) => {
+    try {
+        const users = await User.countDocuments();
+        const messages = await Message.countDocuments();
+        const online = await User.countDocuments({ isOnline: true });
+        res.json({ users, messages, online });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const users = await User.find().sort({ createdAt: -1 }).limit(20);
+        res.json(users);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/messages', async (req, res) => {
+    try {
+        const messages = await Message.find().sort({ timestamp: -1 }).limit(20);
+        res.json(messages);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ============================================
+// WEBSOCKET HANDLERS
+// ============================================
+const onlineUsers = new Map();
+
+io.on('connection', (socket) => {
+    console.log('🔌 New client connected:', socket.id);
+    let username = 'Guest';
+    
+    socket.on('user-join', (data) => {
+        username = data.username || 'Guest';
+        onlineUsers.set(socket.id, username);
+        console.log(`👤 ${username} joined the chat`);
+        io.emit('message', {
+            sender: 'System',
+            text: `${username} joined the chat`,
+            timestamp: new Date()
+        });
+    });
+    
+    socket.on('message', (data) => {
+        const sender = onlineUsers.get(socket.id) || 'Anonymous';
+        console.log(`💬 ${sender}: ${data.text}`);
+        io.emit('message', {
+            sender: sender,
+            text: data.text,
+            timestamp: new Date()
+        });
+    });
+    
+    socket.on('disconnect', () => {
+        const user = onlineUsers.get(socket.id);
+        if (user) {
+            console.log(`👋 ${user} disconnected`);
+            io.emit('message', {
+                sender: 'System',
+                text: `${user} left the chat`,
+                timestamp: new Date()
+            });
+            onlineUsers.delete(socket.id);
+        }
+    });
+});
+
+// ============================================
+// SERVER STARTUP
+// ============================================
+const startServer = async () => {
+    await connectDB();
+    checkAssets();
+    
+    server.listen(PORT, '0.0.0.0', () => {
+        console.log(`
+🚀 ${APP_CONFIG.name} v${APP_CONFIG.version}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📡 Server running on: http://localhost:${PORT}
+🌍 Environment: ${NODE_ENV}
+📊 Database: ${mongoose.connection.host}
+🎵 Songs loaded: ${getSongs().length}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛡️  Admin Panel: http://localhost:${PORT}/admin
+📧 Email: admin
+🔑 Password: admin123
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    `);
+    });
+};
+
+startServer();
