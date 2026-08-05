@@ -1,7 +1,7 @@
 {
-  "name": "baiilla-maach-chat",
+  "name": "baiilla-maach-verification-hub",
   "version": "3.0.0",
-  "description": "Facebook Messenger style chat system",
+  "description": "Official verification system for Hammad Bin Amir (Baiilla Maach)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
