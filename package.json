@@ -1,31 +1,25 @@
 {
-  "name": "baiilla-maach-chat",
-  "version": "1.0.0",
-  "description": "Premium Realtime Chat System - Baiilla Maach Official",
+  "name": "baiilla-maach-verification-hub",
+  "version": "3.0.0",
+  "description": "Official verification system for Hammad Bin Amir (Baiilla Maach)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^16.0.3",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "mongoose": "^8.3.2",
+    "multer": "^1.4.5-lts.1",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.7.2",
-    "mongoose": "^8.0.0",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "dotenv": "^16.3.1",
-    "multer": "^1.4.5-lts.1",
-    "cors": "^2.8.5"
-  },
-  "author": "Baiilla Maach Official",
-  "license": "ISC",
-  "keywords": [
-    "chat",
-    "realtime",
-    "messenger",
-    "support"
-  ]
+  }
 }
