@@ -81,7 +81,7 @@ app.get('/',(req,res)=>{
       <div class="container">
         <div class="section-label">MUSIC</div>
         <h2 class="section-heading">Cover Songs</h2>
-        <p class="section-desc">Official covers by Baiilla Maach</p>
+        <p class="section-desc">Official covers by Hammad Bin Amir</p>
         <div class="music-player">
           <div class="music-cover">
             <img src="${ASSETS.profile}" alt="Cover" onerror="this.style.display='none'">
@@ -111,7 +111,7 @@ app.get('/',(req,res)=>{
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#ffffff">
-<title>Baiilla Maach — Official Verification</title>
+<title>Hammad Bin Amir — Official Verification</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
 <style>
 :root{
