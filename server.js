@@ -37,8 +37,36 @@ const Message=mongoose.model('Message',new mongoose.Schema({
 
 mongoose.connect(MONGO_URI).then(async()=>{
   console.log('MongoDB connected');
-  const admin=await User.findOne({email:'admin@baillamaach.com'});
-  if(!admin){await User.create({name:'Baiilla Maach',email:'admin@baillamaach.com',password:await bcrypt.hash('Admin@2024!',10),isAdmin:true})}
+  
+  // Check and create/update admin user
+  const adminEmail = 'admin@baillamaach.com';
+  const adminPassword = 'admin@112233'; // Your desired password
+  
+  let admin = await User.findOne({ email: adminEmail });
+  
+  if (!admin) {
+    // Create new admin
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+    admin = await User.create({
+      name: 'Baiilla Maach',
+      email: adminEmail,
+      password: hashedPassword,
+      isAdmin: true
+    });
+    console.log('✅ Admin created successfully');
+    console.log('📧 Email:', adminEmail);
+    console.log('🔑 Password:', adminPassword);
+  } else {
+    // Update existing admin password
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+    await User.updateOne(
+      { email: adminEmail },
+      { $set: { password: hashedPassword, isAdmin: true } }
+    );
+    console.log('✅ Admin password updated');
+    console.log('📧 Email:', adminEmail);
+    console.log('🔑 Password:', adminPassword);
+  }
 }).catch(e=>console.log('MongoDB error:',e.message));
 
 const ASSETS={
@@ -71,6 +99,407 @@ function getSongs(){
   }catch(e){return[]}
 }
 
+// API Routes
+app.post('/api/admin/login',async(req,res)=>{
+  try {
+    console.log('🔐 Login attempt:', req.body.email);
+    
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    
+    const user = await User.findOne({ email, isAdmin: true });
+    
+    if (!user) {
+      console.log('❌ Admin not found:', email);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const validPassword = await bcrypt.compare(password, user.password);
+    console.log('🔑 Password check:', validPassword ? 'Valid' : 'Invalid');
+    
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    console.log('✅ Admin logged in:', user.name);
+    res.json({ 
+      success: true,
+      token: 'admin_authenticated',
+      user: {
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Server error during login' });
+  }
+});
+
+app.get('/api/admin/users',async(req,res)=>{
+  try {
+    const users = await User.find({ isAdmin: false }).sort({ lastSeen: -1 }).lean();
+    
+    // Add unread message count for each user
+    for (let user of users) {
+      user.unreadCount = await Message.countDocuments({
+        sender: user.email,
+        receiver: 'admin@baillamaach.com',
+        seen: false
+      });
+    }
+    
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.get('/api/msgs/:email',async(req,res)=>{
+  try {
+    const msgs = await Message.find({
+      $or: [
+        { sender: req.params.email, receiver: 'admin@baillamaach.com' },
+        { sender: 'admin@baillamaach.com', receiver: req.params.email }
+      ]
+    }).sort({ timestamp: 1 });
+    
+    res.json(msgs);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+app.get('/messenger',(req,res)=>{
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messenger | Baiilla Maach</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hidden;color:#1f2937}
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000}
+.login-card{background:#fff;padding:40px;border-radius:16px;width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+.login-card h2{font-family:'Outfit',sans-serif;margin-bottom:8px;font-size:1.5em;color:#1f2937}
+.login-card .subtitle{color:#6b7280;margin-bottom:24px;font-size:0.9em}
+.login-card .input-group{margin-bottom:16px;text-align:left}
+.login-card label{display:block;margin-bottom:6px;font-weight:500;font-size:0.85em;color:#374151}
+.login-card input{width:100%;padding:12px 16px;border:1px solid #e5e7eb;border-radius:10px;font-size:0.95em;outline:none;transition:border-color 0.2s}
+.login-card input:focus{border-color:#f97316;box-shadow:0 0 0 3px rgba(249,115,22,0.1)}
+.login-card button{width:100%;padding:14px;background:#f97316;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:1em;transition:background 0.2s}
+.login-card button:hover{background:#ea580c}
+.login-card .error{color:#ef4444;font-size:0.85em;margin-top:8px;display:none}
+.app{display:none;height:100vh}
+.app-layout{display:flex;height:100vh;max-width:1400px;margin:0 auto;background:#fff}
+.sidebar{width:360px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;background:#fff}
+.sidebar-header{padding:20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
+.sidebar-header h2{font-family:'Outfit',sans-serif;font-size:1.3em}
+.sidebar-header button{background:#ef4444;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.85em;transition:background 0.2s}
+.sidebar-header button:hover{background:#dc2626}
+.search-bar{padding:16px 20px}
+.search-bar input{width:100%;padding:10px 16px;border:1px solid #e5e7eb;border-radius:20px;font-size:0.9em;outline:none;background:#f9fafb}
+.user-list{flex:1;overflow-y:auto}
+.user-item{padding:14px 20px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:0.15s;border-bottom:1px solid #f3f4f6}
+.user-item:hover{background:#f9fafb}
+.user-item.active{background:#fff7ed;border-left:4px solid #f97316}
+.user-avatar{width:48px;height:48px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1em;flex-shrink:0;position:relative}
+.user-avatar .dot{position:absolute;bottom:2px;right:2px;width:12px;height:12px;border-radius:50%;background:#10b981;border:2px solid #fff}
+.user-info{flex:1;min-width:0}
+.user-info .name{font-weight:600;font-size:0.95em;color:#1f2937}
+.user-info .email{font-size:0.8em;color:#9ca3af;margin-top:2px}
+.user-info .last-seen{font-size:0.75em;color:#9ca3af}
+.unread{background:#f97316;color:#fff;font-size:0.75em;padding:3px 8px;border-radius:12px;font-weight:700;min-width:24px;text-align:center}
+.chat-area{flex:1;display:flex;flex-direction:column;background:#f8f9fb}
+.chat-header{padding:18px 24px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:12px}
+.chat-header .avatar{width:44px;height:44px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1em}
+.chat-header .name{font-weight:600;font-size:1em;color:#1f2937}
+.chat-header .status{font-size:0.8em;color:#10b981}
+.chat-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column}
+.message{max-width:65%;padding:10px 16px;border-radius:16px;margin-bottom:6px;font-size:0.9em;line-height:1.5;word-wrap:break-word}
+.message.sent{background:#f97316;color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.message.received{background:#fff;color:#1f2937;border:1px solid #e5e7eb;align-self:flex-start;border-bottom-left-radius:4px}
+.message .time{font-size:0.7em;opacity:0.7;margin-top:4px;text-align:right}
+.date-divider{text-align:center;margin:16px 0;font-size:0.8em;color:#9ca3af}
+.chat-input{padding:16px 20px;background:#fff;border-top:1px solid #e5e7eb;display:flex;gap:10px;align-items:center}
+.chat-input input{flex:1;padding:12px 18px;border:1px solid #e5e7eb;border-radius:24px;font-size:0.9em;outline:none}
+.chat-input input:focus{border-color:#f97316}
+.chat-input button{background:#f97316;color:#fff;border:none;width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:1.1em;transition:background 0.2s}
+.chat-input button:hover{background:#ea580c}
+.empty-state{text-align:center;color:#9ca3af;padding:60px 20px}
+.empty-state .icon{font-size:3em;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <h2>🔐 Admin Messenger</h2>
+    <p class="subtitle">Sign in to manage conversations</p>
+    <div class="input-group">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="admin@baillamaach.com" value="admin@baillamaach.com">
+    </div>
+    <div class="input-group">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter password" value="admin@112233">
+    </div>
+    <button onclick="doLogin()">Sign In</button>
+    <div class="error" id="loginError"></div>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <div class="app-layout">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>💬 Conversations</h2>
+        <button onclick="logout()">Logout</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="🔍 Search conversations..." oninput="filterUsers()">
+      </div>
+      <div class="user-list" id="userList"></div>
+    </div>
+    <div class="chat-area">
+      <div class="chat-header">
+        <div class="avatar" id="chatAvatar">?</div>
+        <div>
+          <div class="name" id="chatName">Select a conversation</div>
+          <div class="status" id="chatStatus"></div>
+        </div>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="empty-state">
+          <div class="icon">💬</div>
+          <div>Select a user to start chatting</div>
+        </div>
+      </div>
+      <div class="chat-input" id="chatInputArea" style="display:none">
+        <input type="text" id="msgInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMsg()">
+        <button onclick="sendMsg()">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+let currentUser = null;
+let socket = null;
+let allUsers = [];
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const errorDiv = document.getElementById('loginError');
+  
+  errorDiv.style.display = 'none';
+  
+  try {
+    const response = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      document.getElementById('loginOverlay').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      initSocket();
+      loadUsers();
+    } else {
+      errorDiv.textContent = data.error || 'Invalid credentials';
+      errorDiv.style.display = 'block';
+    }
+  } catch (error) {
+    errorDiv.textContent = 'Connection error. Please try again.';
+    errorDiv.style.display = 'block';
+  }
+}
+
+function logout() {
+  if (socket) socket.disconnect();
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  currentUser = null;
+}
+
+function initSocket() {
+  socket = io();
+  socket.emit('register', {
+    name: 'Admin',
+    email: 'admin@baillamaach.com'
+  });
+  
+  socket.on('newMsg', (msg) => {
+    if (currentUser && (msg.sender === currentUser || msg.receiver === currentUser)) {
+      appendMessage(msg);
+    }
+    loadUsers();
+  });
+  
+  socket.on('userStatus', (data) => {
+    loadUsers();
+  });
+}
+
+async function loadUsers() {
+  try {
+    const response = await fetch('/api/admin/users');
+    allUsers = await response.json();
+    renderUsers();
+  } catch (error) {
+    console.error('Failed to load users:', error);
+  }
+}
+
+function renderUsers(filter = '') {
+  const filtered = filter ? 
+    allUsers.filter(u => 
+      u.name.toLowerCase().includes(filter) || 
+      u.email.toLowerCase().includes(filter)
+    ) : allUsers;
+  
+  const userList = document.getElementById('userList');
+  
+  if (filtered.length === 0) {
+    userList.innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;">No users found</div>';
+    return;
+  }
+  
+  userList.innerHTML = filtered.map(user => `
+    <div class="user-item${currentUser === user.email ? ' active' : ''}" 
+         onclick="selectUser('${user.email}')">
+      <div class="user-avatar">
+        ${user.name[0].toUpperCase()}
+        ${user.isOnline ? '<div class="dot"></div>' : ''}
+      </div>
+      <div class="user-info">
+        <div class="name">${user.name}</div>
+        <div class="email">${user.email}</div>
+        ${!user.isOnline && user.lastSeen ? 
+          `<div class="last-seen">Last seen ${new Date(user.lastSeen).toLocaleString()}</div>` : 
+          ''}
+      </div>
+      ${user.unreadCount > 0 ? 
+        `<div class="unread">${user.unreadCount}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function filterUsers() {
+  const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+  renderUsers(searchTerm);
+}
+
+async function selectUser(email) {
+  currentUser = email;
+  document.getElementById('chatInputArea').style.display = 'flex';
+  
+  const user = allUsers.find(u => u.email === email);
+  if (user) {
+    document.getElementById('chatAvatar').textContent = user.name[0].toUpperCase();
+    document.getElementById('chatName').textContent = user.name;
+    document.getElementById('chatStatus').textContent = user.isOnline ? '🟢 Online' : '⚫ Offline';
+  }
+  
+  try {
+    const response = await fetch('/api/msgs/' + email);
+    const messages = await response.json();
+    
+    const messagesContainer = document.getElementById('chatMessages');
+    
+    if (messages.length === 0) {
+      messagesContainer.innerHTML = '<div class="empty-state"><div class="icon">💬</div><div>No messages yet</div></div>';
+    } else {
+      let html = '';
+      let lastDate = '';
+      
+      messages.forEach(msg => {
+        const msgDate = new Date(msg.timestamp).toLocaleDateString();
+        if (msgDate !== lastDate) {
+          html += `<div class="date-divider">${msgDate}</div>`;
+          lastDate = msgDate;
+        }
+        
+        html += `
+          <div class="message ${msg.sender === email ? 'received' : 'sent'}">
+            ${msg.message}
+            <div class="time">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</div>
+          </div>
+        `;
+      });
+      
+      messagesContainer.innerHTML = html;
+    }
+    
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Mark messages as read
+    if (socket) {
+      socket.emit('markRead', { user: email });
+    }
+    
+    renderUsers();
+  } catch (error) {
+    console.error('Failed to load messages:', error);
+  }
+}
+
+function appendMessage(msg) {
+  const container = document.getElementById('chatMessages');
+  
+  // Remove empty state if exists
+  const emptyState = container.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+  
+  const msgDiv = document.createElement('div');
+  msgDiv.className = `message ${msg.sender === currentUser ? 'received' : 'sent'}`;
+  msgDiv.innerHTML = `
+    ${msg.message}
+    <div class="time">${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</div>
+  `;
+  
+  container.appendChild(msgDiv);
+  container.scrollTop = container.scrollHeight;
+}
+
+function sendMsg() {
+  if (!currentUser) return;
+  
+  const input = document.getElementById('msgInput');
+  const message = input.value.trim();
+  
+  if (!message) return;
+  
+  socket.emit('sendMsg', {
+    sender: 'admin@baillamaach.com',
+    receiver: currentUser,
+    message: message,
+    type: 'text'
+  });
+  
+  input.value = '';
+}
+
+// Auto-login for testing (remove in production)
+document.addEventListener('DOMContentLoaded', () => {
+  // Uncomment the line below for auto-login during development
+  // doLogin();
+});
+</script>
+</body>
+</html>`);
+});
+
+// Main website route
 app.get('/',(req,res)=>{
   const songs=getSongs();
   
@@ -504,112 +933,88 @@ socket.on('newMsg',(m)=>{if(cu&&(m.sender===cu.email||m.receiver===cu.email)){co
 </html>`);
 });
 
-// API + Messenger + Admin
-app.get('/api/msgs/:email',async(req,res)=>{
-  const msgs=await Message.find({$or:[{sender:req.params.email},{receiver:req.params.email}]}).sort({timestamp:1});
-  res.json(msgs);
-});
-
-app.get('/messenger',(req,res)=>{
-  res.send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Messenger | Baiilla Maach</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hidden;color:#1f2937}
-.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000}
-.login-card{background:#fff;padding:35px;border-radius:16px;width:380px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.15)}
-.login-card h2{font-family:'Outfit',sans-serif;margin-bottom:20px;font-size:1.4em}
-.login-card input{width:100%;padding:12px;margin-bottom:10px;border:1px solid #e5e7eb;border-radius:10px;font-size:0.95em;outline:none}
-.login-card input:focus{border-color:#f97316}
-.login-card button{width:100%;padding:12px;background:#f97316;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:1em}
-.app{display:none;height:100vh}
-.app-layout{display:flex;height:100vh;max-width:1400px;margin:0 auto;background:#fff}
-.sidebar{width:340px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;background:#fff}
-.sidebar-header{padding:18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
-.sidebar-header h2{font-family:'Outfit',sans-serif;font-size:1.2em}
-.sidebar-header button{background:#ef4444;color:#fff;border:none;padding:6px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.8em}
-.search-bar{padding:12px 18px}
-.search-bar input{width:100%;padding:10px 14px;border:1px solid #e5e7eb;border-radius:20px;font-size:0.9em;outline:none;background:#f9fafb}
-.user-list{flex:1;overflow-y:auto}
-.user-item{padding:12px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:0.15s}
-.user-item:hover{background:#f9fafb}
-.user-item.active{background:#fff7ed;border-left:3px solid #f97316}
-.user-avatar{width:44px;height:44px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1em;flex-shrink:0;position:relative}
-.user-avatar .dot{position:absolute;bottom:1px;right:1px;width:10px;height:10px;border-radius:50%;background:#10b981;border:2px solid #fff}
-.user-info{flex:1;min-width:0}
-.user-info .name{font-weight:600;font-size:0.9em}
-.user-info .email{font-size:0.78em;color:#9ca3af}
-.unread{background:#f97316;color:#fff;font-size:0.7em;padding:2px 7px;border-radius:10px;font-weight:700}
-.chat-area{flex:1;display:flex;flex-direction:column;background:#f8f9fb}
-.chat-header{padding:16px 20px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:10px}
-.chat-header .avatar{width:38px;height:38px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:0.9em}
-.chat-header .name{font-weight:600;font-size:0.95em}
-.chat-header .status{font-size:0.78em;color:#10b981}
-.chat-messages{flex:1;overflow-y:auto;padding:18px}
-.message{max-width:60%;padding:8px 14px;border-radius:16px;margin-bottom:4px;font-size:0.88em}
-.message.sent{background:#f97316;color:#fff;margin-left:auto;border-bottom-right-radius:4px}
-.message.received{background:#fff;color:#1f2937;border:1px solid #e5e7eb;border-bottom-left-radius:4px}
-.message .time{font-size:0.65em;opacity:0.6;margin-top:3px;text-align:right}
-.date-divider{text-align:center;margin:12px 0;font-size:0.75em;color:#9ca3af}
-.chat-input{padding:14px 18px;background:#fff;border-top:1px solid #e5e7eb;display:flex;gap:8px}
-.chat-input input{flex:1;padding:10px 16px;border:1px solid #e5e7eb;border-radius:20px;font-size:0.9em;outline:none}
-.chat-input button{background:#f97316;color:#fff;border:none;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:1em}
-</style>
-</head>
-<body>
-<div class="login-overlay" id="loginOverlay"><div class="login-card"><h2>Admin Messenger</h2><input type="text" id="loginEmail" placeholder="Email"><input type="password" id="loginPassword" placeholder="Password"><button onclick="doLogin()">Sign In</button></div></div>
-<div class="app" id="app"><div class="app-layout"><div class="sidebar"><div class="sidebar-header"><h2>Chats</h2><button onclick="logout()">Logout</button></div><div class="search-bar"><input type="text" id="searchInput" placeholder="Search conversations..." oninput="filterUsers()"></div><div class="user-list" id="userList"></div></div><div class="chat-area"><div class="chat-header"><div class="avatar" id="chatAvatar">?</div><div><div class="name" id="chatName">Select user</div><div class="status" id="chatStatus"></div></div></div><div class="chat-messages" id="chatMessages"><div style="text-align:center;color:#9ca3af;padding:40px;">Select a conversation</div></div><div class="chat-input" id="chatInputArea" style="display:none"><input type="text" id="msgInput" placeholder="Type message..." onkeypress="if(event.key==='Enter')sendMsg()"><button onclick="sendMsg()">➤</button></div></div></div></div>
-<script src="/socket.io/socket.io.js"></script>
-<script>
-let cu=null,socket=null,allUsers=[];
-async function doLogin(){const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('loginEmail').value,password:document.getElementById('loginPassword').value})});if(r.ok){document.getElementById('loginOverlay').style.display='none';document.getElementById('app').style.display='block';init();loadUsers()}else alert('Invalid credentials')}
-function logout(){if(socket)socket.disconnect();document.getElementById('loginOverlay').style.display='flex';document.getElementById('app').style.display='none';cu=null}
-function init(){socket=io();socket.emit('register',{name:'Admin',email:'admin@baillamaach.com'});socket.on('newMsg',(m)=>{if(cu&&(m.sender===cu||m.receiver===cu))appendMsg(m);loadUsers()})}
-async function loadUsers(){const r=await fetch('/api/admin/users');allUsers=await r.json();renderUsers()}
-function renderUsers(f=''){const data=f?allUsers.filter(u=>u.name.toLowerCase().includes(f)||u.email.toLowerCase().includes(f)):allUsers;document.getElementById('userList').innerHTML=data.map(u=>'<div class="user-item'+(cu===u.email?' active':'')+'" onclick="selectUser(\''+u.email+'\')"><div class="user-avatar">'+u.name[0].toUpperCase()+(u.isOnline?'<div class="dot"></div>':'')+'</div><div class="user-info"><div class="name">'+u.name+'</div><div class="email">'+u.email+'</div></div>'+(u.unreadCount>0?'<div class="unread">'+u.unreadCount+'</div>':'')+'</div>').join('')}
-function filterUsers(){renderUsers(document.getElementById('searchInput').value.toLowerCase())}
-async function selectUser(email){cu=email;document.getElementById('chatInputArea').style.display='flex';const u=allUsers.find(u=>u.email===email);document.getElementById('chatAvatar').textContent=u?.name[0]?.toUpperCase()||'?';document.getElementById('chatName').textContent=u?.name||email;document.getElementById('chatStatus').textContent=u?.isOnline?'● Online':'○ Offline';const r=await fetch('/api/msgs/'+email);const ms=await r.json();const c=document.getElementById('chatMessages');if(ms.length){let h='',ld='';ms.forEach(m=>{const d=new Date(m.timestamp).toLocaleDateString();if(d!==ld){h+='<div class="date-divider">'+d+'</div>';ld=d}h+='<div class="message '+(m.sender===email?'received':'sent')+'">'+m.message+'<div class="time">'+new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>'});c.innerHTML=h}else{c.innerHTML='<div style="text-align:center;color:#9ca3af;padding:40px;">No messages</div>'}c.scrollTop=c.scrollHeight;socket.emit('markRead',{user:email});renderUsers()}
-function appendMsg(m){const c=document.getElementById('chatMessages');c.querySelector('div[style]')?.remove();c.insertAdjacentHTML('beforeend','<div class="message '+(m.sender===cu?'received':'sent')+'">'+m.message+'<div class="time">'+new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>');c.scrollTop=c.scrollHeight}
-function sendMsg(){if(!cu)return;const i=document.getElementById('msgInput');const m=i.value.trim();if(!m)return;socket.emit('sendMsg',{sender:'admin@baillamaach.com',receiver:cu,message:m,type:'text'});i.value=''}
-</script>
-</body>
-</html>`);
-});
-
-app.post('/api/admin/login',async(req,res)=>{
-  const user=await User.findOne({email:req.body.email,isAdmin:true});
-  if(!user)return res.status(400).json({error:'Not found'});
-  const valid=await bcrypt.compare(req.body.password,user.password);
-  if(!valid)return res.status(400).json({error:'Wrong password'});
-  res.json({token:'ok'});
-});
-
-app.get('/api/admin/users',async(req,res)=>{
-  const users=await User.find({isAdmin:false}).sort({lastSeen:-1}).lean();
-  for(let u of users)u.unreadCount=await Message.countDocuments({sender:u.email,receiver:'admin@baillamaach.com',seen:false});
-  res.json(users);
-});
-
+// Socket.IO connection handling
 io.on('connection',(socket)=>{
+  console.log('User connected:', socket.id);
+  
   socket.on('register',async(data)=>{
     socket.userData=data;
-    let user=await User.findOne({email:data.email});
-    if(!user){const hash=await bcrypt.hash('default123',10);user=await User.create({name:data.name,email:data.email,password:hash})}
-    await User.updateOne({email:data.email},{$set:{isOnline:true,lastSeen:new Date()}});
-    io.emit('userStatus',{email:data.email,online:true});
+    
+    try {
+      let user = await User.findOne({email:data.email});
+      if(!user){
+        const hash = await bcrypt.hash('default123',10);
+        user = await User.create({
+          name: data.name,
+          email: data.email,
+          password: hash
+        });
+      }
+      
+      await User.updateOne(
+        {email: data.email},
+        {$set: {isOnline: true, lastSeen: new Date()}}
+      );
+      
+      io.emit('userStatus', {email: data.email, online: true});
+      console.log('User registered:', data.email);
+    } catch (error) {
+      console.error('Registration error:', error);
+    }
   });
+  
   socket.on('sendMsg',async(data)=>{
-    const msg=await Message.create({sender:data.sender,receiver:data.receiver,message:data.message,type:data.type||'text'});
-    io.emit('newMsg',msg);
+    try {
+      const msg = await Message.create({
+        sender: data.sender,
+        receiver: data.receiver,
+        message: data.message,
+        type: data.type || 'text'
+      });
+      
+      io.emit('newMsg', msg);
+      console.log('Message sent:', data.sender, '->', data.receiver);
+    } catch (error) {
+      console.error('Message error:', error);
+    }
   });
-  socket.on('markRead',async(data)=>{await Message.updateMany({sender:data.user,receiver:'admin@baillamaach.com',seen:false},{$set:{seen:true}})});
+  
+  socket.on('markRead',async(data)=>{
+    try {
+      await Message.updateMany(
+        {
+          sender: data.user,
+          receiver: 'admin@baillamaach.com',
+          seen: false
+        },
+        {$set: {seen: true}}
+      );
+    } catch (error) {
+      console.error('Mark read error:', error);
+    }
+  });
+  
   socket.on('disconnect',async()=>{
-    if(socket.userData){await User.updateOne({email:socket.userData.email},{$set:{isOnline:false,lastSeen:new Date()}});io.emit('userStatus',{email:socket.userData.email,online:false})}
+    if(socket.userData){
+      try {
+        await User.updateOne(
+          {email: socket.userData.email},
+          {$set: {isOnline: false, lastSeen: new Date()}}
+        );
+        io.emit('userStatus', {email: socket.userData.email, online: false});
+        console.log('User disconnected:', socket.userData.email);
+      } catch (error) {
+        console.error('Disconnect error:', error);
+      }
+    }
   });
 });
 
-server.listen(PORT,()=>console.log(`Server running on port ${PORT}`));
+server.listen(PORT,()=>{
+  console.log(`\n🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📱 Main site: http://localhost:${PORT}/`);
+  console.log(`💬 Admin panel: http://localhost:${PORT}/messenger`);
+  console.log(`\n📧 Admin credentials:`);
+  console.log(`   Email: admin@baillamaach.com`);
+  console.log(`   Password: admin@112233\n`);
+});
