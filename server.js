@@ -37,8 +37,8 @@ const Message=mongoose.model('Message',new mongoose.Schema({
 
 mongoose.connect(MONGO_URI).then(async()=>{
   console.log('MongoDB connected');
-  const admin=await User.findOne({email:'admin'});
-  if(!admin){await User.create({name:'Baiilla Maach',email:'admin',password:await bcrypt.hash('admin123',10),isAdmin:true})}
+  const admin=await User.findOne({email:'admin@baillamaach.com'});
+  if(!admin){await User.create({name:'Baiilla Maach',email:'admin@baillamaach.com',password:await bcrypt.hash('Admin@2024!',10),isAdmin:true})}
 }).catch(e=>console.log('MongoDB error:',e.message));
 
 const ASSETS={
@@ -84,7 +84,7 @@ app.get('/',(req,res)=>{
         <p class="section-desc">Official covers by Hammad Bin Amir</p>
         <div class="music-player">
           <div class="music-cover">
-            <img src="${ASSETS.profile}" alt="Cover" onerror="this.style.display='none'">
+            <img src="${ASSETS.microphone}" alt="Music" onerror="this.src='${ASSETS.profile}'">
           </div>
           <div class="music-info">
             <h4 id="trackTitle">Select a Song</h4>
@@ -202,7 +202,8 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
 .verified-card .card-top .info .handle{color:var(--gray500);font-size:0.85em;font-family:'DM Sans',sans-serif}
 .verified-card .card-body .row{display:flex;align-items:center;gap:6px;padding:6px 0;color:var(--gray600);font-size:0.88em}
 .verified-card .card-body .row strong{color:var(--gray800);font-weight:600}
-.verified-card .card-body .follow-btn{display:inline-block;padding:9px 20px;border-radius:var(--radius-full);text-decoration:none;font-weight:600;font-size:0.82em;margin-top:12px;transition:0.2s}
+.verified-card .card-body .follow-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;border-radius:var(--radius-full);text-decoration:none;font-weight:600;font-size:0.82em;margin-top:12px;transition:0.2s}
+.verified-card .card-body .follow-btn img{width:16px;height:16px}
 .verified-card .card-body .follow-btn.tiktok-btn{background:var(--gray900);color:var(--white)}
 .verified-card .card-body .follow-btn.tiktok-btn:hover{background:#000}
 .verified-card .card-body .follow-btn.fb-btn{background:var(--blue);color:var(--white)}
@@ -212,8 +213,10 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
 .fake-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .fake-card{background:var(--white);border:2px solid #fecaca;border-radius:var(--radius);overflow:hidden;position:relative;transition:0.2s}
 .fake-card:hover{box-shadow:var(--shadow-lg)}
-.fake-badge{position:absolute;top:12px;right:12px;background:var(--red);color:var(--white);padding:4px 12px;border-radius:var(--radius-full);font-weight:700;font-size:0.68em;letter-spacing:1.5px;text-transform:uppercase;z-index:1}
-.fake-card .fake-img{width:100%;height:auto;display:block;object-fit:contain;background:#fafafa}
+.fake-img-container{position:relative;text-align:center;background:#fafafa;padding:20px}
+.fake-img{max-width:100%;height:auto;display:block;margin:0 auto}
+.fake-detect{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:80px;height:80px;animation:updown 2s infinite ease-in-out}
+@keyframes updown{0%,100%{transform:translate(-50%,-50%) translateY(0)}50%{transform:translate(-50%,-50%) translateY(-15px)}}
 .fake-card .fake-info{padding:20px}
 .fake-card .fake-info h3{font-family:'Outfit',sans-serif;font-size:1.1em;font-weight:600;color:var(--gray900);margin-bottom:2px}
 .fake-card .fake-info .plat{color:var(--orange);font-weight:600;font-size:0.82em;margin-bottom:6px}
@@ -349,7 +352,9 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
           <div class="row">✓ Status: <strong>Active & Verified</strong></div>
           <div class="row">👥 Followers: <strong>7,000</strong></div>
           <div class="row">❤️ Likes: <strong>190,000</strong></div>
-          <a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="follow-btn tiktok-btn">Follow on TikTok</a>
+          <a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="follow-btn tiktok-btn">
+            <img src="${ASSETS.logoTikTok}" alt="TikTok" style="width:16px;height:16px"> Follow on TikTok
+          </a>
         </div>
       </div>
       <div class="verified-card">
@@ -363,7 +368,9 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
         <div class="card-body">
           <div class="row">✓ Status: <strong>Active & Verified</strong></div>
           <div class="row">📘 Page: <strong>Official Facebook</strong></div>
-          <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="follow-btn fb-btn">Follow on Facebook</a>
+          <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="follow-btn fb-btn">
+            <img src="${ASSETS.logoFB}" alt="Facebook" style="width:16px;height:16px"> Follow on Facebook
+          </a>
         </div>
       </div>
     </div>
@@ -377,8 +384,10 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
     <p class="section-desc">Report these accounts immediately</p>
     <div class="fake-grid">
       <div class="fake-card">
-        <div class="fake-badge">FAKE</div>
-        <img src="${ASSETS.baillamachFake}" class="fake-img" alt="Fake Account Screenshot" onerror="this.style.display='none'">
+        <div class="fake-img-container">
+          <img src="${ASSETS.baillamachFake}" class="fake-img" alt="Fake Account Screenshot" onerror="this.style.display='none'">
+          <img src="${ASSETS.fakeDetect}" class="fake-detect" alt="FAKE" onerror="this.style.display='none'">
+        </div>
         <div class="fake-info">
           <h3>@baiilla_mach</h3>
           <p class="plat">📍 TikTok</p>
@@ -387,8 +396,10 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
         </div>
       </div>
       <div class="fake-card">
-        <div class="fake-badge">FAKE</div>
-        <img src="${ASSETS.hammadFake}" class="fake-img" alt="Fake Account Screenshot" onerror="this.style.display='none'">
+        <div class="fake-img-container">
+          <img src="${ASSETS.hammadFake}" class="fake-img" alt="Fake Account Screenshot" onerror="this.style.display='none'">
+          <img src="${ASSETS.fakeDetect}" class="fake-detect" alt="FAKE" onerror="this.style.display='none'">
+        </div>
         <div class="fake-info">
           <h3>@hammad_fams0</h3>
           <p class="plat">📍 TikTok</p>
@@ -550,20 +561,20 @@ body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hid
 </style>
 </head>
 <body>
-<div class="login-overlay" id="loginOverlay"><div class="login-card"><h2>Admin Messenger</h2><input type="text" id="loginEmail" placeholder="Email" value="admin"><input type="password" id="loginPassword" placeholder="Password" value="admin123"><button onclick="doLogin()">Sign In</button></div></div>
+<div class="login-overlay" id="loginOverlay"><div class="login-card"><h2>Admin Messenger</h2><input type="text" id="loginEmail" placeholder="Email"><input type="password" id="loginPassword" placeholder="Password"><button onclick="doLogin()">Sign In</button></div></div>
 <div class="app" id="app"><div class="app-layout"><div class="sidebar"><div class="sidebar-header"><h2>Chats</h2><button onclick="logout()">Logout</button></div><div class="search-bar"><input type="text" id="searchInput" placeholder="Search conversations..." oninput="filterUsers()"></div><div class="user-list" id="userList"></div></div><div class="chat-area"><div class="chat-header"><div class="avatar" id="chatAvatar">?</div><div><div class="name" id="chatName">Select user</div><div class="status" id="chatStatus"></div></div></div><div class="chat-messages" id="chatMessages"><div style="text-align:center;color:#9ca3af;padding:40px;">Select a conversation</div></div><div class="chat-input" id="chatInputArea" style="display:none"><input type="text" id="msgInput" placeholder="Type message..." onkeypress="if(event.key==='Enter')sendMsg()"><button onclick="sendMsg()">➤</button></div></div></div></div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 let cu=null,socket=null,allUsers=[];
-async function doLogin(){const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('loginEmail').value,password:document.getElementById('loginPassword').value})});if(r.ok){document.getElementById('loginOverlay').style.display='none';document.getElementById('app').style.display='block';init();loadUsers()}else alert('Invalid')}
+async function doLogin(){const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('loginEmail').value,password:document.getElementById('loginPassword').value})});if(r.ok){document.getElementById('loginOverlay').style.display='none';document.getElementById('app').style.display='block';init();loadUsers()}else alert('Invalid credentials')}
 function logout(){if(socket)socket.disconnect();document.getElementById('loginOverlay').style.display='flex';document.getElementById('app').style.display='none';cu=null}
-function init(){socket=io();socket.emit('register',{name:'Admin',email:'admin'});socket.on('newMsg',(m)=>{if(cu&&(m.sender===cu||m.receiver===cu))appendMsg(m);loadUsers()})}
+function init(){socket=io();socket.emit('register',{name:'Admin',email:'admin@baillamaach.com'});socket.on('newMsg',(m)=>{if(cu&&(m.sender===cu||m.receiver===cu))appendMsg(m);loadUsers()})}
 async function loadUsers(){const r=await fetch('/api/admin/users');allUsers=await r.json();renderUsers()}
 function renderUsers(f=''){const data=f?allUsers.filter(u=>u.name.toLowerCase().includes(f)||u.email.toLowerCase().includes(f)):allUsers;document.getElementById('userList').innerHTML=data.map(u=>'<div class="user-item'+(cu===u.email?' active':'')+'" onclick="selectUser(\''+u.email+'\')"><div class="user-avatar">'+u.name[0].toUpperCase()+(u.isOnline?'<div class="dot"></div>':'')+'</div><div class="user-info"><div class="name">'+u.name+'</div><div class="email">'+u.email+'</div></div>'+(u.unreadCount>0?'<div class="unread">'+u.unreadCount+'</div>':'')+'</div>').join('')}
 function filterUsers(){renderUsers(document.getElementById('searchInput').value.toLowerCase())}
 async function selectUser(email){cu=email;document.getElementById('chatInputArea').style.display='flex';const u=allUsers.find(u=>u.email===email);document.getElementById('chatAvatar').textContent=u?.name[0]?.toUpperCase()||'?';document.getElementById('chatName').textContent=u?.name||email;document.getElementById('chatStatus').textContent=u?.isOnline?'● Online':'○ Offline';const r=await fetch('/api/msgs/'+email);const ms=await r.json();const c=document.getElementById('chatMessages');if(ms.length){let h='',ld='';ms.forEach(m=>{const d=new Date(m.timestamp).toLocaleDateString();if(d!==ld){h+='<div class="date-divider">'+d+'</div>';ld=d}h+='<div class="message '+(m.sender===email?'received':'sent')+'">'+m.message+'<div class="time">'+new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>'});c.innerHTML=h}else{c.innerHTML='<div style="text-align:center;color:#9ca3af;padding:40px;">No messages</div>'}c.scrollTop=c.scrollHeight;socket.emit('markRead',{user:email});renderUsers()}
 function appendMsg(m){const c=document.getElementById('chatMessages');c.querySelector('div[style]')?.remove();c.insertAdjacentHTML('beforeend','<div class="message '+(m.sender===cu?'received':'sent')+'">'+m.message+'<div class="time">'+new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>');c.scrollTop=c.scrollHeight}
-function sendMsg(){if(!cu)return;const i=document.getElementById('msgInput');const m=i.value.trim();if(!m)return;socket.emit('sendMsg',{sender:'admin',receiver:cu,message:m,type:'text'});i.value=''}
+function sendMsg(){if(!cu)return;const i=document.getElementById('msgInput');const m=i.value.trim();if(!m)return;socket.emit('sendMsg',{sender:'admin@baillamaach.com',receiver:cu,message:m,type:'text'});i.value=''}
 </script>
 </body>
 </html>`);
@@ -579,7 +590,7 @@ app.post('/api/admin/login',async(req,res)=>{
 
 app.get('/api/admin/users',async(req,res)=>{
   const users=await User.find({isAdmin:false}).sort({lastSeen:-1}).lean();
-  for(let u of users)u.unreadCount=await Message.countDocuments({sender:u.email,receiver:'admin',seen:false});
+  for(let u of users)u.unreadCount=await Message.countDocuments({sender:u.email,receiver:'admin@baillamaach.com',seen:false});
   res.json(users);
 });
 
@@ -595,7 +606,7 @@ io.on('connection',(socket)=>{
     const msg=await Message.create({sender:data.sender,receiver:data.receiver,message:data.message,type:data.type||'text'});
     io.emit('newMsg',msg);
   });
-  socket.on('markRead',async(data)=>{await Message.updateMany({sender:data.user,receiver:'admin',seen:false},{$set:{seen:true}})});
+  socket.on('markRead',async(data)=>{await Message.updateMany({sender:data.user,receiver:'admin@baillamaach.com',seen:false},{$set:{seen:true}})});
   socket.on('disconnect',async()=>{
     if(socket.userData){await User.updateOne({email:socket.userData.email},{$set:{isOnline:false,lastSeen:new Date()}});io.emit('userStatus',{email:socket.userData.email,online:false})}
   });
