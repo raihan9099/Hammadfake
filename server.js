@@ -1,82 +1,136 @@
 require('dotenv').config();
-process.on('uncaughtException',(e)=>{console.error(e.message)});
-process.on('unhandledRejection',(e)=>{console.error(e)});
+process.on('uncaughtException', (e) => { console.error('Uncaught:', e.message); });
+process.on('unhandledRejection', (e) => { console.error('Rejection:', e); });
 
-const express=require('express');
-const http=require('http');
-const socketIO=require('socket.io');
-const mongoose=require('mongoose');
-const bcrypt=require('bcryptjs');
-const multer=require('multer');
-const path=require('path');
-const fs=require('fs');
+const express = require('express');
+const http = require('http');
+const socketIO = require('socket.io');
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
-const app=express();
-const server=http.createServer(app);
-const io=socketIO(server);
+const app = express();
+const server = http.createServer(app);
+const io = socketIO(server);
 
-const PORT=process.env.PORT||3000;
-const MONGO_URI=process.env.MONGO_URI||'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/verification_hub?retryWrites=true&w=majority';
+const PORT = process.env.PORT || 3000;
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/verification_hub?retryWrites=true&w=majority';
 
+// Middleware
 app.use(express.json());
-app.use('/assets',express.static('assets'));
-app.use('/uploads',express.static('uploads'));
+app.use('/assets', express.static('assets'));
+app.use('/uploads', express.static('uploads'));
+app.use('/chat.js', express.static(path.join(__dirname, 'chat.js')));
 
-['uploads','assets/covermusic'].forEach(d=>{if(!fs.existsSync(d))fs.mkdirSync(d,{recursive:true})});
+// Ensure directories exist
+['uploads', 'assets/covermusic'].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
 
-const upload=multer({dest:'uploads/'});
+// Multer setup
+const upload = multer({ dest: 'uploads/' });
 
-const User=mongoose.model('User',new mongoose.Schema({
-  name:String,email:{type:String,unique:true},password:String,isAdmin:{type:Boolean,default:false},
-  lastSeen:Date,isOnline:{type:Boolean,default:false},createdAt:{type:Date,default:Date.now}
+// ============ MODELS ============
+const User = mongoose.model('User', new mongoose.Schema({
+  name: String,
+  email: { type: String, unique: true },
+  password: String,
+  isAdmin: { type: Boolean, default: false },
+  lastSeen: Date,
+  isOnline: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
 }));
-const Message=mongoose.model('Message',new mongoose.Schema({
-  sender:String,receiver:String,message:String,type:{type:String,default:'text'},
-  fileUrl:String,seen:{type:Boolean,default:false},timestamp:{type:Date,default:Date.now}
+
+const Message = mongoose.model('Message', new mongoose.Schema({
+  sender: String,
+  receiver: String,
+  message: String,
+  type: { type: String, default: 'text' },
+  fileUrl: String,
+  seen: { type: Boolean, default: false },
+  timestamp: { type: Date, default: Date.now }
 }));
 
-mongoose.connect(MONGO_URI).then(async()=>{
-  console.log('MongoDB connected');
-  const admin=await User.findOne({email:'admin@baillamaach.com'});
-  if(!admin){await User.create({name:'Baiilla Maach',email:'admin@baillamaach.com',password:await bcrypt.hash('Admin@2024!',10),isAdmin:true})}
-}).catch(e=>console.log('MongoDB error:',e.message));
+// ============ DATABASE CONNECTION ============
+mongoose.connect(MONGO_URI)
+  .then(async () => {
+    console.log('✅ MongoDB connected');
+    
+    // Create admin if not exists
+    const adminEmail = 'admin@baillamaach.com';
+    const admin = await User.findOne({ email: adminEmail });
+    
+    if (!admin) {
+      const hashedPassword = await bcrypt.hash('Admin@2024!', 10);
+      await User.create({
+        name: 'Baiilla Maach',
+        email: adminEmail,
+        password: hashedPassword,
+        isAdmin: true
+      });
+      console.log('✅ Admin user created');
+    } else {
+      // Ensure admin password is correct
+      const validPassword = await bcrypt.compare('Admin@2024!', admin.password);
+      if (!validPassword) {
+        const hashedPassword = await bcrypt.hash('Admin@2024!', 10);
+        await User.updateOne({ email: adminEmail }, { $set: { password: hashedPassword } });
+        console.log('🔄 Admin password reset to default');
+      }
+    }
+    
+    console.log('📧 Admin Email: admin@baillamaach.com');
+    console.log('🔑 Admin Password: Admin@2024!');
+  })
+  .catch(e => console.error('❌ MongoDB error:', e.message));
 
-const ASSETS={
-  profile:"/assets/celebrity_pfp.jpeg",
-  fbProfile:"/assets/fb_profile.jpg",
-  blueTikTok:"/assets/bluetick_tiktok.png",
-  blueFB:"/assets/blue_tick_fb.png",
-  logoFB:"/assets/logo_fb.png",
-  logoTikTok:"/assets/logo_tiktok.png",
-  messageBubble:"/assets/message_bubble.gif",
-  microphone:"/assets/microphone-in-hand.gif",
-  reportBtn:"/assets/report_button.png",
-  realId:"/assets/real-id-ss.png",
-  fakeDetect:"/assets/Fakedetect_updown.png",
-  baillamachFake:"/assets/baillamach_fake.png",
-  hammadFake:"/assets/hammadfams.png",
-  officialTikTok:"/assets/orginalss-tiktok.png"
+// ============ ASSETS ============
+const ASSETS = {
+  profile: "/assets/celebrity_pfp.jpeg",
+  fbProfile: "/assets/fb_profile.jpg",
+  blueTikTok: "/assets/bluetick_tiktok.png",
+  blueFB: "/assets/blue_tick_fb.png",
+  logoFB: "/assets/logo_fb.png",
+  logoTikTok: "/assets/logo_tiktok.png",
+  messageBubble: "/assets/message_bubble.gif",
+  microphone: "/assets/microphone-in-hand.gif",
+  reportBtn: "/assets/report_button.png",
+  realId: "/assets/real-id-ss.png",
+  fakeDetect: "/assets/Fakedetect_updown.png",
+  baillamachFake: "/assets/baillamach_fake.png",
+  hammadFake: "/assets/hammadfams.png",
+  officialTikTok: "/assets/orginalss-tiktok.png"
 };
 
-const WELCOME_VOICE=fs.existsSync('assets/realvoice.mp3');
-const MANUAL_VOICE=fs.existsSync('assets/manualvoice_alert.mp3');
+const WELCOME_VOICE = fs.existsSync('assets/realvoice.mp3');
+const MANUAL_VOICE = fs.existsSync('assets/manualvoice_alert.mp3');
 
-function getSongs(){
-  try{
-    const dir='assets/covermusic';
-    if(!fs.existsSync(dir))return[];
-    return fs.readdirSync(dir).filter(f=>f.endsWith('.mp3')).map((f,i)=>({
-      id:i,title:f.replace('.mp3','').replace(/[-_]/g,' '),url:'/assets/covermusic/'+encodeURIComponent(f)
-    }));
-  }catch(e){return[]}
+// ============ HELPERS ============
+function getSongs() {
+  try {
+    const dir = 'assets/covermusic';
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir)
+      .filter(f => f.endsWith('.mp3'))
+      .map((f, i) => ({
+        id: i,
+        title: f.replace('.mp3', '').replace(/[-_]/g, ' '),
+        url: '/assets/covermusic/' + encodeURIComponent(f)
+      }));
+  } catch (e) {
+    return [];
+  }
 }
 
-app.get('/',(req,res)=>{
-  const songs=getSongs();
+// ============ PUBLIC ROUTES ============
+app.get('/', (req, res) => {
+  const songs = getSongs();
   
-  let musicHTML='';
-  if(songs.length>0){
-    musicHTML=`
+  let musicHTML = '';
+  if (songs.length > 0) {
+    musicHTML = `
     <section class="section bg-gray">
       <div class="container">
         <div class="section-label">MUSIC</div>
@@ -99,7 +153,11 @@ app.get('/',(req,res)=>{
           </div>
         </div>
         <div class="music-list">
-          ${songs.map((s,i)=>`<div onclick="playTrack(${i})" class="music-item"><span>${String(i+1).padStart(2,'0')}</span>${s.title}</div>`).join('')}
+          ${songs.map((s, i) => `
+            <div onclick="playTrack(${i})" class="music-item">
+              <span>${String(i + 1).padStart(2, '0')}</span>${s.title}
+            </div>
+          `).join('')}
         </div>
       </div>
     </section>`;
@@ -144,12 +202,9 @@ app.get('/',(req,res)=>{
   --radius-sm:10px;
   --radius-full:9999px;
 }
-
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800);line-height:1.6;-webkit-font-smoothing:antialiased}
-
-/* Nav */
 .nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--gray200);padding:0 24px}
 .nav-inner{max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;height:64px}
 .nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
@@ -158,8 +213,6 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
 .nav-chat{display:flex;align-items:center;gap:6px;background:var(--green);color:var(--white);padding:8px 18px;border-radius:var(--radius-full);text-decoration:none;font-weight:600;font-size:0.85em;transition:0.2s}
 .nav-chat:hover{background:#059669;transform:translateY(-1px)}
 .nav-chat img{width:18px;height:18px}
-
-/* Hero */
 .hero{padding:80px 24px 60px;text-align:center;max-width:700px;margin:0 auto}
 .hero-avatar{position:relative;display:inline-block;margin-bottom:20px}
 .hero-avatar img{width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid var(--orange);box-shadow:0 0 0 8px var(--orange-light)}
@@ -180,8 +233,6 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
 .hero-btn.tiktok:hover{background:#000}
 .hero-btn.facebook{background:var(--blue-light);color:var(--blue)}
 .hero-btn.facebook:hover{background:#dbeafe}
-
-/* Sections */
 .section{padding:80px 24px}
 .section.bg-gray{background:var(--gray50)}
 .section.bg-green{background:var(--green-light)}
@@ -190,8 +241,6 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
 .section-label{display:inline-block;font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:var(--orange);margin-bottom:12px}
 .section-heading{font-family:'Outfit',sans-serif;font-size:2em;font-weight:700;color:var(--gray900);text-align:center;letter-spacing:-0.5px;margin-bottom:6px}
 .section-desc{text-align:center;color:var(--gray500);margin-bottom:40px;font-size:0.95em}
-
-/* Verified Cards */
 .verified-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .verified-card{background:var(--white);border:1px solid var(--gray200);border-radius:var(--radius);padding:28px;transition:0.2s}
 .verified-card:hover{border-color:var(--green);box-shadow:var(--shadow-md)}
@@ -208,8 +257,6 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
 .verified-card .card-body .follow-btn.tiktok-btn:hover{background:#000}
 .verified-card .card-body .follow-btn.fb-btn{background:var(--blue);color:var(--white)}
 .verified-card .card-body .follow-btn.fb-btn:hover{background:#2563eb}
-
-/* Fake Cards */
 .fake-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .fake-card{background:var(--white);border:2px solid #fecaca;border-radius:var(--radius);overflow:hidden;position:relative;transition:0.2s}
 .fake-card:hover{box-shadow:var(--shadow-lg)}
@@ -224,23 +271,17 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
 .fake-card .fake-info .report-btn{display:inline-flex;align-items:center;gap:5px;background:var(--red);color:var(--white);padding:7px 16px;border-radius:var(--radius-full);text-decoration:none;font-weight:600;font-size:0.8em;transition:0.2s}
 .fake-card .fake-info .report-btn:hover{background:#dc2626}
 .fake-card .fake-info .report-btn img{width:15px;height:15px}
-
-/* Voice */
 .voice-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px}
 .voice-btn{padding:12px 26px;border-radius:var(--radius-full);border:none;font-weight:600;cursor:pointer;font-size:0.9em;display:flex;align-items:center;gap:6px;transition:0.2s}
 .voice-btn.welcome{background:var(--orange);color:var(--white)}
 .voice-btn.welcome:hover{background:var(--orange-dark)}
 .voice-btn.manual{background:var(--white);color:var(--red);border:2px solid var(--red)}
 .voice-btn.manual:hover{background:var(--red);color:var(--white)}
-
-/* Proof */
 .proof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .proof-card{background:var(--white);border:1px solid var(--gray200);border-radius:var(--radius-sm);padding:20px;text-align:center;transition:0.2s}
 .proof-card:hover{border-color:var(--orange);box-shadow:var(--shadow-sm)}
 .proof-card img{width:100%;height:auto;border-radius:6px;margin-bottom:10px}
 .proof-card p{font-weight:600;font-size:0.85em;color:var(--gray700)}
-
-/* Music */
 .music-player{max-width:600px;margin:0 auto;background:var(--white);border:1px solid var(--gray200);border-radius:var(--radius);padding:28px;display:flex;align-items:center;gap:24px}
 .music-cover img{width:100px;height:100px;border-radius:50%;object-fit:cover;border:2px solid var(--orange)}
 .music-info{flex:1;text-align:center}
@@ -259,16 +300,12 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
 .music-item:hover{background:var(--orange-light)}
 .music-item.active{background:var(--orange-light);border-left:3px solid var(--orange);font-weight:600}
 .music-item span{font-weight:700;color:var(--orange);min-width:24px}
-
-/* Footer */
 .footer{background:var(--gray900);color:var(--white);padding:50px 24px 30px;text-align:center}
 .footer-grid{max-width:1000px;margin:0 auto 30px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:30px;text-align:left}
 .footer h4{font-family:'Outfit',sans-serif;color:var(--orange);margin-bottom:10px;font-size:0.95em}
 .footer p,.footer a{color:var(--gray400);text-decoration:none;font-size:0.82em;line-height:1.8}
 .footer a:hover{color:var(--white)}
 .footer-bottom{padding-top:20px;border-top:1px solid var(--gray700);font-size:0.78em;color:var(--gray500)}
-
-/* Chat Widget */
 .chat-widget{position:fixed;bottom:24px;right:24px;z-index:999}
 .chat-bubble{width:56px;height:56px;border-radius:50%;cursor:pointer;box-shadow:0 4px 15px rgba(16,185,129,0.3);transition:0.2s;animation:softBounce 3s infinite}
 .chat-bubble:hover{transform:scale(1.08)}
@@ -290,7 +327,6 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
 .msg.user{background:var(--orange);color:var(--white);margin-left:auto;border-bottom-right-radius:3px}
 .msg.admin{background:var(--white);color:var(--gray800);border:1px solid var(--gray200);border-bottom-left-radius:3px}
 .msg .time{font-size:0.65em;opacity:0.6;margin-top:3px;text-align:right}
-
 @media(max-width:768px){
   .hero h1{font-size:1.8em}
   .verified-grid,.fake-grid{grid-template-columns:1fr}
@@ -301,7 +337,6 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
 </style>
 </head>
 <body>
-
 <nav class="nav">
   <div class="nav-inner">
     <a href="/" class="nav-brand">
@@ -313,7 +348,6 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
     </a>
   </div>
 </nav>
-
 <section class="hero">
   <div class="hero-avatar">
     <img src="${ASSETS.profile}" alt="Baiilla Maach" onerror="this.style.display='none'">
@@ -333,7 +367,6 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
     <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="hero-btn facebook"><img src="${ASSETS.logoFB}" alt=""> Facebook</a>
   </div>
 </section>
-
 <section class="section bg-green">
   <div class="container">
     <div class="section-label">OFFICIAL</div>
@@ -376,7 +409,6 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
     </div>
   </div>
 </section>
-
 <section class="section bg-red">
   <div class="container">
     <div class="section-label" style="color:var(--red)">WARNING</div>
@@ -410,7 +442,6 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
     </div>
   </div>
 </section>
-
 <section class="section bg-gray">
   <div class="container">
     <div class="section-label">PROOF</div>
@@ -423,22 +454,19 @@ body{font-family:'Inter',sans-serif;background:var(--white);color:var(--gray800)
     </div>
   </div>
 </section>
-
-${WELCOME_VOICE||MANUAL_VOICE?`
+${WELCOME_VOICE || MANUAL_VOICE ? `
 <section class="section">
   <div class="container" style="text-align:center">
     <div class="section-label">VOICE</div>
     <h2 class="section-heading">Voice Verification</h2>
     <p class="section-desc">Listen to authentic Baiilla Maach voice</p>
     <div class="voice-btns">
-      ${WELCOME_VOICE?`<button class="voice-btn welcome" onclick="playWelcome()">▶️ Real Voice</button>`:''}
-      ${MANUAL_VOICE?`<button class="voice-btn manual" onclick="playManual()">⚠️ Fake Alert</button>`:''}
+      ${WELCOME_VOICE ? `<button class="voice-btn welcome" onclick="playWelcome()">▶️ Real Voice</button>` : ''}
+      ${MANUAL_VOICE ? `<button class="voice-btn manual" onclick="playManual()">⚠️ Fake Alert</button>` : ''}
     </div>
   </div>
-</section>`:''}
-
+</section>` : ''}
 ${musicHTML}
-
 <footer class="footer">
   <div class="footer-grid">
     <div><h4>About</h4><p>Official verification hub for Baiilla Maach. Protecting fans from fake accounts.</p></div>
@@ -447,7 +475,6 @@ ${musicHTML}
   </div>
   <div class="footer-bottom"><p>© 2024 Baiilla Maach. All rights reserved.</p></div>
 </footer>
-
 <div class="chat-widget"><div class="chat-bubble" onclick="openChat()"><img src="${ASSETS.messageBubble}" alt="Chat"></div></div>
 <div class="chat-box" id="chatBox">
   <div class="head">💬 Chat Support<button onclick="closeChat()">✕</button></div>
@@ -466,18 +493,13 @@ ${musicHTML}
     </div>
   </div>
 </div>
-
-${WELCOME_VOICE?`<audio id="welcomeAudio" src="/assets/realvoice.mp3" preload="auto"></audio>`:''}
-${MANUAL_VOICE?`<audio id="manualAudio" src="/assets/manualvoice_alert.mp3" preload="auto"></audio>`:''}
-
+${WELCOME_VOICE ? `<audio id="welcomeAudio" src="/assets/realvoice.mp3" preload="auto"></audio>` : ''}
+${MANUAL_VOICE ? `<audio id="manualAudio" src="/assets/manualvoice_alert.mp3" preload="auto"></audio>` : ''}
 <script src="/socket.io/socket.io.js"></script>
 <script>
-// Voice
 window.addEventListener('load',()=>{const a=document.getElementById('welcomeAudio');if(a)setTimeout(()=>a.play().catch(()=>{}),1200)});
 function playWelcome(){const a=document.getElementById('welcomeAudio');if(a){a.currentTime=0;a.play()}}
 function playManual(){const a=document.getElementById('manualAudio');if(a){a.currentTime=0;a.play()}}
-
-// Music
 const tracks=${JSON.stringify(songs)};
 let ct=0,playing=false;
 const audio=new Audio();
@@ -490,8 +512,6 @@ audio.addEventListener('timeupdate',()=>{const p=(audio.currentTime/audio.durati
 audio.addEventListener('ended',nextTrack);
 function seekTrack(e){const r=e.currentTarget.getBoundingClientRect();audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration}
 function ft(s){if(isNaN(s))return'0:00';const m=Math.floor(s/60),sec=Math.floor(s%60);return m+':'+String(sec).padStart(2,'0')}
-
-// Chat
 const socket=io();let cu=null;
 function openChat(){document.getElementById('chatBox').classList.add('open')}
 function closeChat(){document.getElementById('chatBox').classList.remove('open')}
@@ -504,112 +524,308 @@ socket.on('newMsg',(m)=>{if(cu&&(m.sender===cu.email||m.receiver===cu.email)){co
 </html>`);
 });
 
-// API + Messenger + Admin
-app.get('/api/msgs/:email',async(req,res)=>{
-  const msgs=await Message.find({$or:[{sender:req.params.email},{receiver:req.params.email}]}).sort({timestamp:1});
-  res.json(msgs);
+// ============ API ROUTES ============
+app.get('/api/msgs/:email', async (req, res) => {
+  try {
+    const msgs = await Message.find({
+      $or: [
+        { sender: req.params.email },
+        { receiver: req.params.email }
+      ]
+    }).sort({ timestamp: 1 });
+    res.json(msgs);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
 });
 
-app.get('/messenger',(req,res)=>{
+// ============ ADMIN ROUTES ============
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    
+    const user = await User.findOne({ email, isAdmin: true });
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    const valid = await bcrypt.compare(password, user.password);
+    
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    res.json({ token: 'ok', message: 'Login successful' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error during login' });
+  }
+});
+
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const users = await User.find({ isAdmin: false })
+      .sort({ lastSeen: -1 })
+      .lean();
+    
+    for (let u of users) {
+      u.unreadCount = await Message.countDocuments({
+        sender: u.email,
+        receiver: 'admin@baillamaach.com',
+        seen: false
+      });
+    }
+    
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// ============ MESSENGER PAGE ============
+app.get('/messenger', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Messenger | Baiilla Maach</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messenger | Baiilla Maach Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hidden;color:#1f2937}
-.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000}
-.login-card{background:#fff;padding:35px;border-radius:16px;width:380px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.15)}
-.login-card h2{font-family:'Outfit',sans-serif;margin-bottom:20px;font-size:1.4em}
-.login-card input{width:100%;padding:12px;margin-bottom:10px;border:1px solid #e5e7eb;border-radius:10px;font-size:0.95em;outline:none}
-.login-card input:focus{border-color:#f97316}
-.login-card button{width:100%;padding:12px;background:#f97316;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:1em}
+
+/* Login Overlay */
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px)}
+.login-card{background:#fff;padding:40px;border-radius:20px;width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:slideUp 0.3s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.login-card .logo{width:60px;height:60px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#fff;font-size:1.5em;font-weight:700}
+.login-card h2{font-family:'Outfit',sans-serif;margin-bottom:6px;font-size:1.5em;color:#111827}
+.login-card .subtitle{color:#9ca3af;font-size:0.9em;margin-bottom:24px}
+.login-card .input-group{margin-bottom:14px;text-align:left}
+.login-card .input-group label{display:block;font-size:0.8em;font-weight:600;color:#4b5563;margin-bottom:4px}
+.login-card .input-group input{width:100%;padding:12px 16px;border:1.5px solid #e5e7eb;border-radius:12px;font-size:0.95em;outline:none;transition:border-color 0.2s;font-family:'Inter',sans-serif}
+.login-card .input-group input:focus{border-color:#f97316;box-shadow:0 0 0 3px rgba(249,115,22,0.1)}
+.login-card button{width:100%;padding:12px;background:#f97316;color:#fff;border:none;border-radius:12px;font-weight:600;cursor:pointer;font-size:1em;transition:all 0.2s;font-family:'Inter',sans-serif}
+.login-card button:hover{background:#ea580c;transform:translateY(-1px)}
+.login-card button:disabled{opacity:0.7;cursor:not-allowed;transform:none}
+.login-error{color:#ef4444;font-size:0.85em;margin-top:10px;display:none}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-radius:50%;border-top-color:#fff;animation:spin 0.6s linear infinite;margin-right:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* App Layout */
 .app{display:none;height:100vh}
-.app-layout{display:flex;height:100vh;max-width:1400px;margin:0 auto;background:#fff}
-.sidebar{width:340px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;background:#fff}
-.sidebar-header{padding:18px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
-.sidebar-header h2{font-family:'Outfit',sans-serif;font-size:1.2em}
-.sidebar-header button{background:#ef4444;color:#fff;border:none;padding:6px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.8em}
-.search-bar{padding:12px 18px}
-.search-bar input{width:100%;padding:10px 14px;border:1px solid #e5e7eb;border-radius:20px;font-size:0.9em;outline:none;background:#f9fafb}
+.app-layout{display:flex;height:100vh;max-width:1400px;margin:0 auto;background:#fff;box-shadow:0 0 40px rgba(0,0,0,0.05)}
+
+/* Sidebar */
+.sidebar{width:360px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;background:#fff}
+.sidebar-header{padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#fafafa}
+.sidebar-header h2{font-family:'Outfit',sans-serif;font-size:1.2em;color:#111827}
+.sidebar-header .logout-btn{background:#fee2e2;color:#ef4444;border:none;padding:7px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.8em;transition:0.2s}
+.sidebar-header .logout-btn:hover{background:#fecaca}
+.search-bar{padding:12px 16px;border-bottom:1px solid #e5e7eb}
+.search-bar input{width:100%;padding:10px 16px;border:1.5px solid #e5e7eb;border-radius:24px;font-size:0.9em;outline:none;background:#f9fafb;transition:0.2s;font-family:'Inter',sans-serif}
+.search-bar input:focus{border-color:#f97316;background:#fff}
 .user-list{flex:1;overflow-y:auto}
-.user-item{padding:12px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:0.15s}
+.user-list::-webkit-scrollbar{width:4px}
+.user-list::-webkit-scrollbar-thumb{background:#e5e7eb;border-radius:2px}
+.user-item{padding:14px 20px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:0.15s;border-bottom:1px solid #f3f4f6;position:relative}
 .user-item:hover{background:#f9fafb}
 .user-item.active{background:#fff7ed;border-left:3px solid #f97316}
 .user-avatar{width:44px;height:44px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1em;flex-shrink:0;position:relative}
-.user-avatar .dot{position:absolute;bottom:1px;right:1px;width:10px;height:10px;border-radius:50%;background:#10b981;border:2px solid #fff}
+.user-avatar .dot{position:absolute;bottom:2px;right:2px;width:10px;height:10px;border-radius:50%;background:#10b981;border:2px solid #fff}
 .user-info{flex:1;min-width:0}
-.user-info .name{font-weight:600;font-size:0.9em}
-.user-info .email{font-size:0.78em;color:#9ca3af}
-.unread{background:#f97316;color:#fff;font-size:0.7em;padding:2px 7px;border-radius:10px;font-weight:700}
+.user-info .name{font-weight:600;font-size:0.9em;color:#111827}
+.user-info .email{font-size:0.78em;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-info .last-msg{font-size:0.75em;color:#9ca3af;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-time{font-size:0.7em;color:#d1d5db;flex-shrink:0}
+.unread{background:#f97316;color:#fff;font-size:0.7em;padding:3px 8px;border-radius:10px;font-weight:700;flex-shrink:0}
+.empty-state{text-align:center;padding:40px 20px;color:#9ca3af}
+.empty-state .empty-icon{font-size:2em;margin-bottom:8px}
+.empty-state p{font-weight:500}
+.empty-state span{font-size:0.8em}
+
+/* Chat Area */
 .chat-area{flex:1;display:flex;flex-direction:column;background:#f8f9fb}
-.chat-header{padding:16px 20px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:10px}
-.chat-header .avatar{width:38px;height:38px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:0.9em}
-.chat-header .name{font-weight:600;font-size:0.95em}
-.chat-header .status{font-size:0.78em;color:#10b981}
-.chat-messages{flex:1;overflow-y:auto;padding:18px}
-.message{max-width:60%;padding:8px 14px;border-radius:16px;margin-bottom:4px;font-size:0.88em}
-.message.sent{background:#f97316;color:#fff;margin-left:auto;border-bottom-right-radius:4px}
-.message.received{background:#fff;color:#1f2937;border:1px solid #e5e7eb;border-bottom-left-radius:4px}
-.message .time{font-size:0.65em;opacity:0.6;margin-top:3px;text-align:right}
-.date-divider{text-align:center;margin:12px 0;font-size:0.75em;color:#9ca3af}
-.chat-input{padding:14px 18px;background:#fff;border-top:1px solid #e5e7eb;display:flex;gap:8px}
-.chat-input input{flex:1;padding:10px 16px;border:1px solid #e5e7eb;border-radius:20px;font-size:0.9em;outline:none}
-.chat-input button{background:#f97316;color:#fff;border:none;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:1em}
+.chat-header{padding:16px 24px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:12px}
+.chat-header .avatar{width:42px;height:42px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:0.95em;flex-shrink:0}
+.chat-header .name{font-weight:600;font-size:1em;color:#111827}
+.chat-header .status{font-size:0.8em;display:flex;align-items:center;gap:4px}
+.online-dot{width:7px;height:7px;border-radius:50%;background:#10b981;display:inline-block}
+.offline-dot{width:7px;height:7px;border-radius:50%;background:#d1d5db;display:inline-block}
+.chat-messages{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:2px}
+.chat-messages::-webkit-scrollbar{width:4px}
+.chat-messages::-webkit-scrollbar-thumb{background:#e5e7eb;border-radius:2px}
+.message{max-width:65%;padding:10px 16px;border-radius:18px;font-size:0.9em;line-height:1.5;word-wrap:break-word;position:relative;animation:fadeIn 0.2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.message.sent{background:#f97316;color:#fff;align-self:flex-end;border-bottom-right-radius:4px;margin-left:auto}
+.message.received{background:#fff;color:#1f2937;border:1px solid #e5e7eb;align-self:flex-start;border-bottom-left-radius:4px}
+.message .time{font-size:0.65em;opacity:0.7;margin-top:4px;text-align:right}
+.date-divider{text-align:center;margin:16px 0;font-size:0.75em}
+.date-divider span{background:#e5e7eb;color:#6b7280;padding:4px 12px;border-radius:10px;font-weight:500}
+.chat-input{padding:14px 24px;background:#fff;border-top:1px solid #e5e7eb;display:none;gap:10px;align-items:center}
+.chat-input input{flex:1;padding:10px 18px;border:1.5px solid #e5e7eb;border-radius:24px;font-size:0.9em;outline:none;font-family:'Inter',sans-serif;transition:0.2s}
+.chat-input input:focus{border-color:#f97316}
+.chat-input button{background:#f97316;color:#fff;border:none;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:1.1em;flex-shrink:0;transition:0.2s;display:flex;align-items:center;justify-content:center}
+.chat-input button:hover{background:#ea580c;transform:scale(1.05)}
+
+@media(max-width:768px){
+  .sidebar{width:100%;display:none}
+  .sidebar.mobile-show{display:flex}
+  .chat-area{width:100%}
+  .login-card{width:90%;padding:30px}
+}
 </style>
 </head>
 <body>
-<div class="login-overlay" id="loginOverlay"><div class="login-card"><h2>Admin Messenger</h2><input type="text" id="loginEmail" placeholder="Email"><input type="password" id="loginPassword" placeholder="Password"><button onclick="doLogin()">Sign In</button></div></div>
-<div class="app" id="app"><div class="app-layout"><div class="sidebar"><div class="sidebar-header"><h2>Chats</h2><button onclick="logout()">Logout</button></div><div class="search-bar"><input type="text" id="searchInput" placeholder="Search conversations..." oninput="filterUsers()"></div><div class="user-list" id="userList"></div></div><div class="chat-area"><div class="chat-header"><div class="avatar" id="chatAvatar">?</div><div><div class="name" id="chatName">Select user</div><div class="status" id="chatStatus"></div></div></div><div class="chat-messages" id="chatMessages"><div style="text-align:center;color:#9ca3af;padding:40px;">Select a conversation</div></div><div class="chat-input" id="chatInputArea" style="display:none"><input type="text" id="msgInput" placeholder="Type message..." onkeypress="if(event.key==='Enter')sendMsg()"><button onclick="sendMsg()">➤</button></div></div></div></div>
+
+<!-- Login Overlay -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="logo">BM</div>
+    <h2>Admin Messenger</h2>
+    <p class="subtitle">Baiilla Maach Support Panel</p>
+    <div class="input-group">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="admin@baillamaach.com" autocomplete="email">
+    </div>
+    <div class="input-group">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password">
+    </div>
+    <button id="loginBtn" onclick="ChatAdmin.login()">Sign In</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div class="app" id="app">
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h2>💬 Conversations</h2>
+        <button class="logout-btn" onclick="ChatAdmin.logout()">Logout</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="🔍 Search users..." oninput="ChatAdmin.filterUsers()">
+      </div>
+      <div class="user-list" id="userList">
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          <p>No conversations</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Chat Area -->
+    <div class="chat-area">
+      <div class="chat-header">
+        <div class="avatar" id="chatAvatar">?</div>
+        <div>
+          <div class="name" id="chatName">Select a user</div>
+          <div class="status" id="chatStatus"></div>
+        </div>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="empty-state" id="emptyChat">
+          <div class="empty-icon">💬</div>
+          <p>Select a conversation</p>
+          <span>Choose a user from the sidebar</span>
+        </div>
+      </div>
+      <div class="chat-input" id="chatInputArea">
+        <input type="text" id="msgInput" placeholder="Type your message...">
+        <button onclick="ChatAdmin.sendMessage()">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="/socket.io/socket.io.js"></script>
-<script>
-let cu=null,socket=null,allUsers=[];
-async function doLogin(){const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('loginEmail').value,password:document.getElementById('loginPassword').value})});if(r.ok){document.getElementById('loginOverlay').style.display='none';document.getElementById('app').style.display='block';init();loadUsers()}else alert('Invalid credentials')}
-function logout(){if(socket)socket.disconnect();document.getElementById('loginOverlay').style.display='flex';document.getElementById('app').style.display='none';cu=null}
-function init(){socket=io();socket.emit('register',{name:'Admin',email:'admin@baillamaach.com'});socket.on('newMsg',(m)=>{if(cu&&(m.sender===cu||m.receiver===cu))appendMsg(m);loadUsers()})}
-async function loadUsers(){const r=await fetch('/api/admin/users');allUsers=await r.json();renderUsers()}
-function renderUsers(f=''){const data=f?allUsers.filter(u=>u.name.toLowerCase().includes(f)||u.email.toLowerCase().includes(f)):allUsers;document.getElementById('userList').innerHTML=data.map(u=>'<div class="user-item'+(cu===u.email?' active':'')+'" onclick="selectUser(\''+u.email+'\')"><div class="user-avatar">'+u.name[0].toUpperCase()+(u.isOnline?'<div class="dot"></div>':'')+'</div><div class="user-info"><div class="name">'+u.name+'</div><div class="email">'+u.email+'</div></div>'+(u.unreadCount>0?'<div class="unread">'+u.unreadCount+'</div>':'')+'</div>').join('')}
-function filterUsers(){renderUsers(document.getElementById('searchInput').value.toLowerCase())}
-async function selectUser(email){cu=email;document.getElementById('chatInputArea').style.display='flex';const u=allUsers.find(u=>u.email===email);document.getElementById('chatAvatar').textContent=u?.name[0]?.toUpperCase()||'?';document.getElementById('chatName').textContent=u?.name||email;document.getElementById('chatStatus').textContent=u?.isOnline?'● Online':'○ Offline';const r=await fetch('/api/msgs/'+email);const ms=await r.json();const c=document.getElementById('chatMessages');if(ms.length){let h='',ld='';ms.forEach(m=>{const d=new Date(m.timestamp).toLocaleDateString();if(d!==ld){h+='<div class="date-divider">'+d+'</div>';ld=d}h+='<div class="message '+(m.sender===email?'received':'sent')+'">'+m.message+'<div class="time">'+new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>'});c.innerHTML=h}else{c.innerHTML='<div style="text-align:center;color:#9ca3af;padding:40px;">No messages</div>'}c.scrollTop=c.scrollHeight;socket.emit('markRead',{user:email});renderUsers()}
-function appendMsg(m){const c=document.getElementById('chatMessages');c.querySelector('div[style]')?.remove();c.insertAdjacentHTML('beforeend','<div class="message '+(m.sender===cu?'received':'sent')+'">'+m.message+'<div class="time">'+new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>');c.scrollTop=c.scrollHeight}
-function sendMsg(){if(!cu)return;const i=document.getElementById('msgInput');const m=i.value.trim();if(!m)return;socket.emit('sendMsg',{sender:'admin@baillamaach.com',receiver:cu,message:m,type:'text'});i.value=''}
-</script>
+<script src="/chat.js"></script>
 </body>
 </html>`);
 });
 
-app.post('/api/admin/login',async(req,res)=>{
-  const user=await User.findOne({email:req.body.email,isAdmin:true});
-  if(!user)return res.status(400).json({error:'Not found'});
-  const valid=await bcrypt.compare(req.body.password,user.password);
-  if(!valid)return res.status(400).json({error:'Wrong password'});
-  res.json({token:'ok'});
+// ============ SOCKET.IO ============
+io.on('connection', (socket) => {
+  console.log('🔌 New connection:', socket.id);
+  
+  socket.on('register', async (data) => {
+    try {
+      socket.userData = data;
+      
+      let user = await User.findOne({ email: data.email });
+      if (!user) {
+        const hash = await bcrypt.hash('default123', 10);
+        user = await User.create({
+          name: data.name,
+          email: data.email,
+          password: hash
+        });
+      }
+      
+      await User.updateOne(
+        { email: data.email },
+        { $set: { isOnline: true, lastSeen: new Date() } }
+      );
+      
+      io.emit('userStatus', { email: data.email, online: true });
+    } catch (err) {
+      console.error('Register error:', err.message);
+    }
+  });
+  
+  socket.on('sendMsg', async (data) => {
+    try {
+      const msg = await Message.create({
+        sender: data.sender,
+        receiver: data.receiver,
+        message: data.message,
+        type: data.type || 'text'
+      });
+      
+      io.emit('newMsg', msg);
+    } catch (err) {
+      console.error('Send message error:', err.message);
+    }
+  });
+  
+  socket.on('markRead', async (data) => {
+    try {
+      await Message.updateMany(
+        { sender: data.user, receiver: 'admin@baillamaach.com', seen: false },
+        { $set: { seen: true } }
+      );
+    } catch (err) {
+      console.error('Mark read error:', err.message);
+    }
+  });
+  
+  socket.on('disconnect', async () => {
+    if (socket.userData) {
+      try {
+        await User.updateOne(
+          { email: socket.userData.email },
+          { $set: { isOnline: false, lastSeen: new Date() } }
+        );
+        io.emit('userStatus', { email: socket.userData.email, online: false });
+      } catch (err) {
+        console.error('Disconnect error:', err.message);
+      }
+    }
+  });
 });
 
-app.get('/api/admin/users',async(req,res)=>{
-  const users=await User.find({isAdmin:false}).sort({lastSeen:-1}).lean();
-  for(let u of users)u.unreadCount=await Message.countDocuments({sender:u.email,receiver:'admin@baillamaach.com',seen:false});
-  res.json(users);
+// ============ START SERVER ============
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📧 Admin panel: http://localhost:${PORT}/messenger`);
+  console.log(`📧 Admin Email: admin@baillamaach.com`);
+  console.log(`🔑 Admin Password: Admin@2024!`);
 });
-
-io.on('connection',(socket)=>{
-  socket.on('register',async(data)=>{
-    socket.userData=data;
-    let user=await User.findOne({email:data.email});
-    if(!user){const hash=await bcrypt.hash('default123',10);user=await User.create({name:data.name,email:data.email,password:hash})}
-    await User.updateOne({email:data.email},{$set:{isOnline:true,lastSeen:new Date()}});
-    io.emit('userStatus',{email:data.email,online:true});
-  });
-  socket.on('sendMsg',async(data)=>{
-    const msg=await Message.create({sender:data.sender,receiver:data.receiver,message:data.message,type:data.type||'text'});
-    io.emit('newMsg',msg);
-  });
-  socket.on('markRead',async(data)=>{await Message.updateMany({sender:data.user,receiver:'admin@baillamaach.com',seen:false},{$set:{seen:true}})});
-  socket.on('disconnect',async()=>{
-    if(socket.userData){await User.updateOne({email:socket.userData.email},{$set:{isOnline:false,lastSeen:new Date()}});io.emit('userStatus',{email:socket.userData.email,online:false})}
-  });
-});
-
-server.listen(PORT,()=>console.log(`Server running on port ${PORT}`));
