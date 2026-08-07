@@ -18,21 +18,16 @@ const io = socketIO(server);
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/verification_hub?retryWrites=true&w=majority';
 
-// Middleware
 app.use(express.json());
 app.use('/assets', express.static('assets'));
 app.use('/uploads', express.static('uploads'));
-app.use('/chat.js', express.static(path.join(__dirname, 'chat.js')));
 
-// Ensure directories exist
 ['uploads', 'assets/covermusic'].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// Multer setup
 const upload = multer({ dest: 'uploads/' });
 
-// ============ MODELS ============
 const User = mongoose.model('User', new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
@@ -53,15 +48,11 @@ const Message = mongoose.model('Message', new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 }));
 
-// ============ DATABASE CONNECTION ============
 mongoose.connect(MONGO_URI)
   .then(async () => {
     console.log('✅ MongoDB connected');
-    
-    // Create admin if not exists
     const adminEmail = 'admin@baillamaach.com';
     const admin = await User.findOne({ email: adminEmail });
-    
     if (!admin) {
       const hashedPassword = await bcrypt.hash('Admin@2024!', 10);
       await User.create({
@@ -72,7 +63,6 @@ mongoose.connect(MONGO_URI)
       });
       console.log('✅ Admin user created');
     } else {
-      // Ensure admin password is correct
       const validPassword = await bcrypt.compare('Admin@2024!', admin.password);
       if (!validPassword) {
         const hashedPassword = await bcrypt.hash('Admin@2024!', 10);
@@ -80,13 +70,11 @@ mongoose.connect(MONGO_URI)
         console.log('🔄 Admin password reset to default');
       }
     }
-    
     console.log('📧 Admin Email: admin@baillamaach.com');
     console.log('🔑 Admin Password: Admin@2024!');
   })
   .catch(e => console.error('❌ MongoDB error:', e.message));
 
-// ============ ASSETS ============
 const ASSETS = {
   profile: "/assets/celebrity_pfp.jpeg",
   fbProfile: "/assets/fb_profile.jpg",
@@ -107,7 +95,6 @@ const ASSETS = {
 const WELCOME_VOICE = fs.existsSync('assets/realvoice.mp3');
 const MANUAL_VOICE = fs.existsSync('assets/manualvoice_alert.mp3');
 
-// ============ HELPERS ============
 function getSongs() {
   try {
     const dir = 'assets/covermusic';
@@ -124,10 +111,8 @@ function getSongs() {
   }
 }
 
-// ============ PUBLIC ROUTES ============
 app.get('/', (req, res) => {
   const songs = getSongs();
-  
   let musicHTML = '';
   if (songs.length > 0) {
     musicHTML = `
@@ -524,42 +509,34 @@ socket.on('newMsg',(m)=>{if(cu&&(m.sender===cu.email||m.receiver===cu.email)){co
 </html>`);
 });
 
-// ============ API ROUTES ============
 app.get('/api/msgs/:email', async (req, res) => {
   try {
     const msgs = await Message.find({
       $or: [
-        { sender: req.params.email },
-        { receiver: req.params.email }
+        { sender: req.params.email, receiver: 'admin@baillamaach.com' },
+        { sender: 'admin@baillamaach.com', receiver: req.params.email }
       ]
-    }).sort({ timestamp: 1 });
+    }).sort({ timestamp: 1 }).lean();
     res.json(msgs);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch messages' });
   }
 });
 
-// ============ ADMIN ROUTES ============
 app.post('/api/admin/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
-    
     const user = await User.findOne({ email, isAdmin: true });
-    
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    
     const valid = await bcrypt.compare(password, user.password);
-    
     if (!valid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    
     res.json({ token: 'ok', message: 'Login successful' });
   } catch (err) {
     res.status(500).json({ error: 'Server error during login' });
@@ -571,7 +548,6 @@ app.get('/api/admin/users', async (req, res) => {
     const users = await User.find({ isAdmin: false })
       .sort({ lastSeen: -1 })
       .lean();
-    
     for (let u of users) {
       u.unreadCount = await Message.countDocuments({
         sender: u.email,
@@ -579,14 +555,12 @@ app.get('/api/admin/users', async (req, res) => {
         seen: false
       });
     }
-    
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
 
-// ============ MESSENGER PAGE ============
 app.get('/messenger', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -598,8 +572,6 @@ app.get('/messenger', (req, res) => {
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hidden;color:#1f2937}
-
-/* Login Overlay */
 .login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px)}
 .login-card{background:#fff;padding:40px;border-radius:20px;width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:slideUp 0.3s ease}
 @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
@@ -616,12 +588,8 @@ body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hid
 .login-error{color:#ef4444;font-size:0.85em;margin-top:10px;display:none}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-radius:50%;border-top-color:#fff;animation:spin 0.6s linear infinite;margin-right:6px;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* App Layout */
 .app{display:none;height:100vh}
 .app-layout{display:flex;height:100vh;max-width:1400px;margin:0 auto;background:#fff;box-shadow:0 0 40px rgba(0,0,0,0.05)}
-
-/* Sidebar */
 .sidebar{width:360px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;background:#fff}
 .sidebar-header{padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#fafafa}
 .sidebar-header h2{font-family:'Outfit',sans-serif;font-size:1.2em;color:#111827}
@@ -648,8 +616,6 @@ body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hid
 .empty-state .empty-icon{font-size:2em;margin-bottom:8px}
 .empty-state p{font-weight:500}
 .empty-state span{font-size:0.8em}
-
-/* Chat Area */
 .chat-area{flex:1;display:flex;flex-direction:column;background:#f8f9fb}
 .chat-header{padding:16px 24px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:12px}
 .chat-header .avatar{width:42px;height:42px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:0.95em;flex-shrink:0}
@@ -672,7 +638,6 @@ body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hid
 .chat-input input:focus{border-color:#f97316}
 .chat-input button{background:#f97316;color:#fff;border:none;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:1.1em;flex-shrink:0;transition:0.2s;display:flex;align-items:center;justify-content:center}
 .chat-input button:hover{background:#ea580c;transform:scale(1.05)}
-
 @media(max-width:768px){
   .sidebar{width:100%;display:none}
   .sidebar.mobile-show{display:flex}
@@ -682,8 +647,6 @@ body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hid
 </style>
 </head>
 <body>
-
-<!-- Login Overlay -->
 <div class="login-overlay" id="loginOverlay">
   <div class="login-card">
     <div class="logo">BM</div>
@@ -701,11 +664,8 @@ body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hid
     <div class="login-error" id="loginError"></div>
   </div>
 </div>
-
-<!-- Main App -->
 <div class="app" id="app">
   <div class="app-layout">
-    <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <h2>💬 Conversations</h2>
@@ -721,8 +681,6 @@ body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hid
         </div>
       </div>
     </div>
-    
-    <!-- Chat Area -->
     <div class="chat-area">
       <div class="chat-header">
         <div class="avatar" id="chatAvatar">?</div>
@@ -739,27 +697,275 @@ body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hid
         </div>
       </div>
       <div class="chat-input" id="chatInputArea">
-        <input type="text" id="msgInput" placeholder="Type your message...">
+        <input type="text" id="msgInput" placeholder="Type your message..." onkeypress="if(event.key==='Enter')ChatAdmin.sendMessage()">
         <button onclick="ChatAdmin.sendMessage()">➤</button>
       </div>
     </div>
   </div>
 </div>
-
 <script src="/socket.io/socket.io.js"></script>
-<script src="/chat.js"></script>
+<script>
+const ChatAdmin = {
+    socket: null,
+    currentUser: null,
+    users: [],
+    messages: [],
+    isLoggedIn: false,
+
+    init() {
+        this.socket = io();
+        this.socket.on('newMsg', (msg) => {
+            if (this.currentUser && 
+                ((msg.sender === this.currentUser.email && msg.receiver === 'admin@baillamaach.com') ||
+                 (msg.sender === 'admin@baillamaach.com' && msg.receiver === this.currentUser.email))) {
+                this.messages.push(msg);
+                this.renderMessages();
+                this.markAsRead();
+            }
+            this.loadUsers();
+        });
+        this.socket.on('userStatus', (data) => {
+            this.updateUserStatus(data.email, data.online);
+        });
+        const savedSession = localStorage.getItem('adminSession');
+        if (savedSession) {
+            const session = JSON.parse(savedSession);
+            document.getElementById('loginEmail').value = session.email;
+            document.getElementById('loginPassword').value = session.password;
+            this.login(true);
+        }
+    },
+
+    async login(isAutoLogin = false) {
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value.trim();
+        const errorDiv = document.getElementById('loginError');
+        const loginBtn = document.getElementById('loginBtn');
+        if (!email || !password) {
+            errorDiv.textContent = 'Please fill in all fields';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '<span class="spinner"></span> Signing in...';
+        errorDiv.style.display = 'none';
+        try {
+            const response = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await response.json();
+            if (response.ok) {
+                this.isLoggedIn = true;
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+                localStorage.setItem('adminSession', JSON.stringify({ email, password }));
+                await this.loadUsers();
+            } else {
+                errorDiv.textContent = data.error || 'Login failed';
+                errorDiv.style.display = 'block';
+                localStorage.removeItem('adminSession');
+            }
+        } catch (err) {
+            errorDiv.textContent = 'Network error. Please try again.';
+            errorDiv.style.display = 'block';
+            localStorage.removeItem('adminSession');
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = 'Sign In';
+        }
+    },
+
+    async loadUsers() {
+        if (!this.isLoggedIn) return;
+        try {
+            const response = await fetch('/api/admin/users');
+            this.users = await response.json();
+            this.renderUserList();
+        } catch (err) {
+            console.error('Failed to load users:', err);
+        }
+    },
+
+    async selectUser(user) {
+        this.currentUser = user;
+        document.getElementById('chatAvatar').textContent = user.name.charAt(0).toUpperCase();
+        document.getElementById('chatName').textContent = user.name;
+        document.getElementById('chatStatus').innerHTML = 
+            user.isOnline ? '<span class="online-dot"></span> Online' : 
+            '<span class="offline-dot"></span> Offline';
+        document.getElementById('chatInputArea').style.display = 'flex';
+        document.getElementById('emptyChat').style.display = 'none';
+        document.getElementById('msgInput').focus();
+        document.querySelectorAll('.user-item').forEach(item => {
+            item.classList.remove('active');
+            if (item.dataset.email === user.email) {
+                item.classList.add('active');
+            }
+        });
+        await this.loadMessages();
+        await this.markAsRead();
+    },
+
+    async loadMessages() {
+        if (!this.currentUser) return;
+        try {
+            const response = await fetch('/api/msgs/' + this.currentUser.email);
+            const allMessages = await response.json();
+            this.messages = allMessages.filter(msg => 
+                (msg.sender === this.currentUser.email && msg.receiver === 'admin@baillamaach.com') ||
+                (msg.sender === 'admin@baillamaach.com' && msg.receiver === this.currentUser.email)
+            );
+            this.renderMessages();
+        } catch (err) {
+            console.error('Failed to load messages:', err);
+        }
+    },
+
+    renderMessages() {
+        const container = document.getElementById('chatMessages');
+        if (this.messages.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">💬</div><p>No messages yet</p><span>Start the conversation</span></div>';
+            return;
+        }
+        let html = '';
+        let lastDate = '';
+        this.messages.forEach(msg => {
+            const msgDate = new Date(msg.timestamp).toLocaleDateString();
+            if (msgDate !== lastDate) {
+                html += '<div class="date-divider"><span>' + msgDate + '</span></div>';
+                lastDate = msgDate;
+            }
+            const isSentByAdmin = msg.sender === 'admin@baillamaach.com';
+            const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            html += '<div class="message ' + (isSentByAdmin ? 'sent' : 'received') + '">' +
+                (msg.type === 'image' ? '<img src="' + msg.fileUrl + '" style="max-width:200px;border-radius:8px">' : msg.message) +
+                '<div class="time">' + time + (isSentByAdmin ? ' ✓' : '') + '</div></div>';
+        });
+        container.innerHTML = html;
+        container.scrollTop = container.scrollHeight;
+    },
+
+    async sendMessage() {
+        const input = document.getElementById('msgInput');
+        const message = input.value.trim();
+        if (!message || !this.currentUser) return;
+        try {
+            this.socket.emit('sendMsg', {
+                sender: 'admin@baillamaach.com',
+                receiver: this.currentUser.email,
+                message: message,
+                type: 'text'
+            });
+            const newMsg = {
+                sender: 'admin@baillamaach.com',
+                receiver: this.currentUser.email,
+                message: message,
+                type: 'text',
+                timestamp: new Date()
+            };
+            this.messages.push(newMsg);
+            this.renderMessages();
+            input.value = '';
+            input.focus();
+            setTimeout(() => this.loadUsers(), 500);
+        } catch (err) {
+            console.error('Failed to send message:', err);
+        }
+    },
+
+    async markAsRead() {
+        if (!this.currentUser) return;
+        this.socket.emit('markRead', { user: this.currentUser.email });
+        this.loadUsers();
+    },
+
+    updateUserStatus(email, online) {
+        const userElement = document.querySelector('.user-item[data-email="' + email + '"]');
+        if (userElement) {
+            const dotElement = userElement.querySelector('.dot');
+            if (dotElement) {
+                dotElement.style.background = online ? '#10b981' : '#d1d5db';
+            }
+        }
+        if (this.currentUser && this.currentUser.email === email) {
+            document.getElementById('chatStatus').innerHTML = 
+                online ? '<span class="online-dot"></span> Online' : 
+                '<span class="offline-dot"></span> Offline';
+        }
+    },
+
+    renderUserList() {
+        const container = document.getElementById('userList');
+        const searchTerm = document.getElementById('searchInput')?.value?.toLowerCase() || '';
+        const filteredUsers = this.users.filter(user => 
+            user.name.toLowerCase().includes(searchTerm) || 
+            user.email.toLowerCase().includes(searchTerm)
+        );
+        if (filteredUsers.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>No conversations found</p></div>';
+            return;
+        }
+        container.innerHTML = filteredUsers.map(user => {
+            const lastSeen = user.lastSeen ? new Date(user.lastSeen) : null;
+            const timeAgo = lastSeen ? this.getTimeAgo(lastSeen) : '';
+            const isActive = this.currentUser && this.currentUser.email === user.email;
+            return '<div class="user-item' + (isActive ? ' active' : '') + '" data-email="' + user.email + '" onclick="ChatAdmin.selectUserById(\'' + user.email + '\')">' +
+                '<div class="user-avatar">' + user.name.charAt(0).toUpperCase() +
+                '<div class="dot" style="background:' + (user.isOnline ? '#10b981' : '#d1d5db') + '"></div></div>' +
+                '<div class="user-info"><div class="name">' + user.name + '</div><div class="email">' + user.email + '</div></div>' +
+                (user.unreadCount > 0 ? '<div class="unread">' + user.unreadCount + '</div>' : '') +
+                '<div class="user-time">' + timeAgo + '</div></div>';
+        }).join('');
+    },
+
+    selectUserById(email) {
+        const user = this.users.find(u => u.email === email);
+        if (user) {
+            this.selectUser(user);
+        }
+    },
+
+    filterUsers() {
+        this.renderUserList();
+    },
+
+    getTimeAgo(date) {
+        const now = new Date();
+        const diff = Math.floor((now - date) / 1000);
+        if (diff < 60) return 'now';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+        return Math.floor(diff / 86400) + 'd';
+    },
+
+    logout() {
+        localStorage.removeItem('adminSession');
+        location.reload();
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    ChatAdmin.init();
+    document.getElementById('loginPassword').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') ChatAdmin.login();
+    });
+});
+
+setInterval(() => {
+    if (ChatAdmin.isLoggedIn) ChatAdmin.loadUsers();
+}, 30000);
+</script>
 </body>
 </html>`);
 });
 
-// ============ SOCKET.IO ============
 io.on('connection', (socket) => {
   console.log('🔌 New connection:', socket.id);
-  
   socket.on('register', async (data) => {
     try {
       socket.userData = data;
-      
       let user = await User.findOne({ email: data.email });
       if (!user) {
         const hash = await bcrypt.hash('default123', 10);
@@ -769,18 +975,15 @@ io.on('connection', (socket) => {
           password: hash
         });
       }
-      
       await User.updateOne(
         { email: data.email },
         { $set: { isOnline: true, lastSeen: new Date() } }
       );
-      
       io.emit('userStatus', { email: data.email, online: true });
     } catch (err) {
       console.error('Register error:', err.message);
     }
   });
-  
   socket.on('sendMsg', async (data) => {
     try {
       const msg = await Message.create({
@@ -789,13 +992,11 @@ io.on('connection', (socket) => {
         message: data.message,
         type: data.type || 'text'
       });
-      
       io.emit('newMsg', msg);
     } catch (err) {
       console.error('Send message error:', err.message);
     }
   });
-  
   socket.on('markRead', async (data) => {
     try {
       await Message.updateMany(
@@ -806,7 +1007,6 @@ io.on('connection', (socket) => {
       console.error('Mark read error:', err.message);
     }
   });
-  
   socket.on('disconnect', async () => {
     if (socket.userData) {
       try {
@@ -822,10 +1022,9 @@ io.on('connection', (socket) => {
   });
 });
 
-// ============ START SERVER ============
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📧 Admin panel: http://localhost:${PORT}/messenger`);
-  console.log(`📧 Admin Email: admin@baillamaach.com`);
-  console.log(`🔑 Admin Password: Admin@2024!`);
+  console.log('🚀 Server running on http://localhost:' + PORT);
+  console.log('📧 Admin panel: http://localhost:' + PORT + '/messenger');
+  console.log('📧 Admin Email: admin');
+  console.log('🔑 Admin Password: admin123baiilla');
 });
