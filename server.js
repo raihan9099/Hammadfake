@@ -13,11 +13,10 @@ const fs = require('fs');
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
-  transports: ['websocket', 'polling']
+  cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/verification_hub?retryWrites=true&w=majority';
 
 app.use(express.json());
@@ -28,7 +27,7 @@ app.use('/uploads', express.static('uploads'));
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-const User = mongoose.model('User', new mongoose.Schema({
+const userSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
   password: String,
@@ -36,9 +35,9 @@ const User = mongoose.model('User', new mongoose.Schema({
   lastSeen: Date,
   isOnline: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
-}));
+});
 
-const Message = mongoose.model('Message', new mongoose.Schema({
+const messageSchema = new mongoose.Schema({
   sender: String,
   receiver: String,
   message: String,
@@ -46,20 +45,24 @@ const Message = mongoose.model('Message', new mongoose.Schema({
   fileUrl: String,
   seen: { type: Boolean, default: false },
   timestamp: { type: Date, default: Date.now }
-}));
+});
+
+const User = mongoose.model('User', userSchema);
+const Message = mongoose.model('Message', messageSchema);
 
 mongoose.connect(MONGO_URI)
   .then(async () => {
-    console.log('✅ MongoDB connected');
+    console.log('✅ MongoDB Connected');
     const adminEmail = 'admin@baillamaach.com';
-    const admin = await User.findOne({ email: adminEmail });
-    if (!admin) {
-      const hashedPassword = await bcrypt.hash('Admin@2024!', 10);
+    const existingAdmin = await User.findOne({ email: adminEmail });
+    if (!existingAdmin) {
+      const hashedPassword = await bcrypt.hash('admin123', 10);
       await User.create({ name: 'Baiilla Maach', email: adminEmail, password: hashedPassword, isAdmin: true });
-      console.log('✅ Admin user created');
+      console.log('✅ Admin Created');
     }
+    console.log('📧 Admin: admin@baillamaach.com | 🔑 Pass: admin123');
   })
-  .catch(e => console.error('❌ MongoDB error:', e.message));
+  .catch(e => console.error('❌ MongoDB Error:', e.message));
 
 const ASSETS = {
   profile: "/assets/celebrity_pfp.jpeg",
@@ -74,8 +77,7 @@ const ASSETS = {
   realId: "/assets/real-id-ss.png",
   fakeDetect: "/assets/Fakedetect_updown.png",
   baillamachFake: "/assets/baillamach_fake.png",
-  hammadFake: "/assets/hammadfams.png",
-  officialTikTok: "/assets/orginalss-tiktok.png"
+  hammadFake: "/assets/hammadfams.png"
 };
 
 const WELCOME_VOICE = fs.existsSync('assets/realvoice.mp3');
@@ -97,1031 +99,312 @@ function getSongs() {
 
 app.get('/', (req, res) => {
   const songs = getSongs();
-  
+
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#f97316">
-<title>Hammad Bin Amir — Official Verification | Baiilla Maach</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#8b5cf6">
+<title>Baiilla Maach — Official Hub | Hammad Bin Amir</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root {
-  --white: #ffffff;
-  --bg: #fafbfc;
-  --gray50: #f8fafc;
-  --gray100: #f1f5f9;
-  --gray200: #e2e8f0;
-  --gray300: #cbd5e1;
-  --gray400: #94a3b8;
-  --gray500: #64748b;
-  --gray600: #475569;
-  --gray700: #334155;
-  --gray800: #1e293b;
-  --gray900: #0f172a;
-  --orange: #f97316;
-  --orange-dark: #ea580c;
-  --orange-light: #fff7ed;
-  --orange-gradient: linear-gradient(135deg, #f97316, #fb923c);
-  --green: #10b981;
-  --green-dark: #059669;
-  --green-light: #ecfdf5;
-  --green-gradient: linear-gradient(135deg, #10b981, #34d399);
-  --red: #ef4444;
-  --red-light: #fef2f2;
-  --blue: #3b82f6;
-  --blue-light: #eff6ff;
-  --spotify-black: #121212;
-  --spotify-dark: #1a1a1a;
-  --spotify-card: #1e1e1e;
-  --spotify-hover: #282828;
-  --spotify-green: #1db954;
-  --spotify-text: #b3b3b3;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow: 0 1px 3px rgba(0,0,0,0.08);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.06);
-  --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
-  --shadow-xl: 0 20px 50px rgba(0,0,0,0.12);
-  --radius: 16px;
-  --radius-sm: 10px;
-  --radius-full: 9999px;
-  --transition: all 0.25s ease;
+  --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a26; --surface3: #222233;
+  --border: #2a2a3a; --text: #e4e4f0; --text2: #a0a0b8; --text3: #6a6a80;
+  --purple: #8b5cf6; --purple2: #a78bfa; --pink: #ec4899; --cyan: #06b6d4;
+  --amber: #f59e0b; --emerald: #10b981; --red: #ef4444;
+  --grad1: linear-gradient(135deg, #8b5cf6, #ec4899);
+  --grad2: linear-gradient(135deg, #06b6d4, #8b5cf6);
+  --grad3: linear-gradient(135deg, #f59e0b, #ec4899);
+  --glow-purple: 0 0 30px rgba(139,92,246,0.3);
+  --glow-cyan: 0 0 30px rgba(6,182,212,0.3);
+  --radius: 24px; --radius-sm: 14px; --radius-xs: 8px;
 }
-
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { scroll-behavior: smooth; }
+body { font-family: 'Manrope', 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: var(--surface); } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-body {
-  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-  background: var(--white);
-  color: var(--gray800);
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
-}
+.glass-header { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 1000; width: 90%; max-width: 1200px; background: rgba(18,18,26,0.7); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: 60px; padding: 12px 28px; display: flex; justify-content: space-between; align-items: center; }
+.glass-header .logo-group { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.glass-header .logo-group img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--purple); }
+.glass-header .logo-group .logo-text { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1em; color: var(--text); }
+.glass-header .logo-group .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--purple); animation: pulse-dot 2s infinite; }
+@keyframes pulse-dot { 0%, 100% { box-shadow: 0 0 0 0 rgba(139,92,246,0.6); } 50% { box-shadow: 0 0 0 12px rgba(139,92,246,0); } }
+.btn-glass { padding: 10px 20px; border-radius: 40px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); color: var(--text); font-weight: 600; font-size: 0.82em; cursor: pointer; transition: all 0.3s; text-decoration: none; display: flex; align-items: center; gap: 6px; font-family: 'Manrope', sans-serif; }
+.btn-glass:hover { background: rgba(139,92,246,0.15); border-color: var(--purple); box-shadow: var(--glow-purple); }
+.btn-glass.accent { background: var(--grad1); border: none; color: #fff; }
+.btn-glass.accent:hover { box-shadow: 0 0 30px rgba(236,72,153,0.3); transform: translateY(-2px); }
 
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--gray300); border-radius: 3px; }
+.hero-v2 { padding: 140px 20px 80px; text-align: center; position: relative; overflow: hidden; }
+.hero-v2::before { content: ''; position: absolute; top: -200px; left: 50%; transform: translateX(-50%); width: 600px; height: 600px; background: radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%); pointer-events: none; }
+.hero-card { display: inline-block; background: var(--surface); border: 1px solid var(--border); border-radius: 40px; padding: 40px 50px; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+.hero-card .avatar-ring { width: 130px; height: 130px; border-radius: 50%; padding: 4px; background: var(--grad1); margin: 0 auto 20px; }
+.hero-card .avatar-ring img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 4px solid var(--bg); }
+.hero-card .verified-chip { display: inline-flex; align-items: center; gap: 5px; background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.3); padding: 6px 14px; border-radius: 30px; font-size: 0.75em; font-weight: 600; color: var(--purple2); margin-bottom: 14px; }
+.hero-card .verified-chip svg { width: 14px; height: 14px; fill: var(--purple2); }
+.hero-card h1 { font-family: 'Space Grotesk', sans-serif; font-size: 2em; font-weight: 700; color: var(--text); letter-spacing: -0.5px; margin-bottom: 3px; }
+.hero-card .username-text { font-family: 'DM Sans', sans-serif; font-size: 0.9em; color: var(--text2); margin-bottom: 3px; }
+.hero-card .bio-text { color: var(--text3); font-size: 0.82em; margin-bottom: 16px; }
+.hero-stats-row { display: flex; gap: 30px; justify-content: center; margin: 16px 0; padding: 14px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.hero-stats-row .stat-item { text-align: center; }
+.hero-stats-row .stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 1.3em; font-weight: 700; color: var(--text); }
+.hero-stats-row .stat-label { font-size: 0.68em; color: var(--text3); text-transform: uppercase; letter-spacing: 2px; }
+.hero-social-links { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+.social-pill { padding: 10px 22px; border-radius: 40px; text-decoration: none; font-weight: 600; font-size: 0.8em; display: flex; align-items: center; gap: 7px; transition: all 0.3s; border: 1px solid var(--border); color: var(--text); background: var(--surface2); }
+.social-pill:hover { transform: translateY(-3px); }
+.social-pill.tiktok-pill { border-color: rgba(6,182,212,0.4); } .social-pill.tiktok-pill:hover { background: rgba(6,182,212,0.1); border-color: var(--cyan); box-shadow: var(--glow-cyan); }
+.social-pill.fb-pill { border-color: rgba(139,92,246,0.4); } .social-pill.fb-pill:hover { background: rgba(139,92,246,0.1); border-color: var(--purple); box-shadow: var(--glow-purple); }
+.social-pill img { width: 18px; height: 18px; }
 
-.nav {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--gray200);
-  padding: 0 28px;
-}
-.nav-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: 64px;
-}
-.nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-.nav-brand img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid var(--orange); }
-.nav-brand span { font-family: 'Syne', 'Outfit', sans-serif; font-weight: 700; font-size: 1.1em; color: var(--gray900); }
-.nav-chat {
-  display: flex; align-items: center; gap: 7px;
-  background: var(--green); color: var(--white);
-  padding: 9px 20px; border-radius: var(--radius-full);
-  text-decoration: none; font-weight: 600; font-size: 0.82em;
-  transition: var(--transition);
-}
-.nav-chat:hover { background: #059669; transform: translateY(-2px); }
+.section-dark { padding: 80px 20px; } .section-dark.alt { background: var(--surface); }
+.container-v2 { max-width: 1000px; margin: 0 auto; }
+.section-eyebrow { display: inline-block; font-size: 0.7em; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; background: var(--grad1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 10px; }
+.section-title { font-family: 'Space Grotesk', sans-serif; font-size: 2em; font-weight: 700; color: var(--text); text-align: center; letter-spacing: -0.5px; margin-bottom: 6px; }
+.section-subtitle { text-align: center; color: var(--text3); margin-bottom: 40px; font-size: 0.85em; }
 
-.hero { padding: 80px 24px 60px; text-align: center; max-width: 700px; margin: 0 auto; }
-.hero-avatar { position: relative; display: inline-block; margin-bottom: 20px; }
-.hero-avatar img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid var(--orange); box-shadow: 0 0 0 8px var(--orange-light); }
-.hero-avatar .verified-icon {
-  position: absolute; bottom: 8px; right: 8px;
-  background: var(--green); width: 28px; height: 28px;
-  border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  border: 3px solid var(--white);
-}
-.hero-avatar .verified-icon svg { width: 14px; height: 14px; fill: var(--white); }
-.hero h1 { font-family: 'Syne', 'Outfit', sans-serif; font-size: 2.3em; font-weight: 800; color: var(--gray900); letter-spacing: -0.8px; margin-bottom: 4px; }
-.hero .username { font-size: 0.95em; color: var(--gray500); margin-bottom: 4px; }
-.hero .bio { color: var(--gray400); font-size: 0.85em; margin-bottom: 18px; }
-.hero-stats { display: flex; justify-content: center; gap: 36px; margin: 20px 0; }
-.hero-stat { text-align: center; }
-.hero-stat .num { font-family: 'Syne', sans-serif; font-size: 1.5em; font-weight: 700; color: var(--gray900); }
-.hero-stat .label { font-size: 0.72em; color: var(--gray400); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 2px; }
-.hero-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: var(--green-light); color: var(--green);
-  padding: 6px 16px; border-radius: var(--radius-full);
-  font-weight: 600; font-size: 0.78em; margin-bottom: 18px;
-}
-.hero-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
-.hero-btn {
-  padding: 10px 22px; border-radius: var(--radius-full);
-  text-decoration: none; font-weight: 600; font-size: 0.82em;
-  display: flex; align-items: center; gap: 6px; transition: var(--transition);
-}
-.hero-btn img { width: 18px; height: 18px; }
-.hero-btn.tiktok { background: var(--gray900); color: var(--white); }
-.hero-btn.tiktok:hover { background: #000; }
-.hero-btn.facebook { background: var(--blue-light); color: var(--blue); }
-.hero-btn.facebook:hover { background: #dbeafe; }
+.v-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.v-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; transition: all 0.3s; }
+.v-card:hover { border-color: rgba(16,185,129,0.4); transform: translateY(-4px); box-shadow: 0 15px 40px rgba(0,0,0,0.3); }
+.v-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.v-card-header .v-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
+.v-card-header .v-info h4 { font-family: 'Space Grotesk', sans-serif; font-size: 0.95em; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.v-card-header .v-info h4 img { width: 16px; height: 16px; }
+.v-card-header .v-info .v-handle { font-size: 0.78em; color: var(--text3); font-family: 'DM Sans', sans-serif; }
+.v-detail { font-size: 0.8em; color: var(--text2); padding: 4px 0; display: flex; align-items: center; gap: 6px; } .v-detail strong { color: var(--text); }
+.v-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 30px; text-decoration: none; font-weight: 600; font-size: 0.78em; margin-top: 12px; transition: all 0.3s; }
+.v-btn.tiktok-v { background: var(--grad2); color: #fff; } .v-btn.tiktok-v:hover { box-shadow: var(--glow-cyan); transform: translateY(-2px); }
+.v-btn.fb-v { background: var(--grad1); color: #fff; } .v-btn.fb-v:hover { box-shadow: var(--glow-purple); transform: translateY(-2px); }
 
-.section { padding: 70px 28px; }
-.section.bg-green { background: var(--green-light); }
-.section.bg-red { background: var(--red-light); }
-.section.bg-gray { background: var(--gray50); }
-.section.bg-white { background: var(--white); }
-.section.music-section { background: #121212; }
+.f-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.f-card { background: var(--surface2); border: 1px solid rgba(239,68,68,0.4); border-radius: var(--radius); overflow: hidden; transition: all 0.3s; }
+.f-card:hover { border-color: var(--red); box-shadow: 0 0 30px rgba(239,68,68,0.2); }
+.f-card .f-img-wrap { position: relative; text-align: center; padding: 20px; background: var(--surface3); }
+.f-card .f-img-wrap img.f-img { max-width: 100%; border-radius: var(--radius-xs); }
+.f-card .f-img-wrap .f-stamp { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-15deg); background: rgba(239,68,68,0.9); color: #fff; padding: 8px 20px; border-radius: 6px; font-weight: 800; font-size: 1em; letter-spacing: 2px; border: 2px solid #fff; }
+.f-card .f-body { padding: 18px; } .f-card .f-body h4 { font-family: 'Space Grotesk', sans-serif; font-size: 0.95em; font-weight: 600; margin-bottom: 3px; }
+.f-card .f-body .f-platform { color: var(--amber); font-size: 0.75em; font-weight: 600; margin-bottom: 6px; }
+.f-card .f-body p { color: var(--text3); font-size: 0.8em; margin-bottom: 12px; }
+.f-report-btn { display: inline-flex; align-items: center; gap: 5px; background: var(--red); color: #fff; padding: 8px 18px; border-radius: 30px; text-decoration: none; font-weight: 600; font-size: 0.76em; transition: all 0.3s; } .f-report-btn:hover { background: #dc2626; }
 
-.container { max-width: 1050px; margin: 0 auto; }
+.p-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.p-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; transition: all 0.3s; }
+.p-card:hover { border-color: var(--purple); box-shadow: 0 0 20px rgba(139,92,246,0.15); }
+.p-card img { width: 100%; border-radius: var(--radius-xs); margin-bottom: 10px; }
+.p-card .p-label { font-weight: 600; font-size: 0.8em; color: var(--text2); }
+.real-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); padding: 7px 16px; border-radius: 30px; margin-top: 10px; font-weight: 600; font-size: 0.8em; color: var(--emerald); }
+.real-badge svg { width: 16px; height: 16px; fill: var(--emerald); }
 
-.section-label {
-  display: inline-block; font-size: 0.7em; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 2.5px;
-  color: var(--orange); margin-bottom: 12px;
-}
-.section-heading {
-  font-family: 'Syne', 'Outfit', sans-serif;
-  font-size: 2em; font-weight: 700; color: var(--gray900);
-  text-align: center; letter-spacing: -0.5px; margin-bottom: 6px;
-}
-.section-heading.white { color: var(--white); }
-.section-desc {
-  text-align: center; color: var(--gray500); margin-bottom: 36px;
-  font-size: 0.88em; max-width: 500px; margin-left: auto; margin-right: auto;
-}
-.section-desc.white { color: #b3b3b3; }
+.voice-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.voice-chip { padding: 12px 26px; border-radius: 40px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-weight: 600; cursor: pointer; font-size: 0.82em; display: flex; align-items: center; gap: 8px; transition: all 0.3s; font-family: 'Manrope', sans-serif; }
+.voice-chip:hover { border-color: var(--purple); } .voice-chip.welcome-chip { border-color: rgba(139,92,246,0.5); } .voice-chip.welcome-chip:hover { background: rgba(139,92,246,0.1); box-shadow: var(--glow-purple); }
+.voice-chip.alert-chip { border-color: rgba(239,68,68,0.5); } .voice-chip.alert-chip:hover { background: rgba(239,68,68,0.1); }
 
-.verified-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.verified-card {
-  background: var(--white); border: 1px solid var(--gray200);
-  border-radius: var(--radius); padding: 26px; transition: var(--transition);
-}
-.verified-card:hover { border-color: var(--green); box-shadow: var(--shadow-md); }
-.verified-card .card-top { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-.verified-card .card-top .pfp { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; }
-.verified-card .card-top .info h3 {
-  font-family: 'Syne', sans-serif; font-size: 1em; font-weight: 600;
-  display: flex; align-items: center; gap: 5px; color: var(--gray900);
-}
-.verified-card .card-top .info h3 img { width: 18px; height: 18px; }
-.verified-card .card-top .info .handle { color: var(--gray500); font-size: 0.8em; }
-.verified-card .card-body .row {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 0; color: var(--gray600); font-size: 0.82em;
-}
-.verified-card .card-body .row strong { color: var(--gray800); font-weight: 600; }
-.verified-card .card-body .follow-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 9px 20px; border-radius: var(--radius-full);
-  text-decoration: none; font-weight: 600; font-size: 0.78em;
-  margin-top: 12px; transition: var(--transition);
-}
-.follow-btn.tiktok-btn { background: var(--gray900); color: var(--white); }
-.follow-btn.tiktok-btn:hover { background: #000; }
-.follow-btn.fb-btn { background: var(--blue); color: var(--white); }
-.follow-btn.fb-btn:hover { background: #2563eb; }
+.music-container { max-width: 600px; margin: 0 auto; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 30px; }
+.music-now { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
+.music-now .m-cover { width: 100px; height: 100px; border-radius: 16px; object-fit: cover; box-shadow: 0 10px 30px rgba(0,0,0,0.4); flex-shrink: 0; }
+.music-now .m-info { flex: 1; min-width: 0; } .music-now .m-info .m-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-now .m-info .m-artist { color: var(--purple2); font-size: 0.8em; font-weight: 500; }
+.m-slider { width: 100%; height: 3px; background: var(--border); border-radius: 2px; cursor: pointer; margin: 10px 0; }
+.m-slider-fill { height: 100%; background: var(--grad1); border-radius: 2px; width: 0%; transition: width 0.1s linear; }
+.m-time-row { display: flex; justify-content: space-between; font-size: 0.68em; color: var(--text3); margin-bottom: 12px; }
+.m-controls { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.m-ctrl { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 1em; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.3s; } .m-ctrl:hover { color: var(--text); background: var(--surface3); }
+.m-play { width: 50px; height: 50px; border-radius: 50%; border: none; background: var(--grad1); color: #fff; font-size: 1.1em; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; } .m-play:hover { transform: scale(1.06); box-shadow: var(--glow-purple); } .m-play.playing { background: var(--grad3); }
+.m-song-list { margin-top: 16px; max-height: 200px; overflow-y: auto; border-top: 1px solid var(--border); padding-top: 8px; }
+.m-song-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-xs); cursor: pointer; transition: all 0.2s; font-size: 0.8em; color: var(--text2); } .m-song-item:hover { background: var(--surface3); color: var(--text); }
+.m-song-item.active { background: rgba(139,92,246,0.1); color: var(--purple2); } .m-song-item .m-num { font-weight: 700; color: var(--text3); min-width: 22px; } .m-song-item.active .m-num { color: var(--purple2); }
+.m-song-item .m-song-cover-mini { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; }
+.m-song-item .m-song-info { flex: 1; min-width: 0; } .m-song-item .m-song-info .m-song-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; } .m-song-item .m-song-info .m-song-artist { font-size: 0.73em; color: var(--text3); }
 
-.fake-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.fake-card {
-  background: var(--white); border: 2px solid #fecaca;
-  border-radius: var(--radius); overflow: hidden; transition: var(--transition);
-}
-.fake-card:hover { box-shadow: var(--shadow-lg); }
-.fake-img-container { position: relative; text-align: center; background: #fafafa; padding: 18px; }
-.fake-img { max-width: 100%; height: auto; border-radius: 8px; }
-.fake-detect {
-  position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%, -50%); width: 70px; height: 70px;
-  animation: updown 2s infinite ease-in-out;
-}
-@keyframes updown {
-  0%, 100% { transform: translate(-50%, -50%) translateY(0); }
-  50% { transform: translate(-50%, -50%) translateY(-15px); }
-}
-.fake-card .fake-info { padding: 18px; }
-.fake-card .fake-info h3 { font-family: 'Syne', sans-serif; font-size: 1em; font-weight: 600; color: var(--gray900); margin-bottom: 3px; }
-.fake-card .fake-info .plat { color: var(--orange); font-weight: 600; font-size: 0.78em; margin-bottom: 6px; }
-.fake-card .fake-info p { color: var(--gray500); font-size: 0.82em; margin-bottom: 12px; }
-.fake-card .fake-info .report-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  background: var(--red); color: var(--white);
-  padding: 7px 16px; border-radius: var(--radius-full);
-  text-decoration: none; font-weight: 600; font-size: 0.76em;
-  transition: var(--transition);
-}
-.fake-card .fake-info .report-btn:hover { background: #dc2626; }
-.fake-card .fake-info .report-btn img { width: 14px; height: 14px; }
+.footer-v2 { background: var(--surface); border-top: 1px solid var(--border); padding: 50px 20px 30px; text-align: center; }
+.footer-v2 .footer-grid-v2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 30px; max-width: 900px; margin: 0 auto 30px; text-align: left; }
+.footer-v2 h5 { font-family: 'Space Grotesk', sans-serif; color: var(--purple2); margin-bottom: 10px; font-size: 0.85em; }
+.footer-v2 p, .footer-v2 a { color: var(--text3); font-size: 0.76em; line-height: 2; text-decoration: none; display: block; transition: all 0.3s; } .footer-v2 a:hover { color: var(--purple2); }
+.footer-v2 .footer-line { border-top: 1px solid var(--border); padding-top: 20px; font-size: 0.72em; color: var(--text3); } .footer-v2 .footer-line span { color: var(--purple2); font-weight: 600; }
 
-.proof-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.proof-card {
-  background: var(--white); border: 1px solid var(--gray200);
-  border-radius: var(--radius-sm); padding: 22px; text-align: center;
-  transition: var(--transition);
-}
-.proof-card:hover { border-color: var(--orange); box-shadow: var(--shadow-sm); }
-.proof-card img { width: 100%; height: auto; border-radius: 6px; margin-bottom: 10px; }
-.proof-card p { font-weight: 600; font-size: 0.8em; color: var(--gray700); }
+.chat-fab { position: fixed; bottom: 28px; right: 28px; z-index: 9999; }
+.chat-fab-btn { width: 56px; height: 56px; border-radius: 50%; border: none; background: var(--grad1); color: #fff; font-size: 1.3em; cursor: pointer; box-shadow: 0 10px 30px rgba(139,92,246,0.4); transition: all 0.3s; display: flex; align-items: center; justify-content: center; } .chat-fab-btn:hover { transform: scale(1.08); }
+.chat-panel { display: none; position: fixed; bottom: 96px; right: 28px; width: 380px; height: 480px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); flex-direction: column; overflow: hidden; z-index: 9999; box-shadow: 0 20px 60px rgba(0,0,0,0.5); } .chat-panel.open { display: flex; }
+.chat-panel .cp-head { padding: 16px 20px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 0.85em; } .chat-panel .cp-head button { background: none; border: none; color: var(--text3); font-size: 1.2em; cursor: pointer; }
+.chat-panel .cp-body { flex: 1; overflow-y: auto; padding: 14px; }
+.chat-panel .cp-login { padding: 30px 20px; text-align: center; } .chat-panel .cp-login h4 { font-family: 'Space Grotesk', sans-serif; margin-bottom: 4px; } .chat-panel .cp-login p { color: var(--text3); font-size: 0.78em; margin-bottom: 16px; }
+.chat-panel .cp-login input { width: 100%; padding: 10px 14px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); color: var(--text); font-size: 0.82em; outline: none; font-family: 'Manrope', sans-serif; } .chat-panel .cp-login input:focus { border-color: var(--purple); }
+.chat-panel .cp-login button { width: 100%; padding: 10px; background: var(--grad1); color: #fff; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 0.85em; font-family: 'Manrope', sans-serif; }
+.chat-panel .cp-input-area { padding: 12px; border-top: 1px solid var(--border); display: none; }
+.chat-panel .cp-input-area input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface2); color: var(--text); font-size: 0.82em; outline: none; font-family: 'Manrope', sans-serif; }
+.chat-panel .cp-input-area button { background: var(--grad1); color: #fff; border: none; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 0.9em; margin-left: 8px; }
+.chat-msg { max-width: 75%; padding: 8px 12px; border-radius: 12px; margin-bottom: 4px; font-size: 0.78em; word-wrap: break-word; } .chat-msg.user-msg { background: var(--grad1); color: #fff; margin-left: auto; } .chat-msg.admin-msg { background: var(--surface3); color: var(--text); border: 1px solid var(--border); } .chat-msg .msg-time { font-size: 0.65em; opacity: 0.6; margin-top: 3px; text-align: right; }
 
-.real-account-badge {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  margin-top: 12px; background: var(--green-light);
-  padding: 8px 16px; border-radius: var(--radius-full);
-  border: 1px solid rgba(16,185,129,0.2);
-}
-.real-account-badge svg { width: 18px; height: 18px; }
-.real-account-badge span { font-weight: 700; color: var(--green-dark); font-size: 0.85em; }
-
-.voice-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
-.voice-btn {
-  padding: 11px 24px; border-radius: var(--radius-full); border: none;
-  font-weight: 600; cursor: pointer; font-size: 0.85em;
-  display: flex; align-items: center; gap: 7px; transition: var(--transition);
-  font-family: 'Plus Jakarta Sans', sans-serif;
-}
-.voice-btn.welcome { background: var(--orange); color: var(--white); }
-.voice-btn.welcome:hover { background: var(--orange-dark); transform: translateY(-2px); }
-.voice-btn.manual { background: var(--white); color: var(--red); border: 2px solid var(--red); }
-.voice-btn.manual:hover { background: var(--red); color: var(--white); transform: translateY(-2px); }
-
-/* ============ SPOTIFY STYLE MUSIC PLAYER ============ */
-.spotify-player {
-  max-width: 700px;
-  margin: 0 auto;
-  background: var(--spotify-dark);
-  border-radius: 12px;
-  padding: 28px 32px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
-}
-
-.spotify-now-playing {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.spotify-cover {
-  width: 120px;
-  height: 120px;
-  border-radius: 8px;
-  object-fit: cover;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
-  flex-shrink: 0;
-}
-
-.spotify-track-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.spotify-track-info h4 {
-  font-family: 'Syne', sans-serif;
-  font-size: 1.2em;
-  font-weight: 700;
-  color: var(--white);
-  margin-bottom: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.spotify-track-info p {
-  color: #b3b3b3;
-  font-size: 0.85em;
-  font-weight: 500;
-  margin-bottom: 14px;
-}
-
-.spotify-progress {
-  width: 100%;
-}
-
-.spotify-progress-bar {
-  width: 100%;
-  height: 4px;
-  background: #4d4d4d;
-  border-radius: 2px;
-  cursor: pointer;
-  margin-bottom: 8px;
-  position: relative;
-}
-
-.spotify-progress-bar:hover { height: 6px; }
-
-.spotify-progress-fill {
-  height: 100%;
-  background: var(--spotify-green);
-  border-radius: 2px;
-  width: 0%;
-  transition: width 0.1s linear;
-  position: relative;
-}
-
-.spotify-progress-bar:hover .spotify-progress-fill::after {
-  content: '';
-  position: absolute;
-  right: -6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 12px;
-  height: 12px;
-  background: var(--white);
-  border-radius: 50%;
-}
-
-.spotify-time-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.7em;
-  color: #b3b3b3;
-  font-weight: 500;
-}
-
-.spotify-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  margin-top: 16px;
-}
-
-.spotify-ctrl-btn {
-  background: none;
-  border: none;
-  color: #b3b3b3;
-  cursor: pointer;
-  font-size: 1.1em;
-  transition: var(--transition);
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.spotify-ctrl-btn:hover { color: var(--white); }
-
-.spotify-play-btn {
-  background: var(--white);
-  border: none;
-  color: var(--spotify-black);
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 1.2em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: var(--transition);
-}
-
-.spotify-play-btn:hover {
-  transform: scale(1.06);
-  background: #f0f0f0;
-}
-
-.spotify-play-btn.playing {
-  background: var(--spotify-green);
-  color: var(--spotify-black);
-}
-
-.spotify-song-list {
-  margin-top: 20px;
-  max-height: 220px;
-  overflow-y: auto;
-  border-top: 1px solid #282828;
-  padding-top: 8px;
-}
-
-.spotify-song-list::-webkit-scrollbar { width: 4px; }
-.spotify-song-list::-webkit-scrollbar-thumb { background: #4d4d4d; border-radius: 2px; }
-
-.spotify-song-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  cursor: pointer;
-  border-radius: 6px;
-  transition: var(--transition);
-  color: #b3b3b3;
-  font-size: 0.82em;
-}
-
-.spotify-song-item:hover { background: var(--spotify-hover); color: var(--white); }
-
-.spotify-song-item.active {
-  background: #1a3a2a;
-  color: var(--spotify-green);
-}
-
-.spotify-song-item .song-num {
-  font-weight: 700;
-  color: #b3b3b3;
-  min-width: 24px;
-  font-size: 0.9em;
-}
-
-.spotify-song-item.active .song-num { color: var(--spotify-green); }
-
-.spotify-song-item .song-cover-mini {
-  width: 36px;
-  height: 36px;
-  border-radius: 4px;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.spotify-song-item .song-info-mini {
-  flex: 1;
-  min-width: 0;
-}
-
-.spotify-song-item .song-info-mini .song-title-mini {
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--white);
-}
-
-.spotify-song-item.active .song-info-mini .song-title-mini { color: var(--spotify-green); }
-
-.spotify-song-item .song-info-mini .song-artist-mini {
-  font-size: 0.75em;
-  color: #b3b3b3;
-}
-
-.spotify-song-item .now-playing-icon {
-  color: var(--spotify-green);
-  font-size: 0.7em;
-  display: none;
-}
-
-.spotify-song-item.active .now-playing-icon { display: block; }
-.spotify-song-item.active .song-num { display: none; }
-
-/* Footer */
-.footer {
-  background: var(--gray900);
-  color: var(--white);
-  padding: 60px 28px 30px;
-}
-.footer-grid {
-  max-width: 1050px;
-  margin: 0 auto 40px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 30px;
-}
-.footer-col h4 { font-family: 'Syne', sans-serif; color: var(--orange); margin-bottom: 14px; font-size: 0.9em; font-weight: 700; }
-.footer-col p { color: var(--gray400); font-size: 0.78em; line-height: 1.7; }
-.footer-col a { color: var(--gray400); text-decoration: none; font-size: 0.78em; line-height: 2; transition: var(--transition); display: block; }
-.footer-col a:hover { color: var(--orange); }
-.footer-bottom {
-  padding-top: 24px; border-top: 1px solid var(--gray700);
-  text-align: center; font-size: 0.75em; color: var(--gray500);
-  max-width: 1050px; margin: 0 auto;
-}
-.footer-bottom span { color: var(--orange); font-weight: 700; }
-
-/* Chat Widget */
-.chat-widget { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
-.chat-bubble {
-  width: 56px; height: 56px; border-radius: 50%;
-  cursor: pointer; background: var(--green);
-  box-shadow: 0 6px 25px rgba(16,185,129,0.35);
-  display: flex; align-items: center; justify-content: center;
-  transition: var(--transition); animation: float 3s ease-in-out infinite;
-}
-@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-.chat-bubble:hover { transform: scale(1.08); }
-.chat-bubble svg { width: 26px; height: 26px; fill: var(--white); }
-
-.chat-window {
-  display: none; position: fixed; bottom: 92px; right: 24px;
-  width: 370px; height: 460px; background: var(--white);
-  border-radius: 18px; flex-direction: column; overflow: hidden;
-  z-index: 9999; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-  border: 1px solid var(--gray200); animation: slideUp 0.3s ease;
-}
-@keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-.chat-window.open { display: flex; }
-
-.chat-header {
-  background: var(--green); color: var(--white);
-  padding: 14px 18px; display: flex; align-items: center;
-  justify-content: space-between; font-weight: 600; font-size: 0.85em;
-}
-.chat-header-left { display: flex; align-items: center; gap: 8px; }
-.chat-header-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--white); }
-.chat-close { background: none; border: none; color: var(--white); cursor: pointer; font-size: 1.3em; }
-
-.chat-messages { flex: 1; overflow-y: auto; padding: 14px; background: var(--gray50); }
-.chat-login { padding: 30px 20px; text-align: center; }
-.chat-login h4 { font-family: 'Syne', sans-serif; margin-bottom: 4px; font-size: 1em; color: var(--gray900); }
-.chat-login p { color: var(--gray500); font-size: 0.78em; margin-bottom: 18px; }
-.chat-login input {
-  width: 100%; padding: 11px 14px; margin-bottom: 8px;
-  border: 1.5px solid var(--gray200); border-radius: 10px;
-  font-size: 0.82em; font-family: 'Plus Jakarta Sans', sans-serif;
-  outline: none; transition: var(--transition);
-}
-.chat-login input:focus { border-color: var(--green); }
-.chat-login button {
-  width: 100%; padding: 11px; background: var(--green);
-  color: var(--white); border: none; border-radius: 10px;
-  font-weight: 600; cursor: pointer; font-size: 0.85em;
-  transition: var(--transition);
-}
-.chat-login button:hover { background: #059669; }
-
-.chat-input-area {
-  padding: 12px 14px; background: var(--white);
-  border-top: 1px solid var(--gray200); display: none;
-}
-.chat-input-row { display: flex; gap: 8px; align-items: center; }
-.chat-input-row input {
-  flex: 1; padding: 10px 14px; border: 1.5px solid var(--gray200);
-  border-radius: 20px; font-size: 0.82em; outline: none;
-  font-family: 'Plus Jakarta Sans', sans-serif; transition: var(--transition);
-}
-.chat-input-row input:focus { border-color: var(--green); }
-.chat-input-row button {
-  background: var(--green); color: var(--white); border: none;
-  width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
-  font-size: 1em; transition: var(--transition); flex-shrink: 0;
-}
-.chat-input-row button:hover { background: #059669; }
-
-.msg {
-  max-width: 80%; padding: 8px 12px; border-radius: 14px;
-  margin-bottom: 4px; font-size: 0.8em; word-wrap: break-word;
-  line-height: 1.4;
-}
-.msg.user { background: var(--green); color: var(--white); margin-left: auto; border-bottom-right-radius: 3px; }
-.msg.admin { background: var(--white); color: var(--gray800); border: 1px solid var(--gray200); border-bottom-left-radius: 3px; }
-.msg .time { font-size: 0.65em; opacity: 0.6; margin-top: 3px; text-align: right; }
-
-@media(max-width: 768px) {
-  .hero h1 { font-size: 1.7em; }
-  .section-heading { font-size: 1.5em; }
-  .verified-grid, .fake-grid { grid-template-columns: 1fr; }
-  .proof-grid { grid-template-columns: 1fr; }
-  .spotify-now-playing { flex-direction: column; text-align: center; }
-  .chat-window { width: 100%; height: 100%; bottom: 0; right: 0; border-radius: 0; }
-  .nav { padding: 0 16px; }
-  .section { padding: 50px 16px; }
-}
+@media(max-width: 768px) { .glass-header { width: 95%; padding: 10px 18px; } .hero-card { padding: 30px 24px; border-radius: 30px; } .hero-card h1 { font-size: 1.5em; } .v-grid, .f-grid { grid-template-columns: 1fr; } .p-grid { grid-template-columns: 1fr; } .music-now { flex-direction: column; text-align: center; } .chat-panel { width: 100%; height: 100%; bottom: 0; right: 0; border-radius: 0; } }
 </style>
 </head>
 <body>
 
-<!-- Navigation -->
-<nav class="nav">
-  <div class="nav-inner">
-    <a href="/" class="nav-brand">
-      <img src="${ASSETS.profile}" alt="Logo" onerror="this.style.display='none'">
-      <span>Baiilla Maach</span>
-    </a>
-    <a href="/messenger" class="nav-chat">💬 Chat Support</a>
-  </div>
-</nav>
+<header class="glass-header">
+  <a href="/" class="logo-group"><img src="${ASSETS.profile}" alt="Logo" onerror="this.style.display='none'"><span class="logo-text">Baiilla Maach</span><span class="logo-dot"></span></a>
+  <div class="header-actions"><a href="/messenger" class="btn-glass accent">💬 Support</a></div>
+</header>
 
-<!-- Hero -->
-<section class="hero">
-  <div class="hero-avatar">
-    <img src="${ASSETS.profile}" alt="Baiilla Maach" onerror="this.style.display='none'">
-    <div class="verified-icon"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>
-  </div>
-  <h1>Hammad Bin Amir</h1>
-  <p class="username">@baiillamaach_official</p>
-  <p class="bio">Official Entertainment Profile · Verified Creator</p>
-  <div class="hero-stats">
-    <div class="hero-stat"><div class="num">7K</div><div class="label">Followers</div></div>
-    <div class="hero-stat"><div class="num">0</div><div class="label">Following</div></div>
-    <div class="hero-stat"><div class="num">190K</div><div class="label">Likes</div></div>
-  </div>
-  <div class="hero-badge">✓ Verified Official Account</div>
-  <div class="hero-btns">
-    <a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="hero-btn tiktok"><img src="${ASSETS.logoTikTok}" alt=""> TikTok</a>
-    <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="hero-btn facebook"><img src="${ASSETS.logoFB}" alt=""> Facebook</a>
-  </div>
-</section>
-
-<!-- Verified Accounts -->
-<section class="section bg-green">
-  <div class="container">
-    <div class="section-label" style="color:var(--green-dark)">OFFICIAL</div>
-    <h2 class="section-heading">Verified Accounts</h2>
-    <p class="section-desc">The only authentic Baiilla Maach accounts</p>
-    <div class="verified-grid">
-      <div class="verified-card">
-        <div class="card-top">
-          <img src="${ASSETS.profile}" class="pfp" onerror="this.style.display='none'">
-          <div class="info">
-            <h3>TikTok <img src="${ASSETS.blueTikTok}" onerror="this.style.display='none'"></h3>
-            <p class="handle">@baiillamaach_official</p>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="row">✓ Status: <strong>Active & Verified</strong></div>
-          <div class="row">👥 Followers: <strong>7,000</strong></div>
-          <div class="row">❤️ Likes: <strong>190,000</strong></div>
-          <a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="follow-btn tiktok-btn">Follow on TikTok</a>
-        </div>
-      </div>
-      <div class="verified-card">
-        <div class="card-top">
-          <img src="${ASSETS.fbProfile}" class="pfp" onerror="this.style.display='none'">
-          <div class="info">
-            <h3>Facebook <img src="${ASSETS.blueFB}" onerror="this.style.display='none'"></h3>
-            <p class="handle">@BaiillaMaachOfficial</p>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="row">✓ Status: <strong>Active & Verified</strong></div>
-          <div class="row">📘 Page: <strong>Official Facebook</strong></div>
-          <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="follow-btn fb-btn">Follow on Facebook</a>
-        </div>
-      </div>
+<section class="hero-v2">
+  <div class="hero-card">
+    <div class="avatar-ring"><img src="${ASSETS.profile}" alt="Baiilla Maach" onerror="this.style.display='none'"></div>
+    <div class="verified-chip"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Verified Creator</div>
+    <h1>Hammad Bin Amir</h1>
+    <p class="username-text">@baiillamaach_official</p>
+    <p class="bio-text">Official Entertainment · Verified</p>
+    <div class="hero-stats-row">
+      <div class="stat-item"><div class="stat-value">7K</div><div class="stat-label">Followers</div></div>
+      <div class="stat-item"><div class="stat-value">0</div><div class="stat-label">Following</div></div>
+      <div class="stat-item"><div class="stat-value">190K</div><div class="stat-label">Likes</div></div>
+    </div>
+    <div class="hero-social-links">
+      <a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="social-pill tiktok-pill"><img src="${ASSETS.logoTikTok}" alt=""> TikTok</a>
+      <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="social-pill fb-pill"><img src="${ASSETS.logoFB}" alt=""> Facebook</a>
     </div>
   </div>
 </section>
 
-<!-- Fake Accounts -->
-<section class="section bg-red">
-  <div class="container">
-    <div class="section-label" style="color:var(--red)">⚠️ WARNING</div>
-    <h2 class="section-heading">Fake Accounts Detected</h2>
-    <p class="section-desc">Report these accounts immediately</p>
-    <div class="fake-grid">
-      <div class="fake-card">
-        <div class="fake-img-container">
-          <img src="${ASSETS.baillamachFake}" class="fake-img" alt="Fake Account" onerror="this.style.display='none'">
-          <img src="${ASSETS.fakeDetect}" class="fake-detect" alt="FAKE" onerror="this.style.display='none'">
-        </div>
-        <div class="fake-info">
-          <h3>@baiilla_mach</h3>
-          <p class="plat">📍 TikTok</p>
-          <p>Copies official logo and content to deceive followers.</p>
-          <a href="https://tiktok.com/@baiilla_mach" target="_blank" class="report-btn"><img src="${ASSETS.reportBtn}" alt=""> Report Account</a>
-        </div>
-      </div>
-      <div class="fake-card">
-        <div class="fake-img-container">
-          <img src="${ASSETS.hammadFake}" class="fake-img" alt="Fake Account" onerror="this.style.display='none'">
-          <img src="${ASSETS.fakeDetect}" class="fake-detect" alt="FAKE" onerror="this.style.display='none'">
-        </div>
-        <div class="fake-info">
-          <h3>@hammad_fams0</h3>
-          <p class="plat">📍 TikTok</p>
-          <p>Uses official name and photo to mislead followers.</p>
-          <a href="https://tiktok.com/@hammad_fams0" target="_blank" class="report-btn"><img src="${ASSETS.reportBtn}" alt=""> Report Account</a>
-        </div>
-      </div>
+<section class="section-dark">
+  <div class="container-v2">
+    <span class="section-eyebrow">Authentic</span>
+    <h2 class="section-title">Official Accounts</h2>
+    <p class="section-subtitle">Real verified profiles only</p>
+    <div class="v-grid">
+      <div class="v-card"><div class="v-card-header"><img src="${ASSETS.profile}" class="v-avatar"><div class="v-info"><h4>TikTok <img src="${ASSETS.blueTikTok}"></h4><p class="v-handle">@baiillamaach_official</p></div></div><div class="v-detail">✓ Status: <strong>Active & Verified</strong></div><div class="v-detail">👥 Followers: <strong>7,000</strong></div><div class="v-detail">❤️ Likes: <strong>190,000</strong></div><a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="v-btn tiktok-v">Follow on TikTok</a></div>
+      <div class="v-card"><div class="v-card-header"><img src="${ASSETS.fbProfile}" class="v-avatar"><div class="v-info"><h4>Facebook <img src="${ASSETS.blueFB}"></h4><p class="v-handle">@BaiillaMaachOfficial</p></div></div><div class="v-detail">✓ Status: <strong>Active & Verified</strong></div><div class="v-detail">📘 Page: <strong>Official Facebook</strong></div><a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="v-btn fb-v">Follow on Facebook</a></div>
     </div>
   </div>
 </section>
 
-<!-- Identity Verification -->
-<section class="section bg-gray">
-  <div class="container">
-    <div class="section-label">PROOF</div>
-    <h2 class="section-heading">Identity Verification</h2>
-    <p class="section-desc">Evidence confirming authenticity</p>
-    <div class="proof-grid">
-      <div class="proof-card">
-        <img src="${ASSETS.realId}" alt="Real ID Proof" onerror="this.style.display='none'">
-        <p>Real ID Verified</p>
-        <div class="real-account-badge">
-          <svg viewBox="0 0 24 24" fill="#10b981"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-          <span>Real Account</span>
-        </div>
-      </div>
-      <div class="proof-card">
-        <img src="${ASSETS.microphone}" alt="Voice Note" onerror="this.style.display='none'">
-        <p>Real Voice Recording</p>
-      </div>
-      <div class="proof-card">
-        <img src="${ASSETS.officialTikTok}" alt="Official TikTok" onerror="this.style.display='none'">
-        <p>Official TikTok Profile</p>
-      </div>
+<section class="section-dark alt">
+  <div class="container-v2">
+    <span class="section-eyebrow" style="background:linear-gradient(135deg,#ef4444,#f87171);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Warning</span>
+    <h2 class="section-title">Fake Accounts</h2>
+    <p class="section-subtitle">Report these immediately</p>
+    <div class="f-grid">
+      <div class="f-card"><div class="f-img-wrap"><img src="${ASSETS.baillamachFake}" class="f-img" alt="Fake"><div class="f-stamp">FAKE</div></div><div class="f-body"><h4>@baiilla_mach</h4><p class="f-platform">📍 TikTok</p><p>Copies official content to deceive followers.</p><a href="https://tiktok.com/@baiilla_mach" target="_blank" class="f-report-btn">🚨 Report Account</a></div></div>
+      <div class="f-card"><div class="f-img-wrap"><img src="${ASSETS.hammadFake}" class="f-img" alt="Fake"><div class="f-stamp">FAKE</div></div><div class="f-body"><h4>@hammad_fams0</h4><p class="f-platform">📍 TikTok</p><p>Impersonating with fake content.</p><a href="https://tiktok.com/@hammad_fams0" target="_blank" class="f-report-btn">🚨 Report Account</a></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section-dark">
+  <div class="container-v2">
+    <span class="section-eyebrow">Proof</span>
+    <h2 class="section-title">Identity Verification</h2>
+    <p class="section-subtitle">Evidence confirming authenticity</p>
+    <div class="p-grid">
+      <div class="p-card"><img src="${ASSETS.realId}" alt="Real ID"><p class="p-label">Real ID Verified</p><div class="real-badge"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg> Real Account</div></div>
+      <div class="p-card"><img src="${ASSETS.microphone}" alt="Voice"><p class="p-label">Real Voice Recording</p></div>
+      <div class="p-card"><img src="${ASSETS.fakeDetect}" alt="Verification"><p class="p-label">Official Verification</p></div>
     </div>
   </div>
 </section>
 
 ${WELCOME_VOICE || MANUAL_VOICE ? `
-<section class="section bg-white">
-  <div class="container" style="text-align:center">
-    <div class="section-label">VOICE</div>
-    <h2 class="section-heading">Voice Verification</h2>
-    <p class="section-desc">Listen to authentic Baiilla Maach voice</p>
-    <div class="voice-btns">
-      ${WELCOME_VOICE ? `<button class="voice-btn welcome" onclick="playWelcomeVoice()">▶️ Real Voice</button>` : ''}
-      ${MANUAL_VOICE ? `<button class="voice-btn manual" onclick="playManualVoice()">⚠️ Fake Alert</button>` : ''}
+<section class="section-dark alt">
+  <div class="container-v2" style="text-align:center">
+    <span class="section-eyebrow">Voice</span>
+    <h2 class="section-title">Voice Verification</h2>
+    <p class="section-subtitle">Listen to authentic voice</p>
+    <div class="voice-row">
+      ${WELCOME_VOICE ? `<button class="voice-chip welcome-chip" onclick="playWelcomeVoice()">▶️ Real Voice</button>` : ''}
+      ${MANUAL_VOICE ? `<button class="voice-chip alert-chip" onclick="playManualVoice()">⚠️ Fake Alert</button>` : ''}
     </div>
   </div>
 </section>` : ''}
 
-<!-- Spotify Style Music Player -->
 ${songs.length > 0 ? `
-<section class="section music-section">
-  <div class="container">
-    <div class="section-label" style="color:var(--spotify-green)">MUSIC</div>
-    <h2 class="section-heading white">Cover Songs</h2>
-    <p class="section-desc white">Official covers by Hammad Bin Amir</p>
-    <div class="spotify-player">
-      <div class="spotify-now-playing">
-        <img src="${ASSETS.microphone}" class="spotify-cover" id="spotifyCover" alt="Cover" onerror="this.src='${ASSETS.profile}'">
-        <div class="spotify-track-info">
-          <h4 id="spotifyTrackTitle">Select a Song</h4>
-          <p>Baiilla Maach</p>
-          <div class="spotify-progress">
-            <div class="spotify-progress-bar" onclick="seekSpotify(event)">
-              <div class="spotify-progress-fill" id="spotifyProgressFill"></div>
-            </div>
-            <div class="spotify-time-row">
-              <span id="spotifyCurrentTime">0:00</span>
-              <span id="spotifyDuration">0:00</span>
-            </div>
-          </div>
-        </div>
+<section class="section-dark">
+  <div class="container-v2">
+    <span class="section-eyebrow">Music</span>
+    <h2 class="section-title">Cover Songs</h2>
+    <p class="section-subtitle">Official covers by Hammad Bin Amir</p>
+    <div class="music-container">
+      <div class="music-now">
+        <img src="${ASSETS.microphone}" class="m-cover" id="mCover" alt="Cover" onerror="this.src='${ASSETS.profile}'">
+        <div class="m-info"><div class="m-title" id="mTitle">Select a Song</div><div class="m-artist">Baiilla Maach</div></div>
       </div>
-      <div class="spotify-controls">
-        <button class="spotify-ctrl-btn" onclick="prevSpotifyTrack()" title="Previous">⏮</button>
-        <button class="spotify-play-btn" id="spotifyPlayBtn" onclick="toggleSpotifyPlay()">▶</button>
-        <button class="spotify-ctrl-btn" onclick="nextSpotifyTrack()" title="Next">⏭</button>
+      <div class="m-slider" onclick="seekMusic(event)"><div class="m-slider-fill" id="mSliderFill"></div></div>
+      <div class="m-time-row"><span id="mCurrentTime">0:00</span><span id="mDuration">0:00</span></div>
+      <div class="m-controls">
+        <button class="m-ctrl" onclick="prevMusic()">⏮</button>
+        <button class="m-play" id="mPlayBtn" onclick="toggleMusic()">▶</button>
+        <button class="m-ctrl" onclick="nextMusic()">⏭</button>
       </div>
-      <div class="spotify-song-list" id="spotifySongList">
-        ${songs.map((s, i) => `
-          <div class="spotify-song-item" onclick="playSpotifyTrack(${i})" data-index="${i}">
-            <span class="song-num">${String(i + 1).padStart(2, '0')}</span>
-            <span class="now-playing-icon">▶</span>
-            <img src="${ASSETS.microphone}" class="song-cover-mini" alt="" onerror="this.style.display='none'">
-            <div class="song-info-mini">
-              <div class="song-title-mini">${s.title}</div>
-              <div class="song-artist-mini">Baiilla Maach</div>
-            </div>
-          </div>
-        `).join('')}
+      <div class="m-song-list">
+        ${songs.map((s, i) => `<div class="m-song-item" onclick="playMusic(${i})"><span class="m-num">${String(i+1).padStart(2,'0')}</span><img src="${ASSETS.microphone}" class="m-song-cover-mini" alt=""><div class="m-song-info"><div class="m-song-name">${s.title}</div><div class="m-song-artist">Baiilla Maach</div></div></div>`).join('')}
       </div>
     </div>
   </div>
 </section>` : ''}
 
-<!-- Footer -->
-<footer class="footer">
-  <div class="footer-grid">
-    <div class="footer-col">
-      <h4>About</h4>
-      <p>Official verification hub for Baiilla Maach. Protecting fans from fake accounts.</p>
-    </div>
-    <div class="footer-col">
-      <h4>Links</h4>
-      <a href="https://tiktok.com/@baiillamaach_official">→ TikTok</a>
-      <a href="https://www.facebook.com/profile.php?id=61575202118828">→ Facebook</a>
-      <a href="/messenger">→ Chat Support</a>
-    </div>
-    <div class="footer-col">
-      <h4>Contact</h4>
-      <p>Use the chat button for support</p>
-      <p style="color:var(--orange);font-weight:600;">admin@baillamaach.com</p>
-    </div>
+<footer class="footer-v2">
+  <div class="footer-grid-v2">
+    <div><h5>About</h5><p>Official verification hub for Baiilla Maach.</p></div>
+    <div><h5>Links</h5><a href="https://tiktok.com/@baiillamaach_official">→ TikTok</a><a href="https://www.facebook.com/profile.php?id=61575202118828">→ Facebook</a><a href="/messenger">→ Chat Support</a></div>
+    <div><h5>Contact</h5><p>Use chat button for support</p></div>
   </div>
-  <div class="footer-bottom"><p>© 2024 <span>Baiilla Maach</span>. All rights reserved.</p></div>
+  <div class="footer-line">© 2024 <span>Baiilla Maach</span>. All rights reserved.</div>
 </footer>
 
-<!-- Chat Widget -->
-<div class="chat-widget">
-  <div class="chat-bubble" onclick="toggleChat()">
-    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-  </div>
-</div>
-<div class="chat-window" id="chatWindow">
-  <div class="chat-header">
-    <div class="chat-header-left"><span class="chat-header-dot"></span> Chat Support</div>
-    <button class="chat-close" onclick="toggleChat()">✕</button>
-  </div>
-  <div class="chat-messages" id="chatMessages">
-    <div class="chat-login" id="chatLoginForm">
+<div class="chat-fab"><button class="chat-fab-btn" onclick="toggleChat()">💬</button></div>
+<div class="chat-panel" id="chatPanel">
+  <div class="cp-head">💬 Chat Support <button onclick="toggleChat()">✕</button></div>
+  <div class="cp-body" id="chatBody">
+    <div class="cp-login" id="chatLoginForm">
       <h4>Start Chat</h4>
-      <p>Connect with support team</p>
+      <p>Connect with support</p>
       <input type="text" id="chatNameInput" placeholder="Your Name">
       <input type="text" id="chatEmailInput" placeholder="Email or Phone">
       <button onclick="startChatSession()">Start Chatting</button>
     </div>
   </div>
-  <div class="chat-input-area" id="chatInputArea">
-    <div class="chat-input-row">
-      <input type="text" id="chatMsgInput" placeholder="Type message..." onkeypress="if(event.key==='Enter')sendChatMsg()">
-      <button onclick="sendChatMsg()">➤</button>
-    </div>
-  </div>
+  <div class="cp-input-area" id="chatInputArea"><div style="display:flex;align-items:center"><input type="text" id="chatMsgInput" placeholder="Type message..." onkeypress="if(event.key==='Enter')sendChatMsg()"><button onclick="sendChatMsg()">➤</button></div></div>
 </div>
 
 ${WELCOME_VOICE ? `<audio id="welcomeAudio" src="/assets/realvoice.mp3" preload="auto"></audio>` : ''}
 ${MANUAL_VOICE ? `<audio id="manualAudio" src="/assets/manualvoice_alert.mp3" preload="auto"></audio>` : ''}
-<audio id="spotifyAudio" preload="auto"></audio>
+<audio id="musicAudio" preload="auto"></audio>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-// ============ AUDIO MANAGEMENT ============
-const welcomeAudio = document.getElementById('welcomeAudio');
-const manualAudio = document.getElementById('manualAudio');
-const spotifyAudio = document.getElementById('spotifyAudio');
+const welcomeAudio=document.getElementById('welcomeAudio');
+const manualAudio=document.getElementById('manualAudio');
+const musicAudio=document.getElementById('musicAudio');
+function stopAllAudio(){if(welcomeAudio){welcomeAudio.pause();welcomeAudio.currentTime=0;}if(manualAudio){manualAudio.pause();manualAudio.currentTime=0;}if(musicAudio){musicAudio.pause();}}
+function playWelcomeVoice(){if(!welcomeAudio)return;stopAllAudio();musicPlaying=false;updatePlayBtn();welcomeAudio.play().catch(()=>{});}
+function playManualVoice(){if(!manualAudio)return;stopAllAudio();musicPlaying=false;updatePlayBtn();manualAudio.play().catch(()=>{});}
 
-function stopAllAudio() {
-  if (welcomeAudio) { welcomeAudio.pause(); welcomeAudio.currentTime = 0; }
-  if (manualAudio) { manualAudio.pause(); manualAudio.currentTime = 0; }
-  if (spotifyAudio) { spotifyAudio.pause(); }
-}
+const tracks=${JSON.stringify(songs)};
+let currentTrack=0,musicPlaying=false;
+function updatePlayBtn(){const b=document.getElementById('mPlayBtn');if(musicPlaying){b.textContent='⏸';b.classList.add('playing');}else{b.textContent='▶';b.classList.remove('playing');}}
+function playMusic(i){stopAllAudio();currentTrack=i;musicAudio.src=tracks[i].url;musicAudio.play().then(()=>{musicPlaying=true;updatePlayBtn();updateMusicUI(i);}).catch(()=>{});}
+function updateMusicUI(i){document.getElementById('mTitle').textContent=tracks[i].title;document.querySelectorAll('.m-song-item').forEach((el,j)=>el.classList.toggle('active',j===i));}
+function toggleMusic(){if(musicAudio.paused){stopAllAudio();if(!musicAudio.src){musicAudio.src=tracks[currentTrack].url;}musicAudio.play().then(()=>{musicPlaying=true;updatePlayBtn();updateMusicUI(currentTrack);}).catch(()=>{});}else{musicAudio.pause();musicPlaying=false;updatePlayBtn();}}
+function prevMusic(){playMusic((currentTrack-1+tracks.length)%tracks.length);}
+function nextMusic(){playMusic((currentTrack+1)%tracks.length);}
+function seekMusic(e){if(!musicAudio.duration)return;const r=e.currentTarget.getBoundingClientRect();musicAudio.currentTime=((e.clientX-r.left)/r.width)*musicAudio.duration;}
+musicAudio.addEventListener('timeupdate',()=>{if(musicAudio.duration){document.getElementById('mSliderFill').style.width=(musicAudio.currentTime/musicAudio.duration)*100+'%';document.getElementById('mCurrentTime').textContent=formatTime(musicAudio.currentTime);document.getElementById('mDuration').textContent=formatTime(musicAudio.duration);}});
+musicAudio.addEventListener('ended',nextMusic);
+function formatTime(s){if(isNaN(s))return'0:00';const m=Math.floor(s/60),sec=Math.floor(s%60);return m+':'+String(sec).padStart(2,'0');}
 
-function playWelcomeVoice() {
-  if (!welcomeAudio) return;
-  stopAllAudio();
-  spotifyPlaying = false;
-  updateSpotifyPlayBtn();
-  welcomeAudio.currentTime = 0;
-  welcomeAudio.play().catch(e => console.log('Welcome audio play failed:', e));
-}
+window.addEventListener('load',()=>{if(welcomeAudio)setTimeout(()=>welcomeAudio.play().catch(()=>{}),1500);});
 
-function playManualVoice() {
-  if (!manualAudio) return;
-  stopAllAudio();
-  spotifyPlaying = false;
-  updateSpotifyPlayBtn();
-  manualAudio.currentTime = 0;
-  manualAudio.play().catch(e => console.log('Manual audio play failed:', e));
-}
-
-// ============ SPOTIFY STYLE MUSIC PLAYER ============
-const spotifyTracks = ${JSON.stringify(songs)};
-let spotifyCurrentTrack = 0;
-let spotifyPlaying = false;
-
-function updateSpotifyPlayBtn() {
-  const btn = document.getElementById('spotifyPlayBtn');
-  if (spotifyPlaying) {
-    btn.textContent = '⏸';
-    btn.classList.add('playing');
-  } else {
-    btn.textContent = '▶';
-    btn.classList.remove('playing');
-  }
-}
-
-function playSpotifyTrack(index) {
-  stopAllAudio();
-  spotifyCurrentTrack = index;
-  spotifyAudio.src = spotifyTracks[index].url;
-  spotifyAudio.load();
-  spotifyAudio.play().then(() => {
-    spotifyPlaying = true;
-    updateSpotifyPlayBtn();
-    updateSpotifyUI(index);
-  }).catch(e => console.log('Spotify play failed:', e));
-}
-
-function updateSpotifyUI(index) {
-  document.getElementById('spotifyTrackTitle').textContent = spotifyTracks[index].title;
-  document.querySelectorAll('.spotify-song-item').forEach((el, i) => {
-    el.classList.toggle('active', i === index);
-  });
-}
-
-function toggleSpotifyPlay() {
-  if (spotifyAudio.paused) {
-    stopAllAudio();
-    if (!spotifyAudio.src) {
-      spotifyAudio.src = spotifyTracks[spotifyCurrentTrack].url;
-      spotifyAudio.load();
-    }
-    spotifyAudio.play().then(() => {
-      spotifyPlaying = true;
-      updateSpotifyPlayBtn();
-      updateSpotifyUI(spotifyCurrentTrack);
-    }).catch(e => console.log('Toggle play failed:', e));
-  } else {
-    spotifyAudio.pause();
-    spotifyPlaying = false;
-    updateSpotifyPlayBtn();
-  }
-}
-
-function prevSpotifyTrack() {
-  const index = (spotifyCurrentTrack - 1 + spotifyTracks.length) % spotifyTracks.length;
-  playSpotifyTrack(index);
-}
-
-function nextSpotifyTrack() {
-  const index = (spotifyCurrentTrack + 1) % spotifyTracks.length;
-  playSpotifyTrack(index);
-}
-
-function seekSpotify(e) {
-  if (!spotifyAudio.duration) return;
-  const rect = e.currentTarget.getBoundingClientRect();
-  const percent = (e.clientX - rect.left) / rect.width;
-  spotifyAudio.currentTime = percent * spotifyAudio.duration;
-}
-
-spotifyAudio.addEventListener('timeupdate', () => {
-  if (spotifyAudio.duration) {
-    const percent = (spotifyAudio.currentTime / spotifyAudio.duration) * 100;
-    document.getElementById('spotifyProgressFill').style.width = percent + '%';
-    document.getElementById('spotifyCurrentTime').textContent = formatTime(spotifyAudio.currentTime);
-    document.getElementById('spotifyDuration').textContent = formatTime(spotifyAudio.duration);
-  }
-});
-
-spotifyAudio.addEventListener('loadedmetadata', () => {
-  document.getElementById('spotifyDuration').textContent = formatTime(spotifyAudio.duration);
-});
-
-spotifyAudio.addEventListener('ended', nextSpotifyTrack);
-
-function formatTime(seconds) {
-  if (isNaN(seconds)) return '0:00';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return mins + ':' + String(secs).padStart(2, '0');
-}
-
-// Auto play welcome voice on load
-window.addEventListener('load', () => {
-  if (welcomeAudio) {
-    setTimeout(() => {
-      welcomeAudio.play().catch(() => {});
-    }, 1500);
-  }
-});
-
-// ============ CHAT SYSTEM ============
-const socket = io({ transports: ['websocket', 'polling'] });
-let chatUser = null;
-
-function toggleChat() {
-  document.getElementById('chatWindow').classList.toggle('open');
-}
-
-function startChatSession() {
-  const name = document.getElementById('chatNameInput').value.trim();
-  const email = document.getElementById('chatEmailInput').value.trim();
-  if (!name || !email) return;
-  chatUser = { name, email };
-  socket.emit('register', { name, email });
-  document.getElementById('chatLoginForm').style.display = 'none';
-  document.getElementById('chatInputArea').style.display = 'block';
-  document.getElementById('chatMsgInput').focus();
-  loadChatMessages();
-}
-
-async function loadChatMessages() {
-  if (!chatUser) return;
-  try {
-    const res = await fetch('/api/msgs/' + chatUser.email);
-    const msgs = await res.json();
-    const container = document.getElementById('chatMessages');
-    container.innerHTML = msgs.map(m => 
-      '<div class="msg ' + (m.sender === chatUser.email ? 'user' : 'admin') + '">' +
-      m.message + '<div class="time">' + new Date(m.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + '</div></div>'
-    ).join('');
-    container.scrollTop = container.scrollHeight;
-  } catch(e) { console.log('Load messages failed:', e); }
-}
-
-function sendChatMsg() {
-  const input = document.getElementById('chatMsgInput');
-  const msg = input.value.trim();
-  if (!msg || !chatUser) return;
-  socket.emit('sendMsg', { sender: chatUser.email, receiver: 'admin@baillamaach.com', message: msg, type: 'text' });
-  input.value = '';
-  input.focus();
-}
-
-socket.on('newMsg', (msg) => {
-  if (chatUser && (msg.sender === chatUser.email || msg.receiver === chatUser.email)) {
-    const container = document.getElementById('chatMessages');
-    container.insertAdjacentHTML('beforeend', 
-      '<div class="msg ' + (msg.sender === chatUser.email ? 'user' : 'admin') + '">' +
-      msg.message + '<div class="time">' + new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + '</div></div>'
-    );
-    container.scrollTop = container.scrollHeight;
-  }
-});
+const socket=io();let chatUser=null;
+function toggleChat(){document.getElementById('chatPanel').classList.toggle('open');}
+function startChatSession(){const n=document.getElementById('chatNameInput').value.trim();const e=document.getElementById('chatEmailInput').value.trim();if(!n||!e)return;chatUser={name:n,email:e};socket.emit('register',{name:n,email:e});document.getElementById('chatLoginForm').style.display='none';document.getElementById('chatInputArea').style.display='block';loadChatMessages();}
+async function loadChatMessages(){if(!chatUser)return;const r=await fetch('/api/msgs/'+chatUser.email);const ms=await r.json();const b=document.getElementById('chatBody');b.innerHTML=ms.map(m=>'<div class="chat-msg '+(m.sender===chatUser.email?'user-msg':'admin-msg')+'">'+m.message+'<div class="msg-time">'+new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>').join('');b.scrollTop=b.scrollHeight;}
+function sendChatMsg(){const i=document.getElementById('chatMsgInput');const m=i.value.trim();if(!m||!chatUser)return;socket.emit('sendMsg',{sender:chatUser.email,receiver:'admin@baillamaach.com',message:m,type:'text'});i.value='';}
+socket.on('newMsg',(m)=>{if(chatUser&&(m.sender===chatUser.email||m.receiver===chatUser.email)){const b=document.getElementById('chatBody');b.insertAdjacentHTML('beforeend','<div class="chat-msg '+(m.sender===chatUser.email?'user-msg':'admin-msg')+'">'+m.message+'<div class="msg-time">'+new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>');b.scrollTop=b.scrollHeight;}});
 </script>
 </body>
 </html>`);
 });
 
-// ============ API ROUTES ============
+// API Routes
 app.get('/api/msgs/:email', async (req, res) => {
   try {
     const msgs = await Message.find({
@@ -1131,22 +414,18 @@ app.get('/api/msgs/:email', async (req, res) => {
       ]
     }).sort({ timestamp: 1 }).lean();
     res.json(msgs);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch messages' });
-  }
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 
 app.post('/api/admin/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email, isAdmin: true });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!user) return res.status(401).json({ error: 'Invalid' });
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-    res.json({ token: 'ok', message: 'Login successful' });
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
+    if (!valid) return res.status(401).json({ error: 'Invalid' });
+    res.json({ token: 'ok', message: 'Success' });
+  } catch (err) { res.status(500).json({ error: 'Error' }); }
 });
 
 app.get('/api/admin/users', async (req, res) => {
@@ -1156,85 +435,70 @@ app.get('/api/admin/users', async (req, res) => {
       u.unreadCount = await Message.countDocuments({ sender: u.email, receiver: 'admin@baillamaach.com', seen: false });
     }
     res.json(users);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 
-// ============ ADMIN MESSENGER PANEL ============
 app.get('/messenger', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Messenger | Baiilla Maach Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hidden;color:#1f2937}
-.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px)}
-.login-card{background:#fff;padding:40px;border-radius:20px;width:380px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
-.login-card .logo{width:60px;height:60px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#fff;font-size:1.5em;font-weight:700}
-.login-card h2{font-family:'Syne',sans-serif;margin-bottom:6px;font-size:1.5em;color:#111827}
-.login-card .subtitle{color:#9ca3af;font-size:0.9em;margin-bottom:24px}
+body{font-family:'Inter',sans-serif;background:#f1f5f9;height:100vh;overflow:hidden;color:#1e293b}
+.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px)}
+.login-card{background:#fff;padding:40px;border-radius:24px;width:400px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,0.2)}
+.login-card h2{font-family:'Space Grotesk',sans-serif;margin-bottom:6px;font-size:1.5em;color:#0f172a}
+.login-card .subtitle{color:#94a3b8;font-size:0.9em;margin-bottom:24px}
 .login-card .input-group{margin-bottom:14px;text-align:left}
-.login-card .input-group label{display:block;font-size:0.8em;font-weight:600;color:#4b5563;margin-bottom:4px}
-.login-card .input-group input{width:100%;padding:12px 16px;border:1.5px solid #e5e7eb;border-radius:12px;font-size:0.95em;outline:none;font-family:'Inter',sans-serif}
-.login-card .input-group input:focus{border-color:#f97316}
-.login-card button{width:100%;padding:12px;background:#f97316;color:#fff;border:none;border-radius:12px;font-weight:600;cursor:pointer;font-size:1em;font-family:'Inter',sans-serif}
-.login-card button:hover{background:#ea580c}
+.login-card .input-group label{display:block;font-size:0.8em;font-weight:600;color:#475569;margin-bottom:4px}
+.login-card .input-group input{width:100%;padding:12px 16px;border:2px solid #e2e8f0;border-radius:12px;font-size:0.95em;outline:none;font-family:'Inter',sans-serif;transition:border-color 0.2s}
+.login-card .input-group input:focus{border-color:#8b5cf6}
+.login-card button{width:100%;padding:12px;background:#8b5cf6;color:#fff;border:none;border-radius:12px;font-weight:600;cursor:pointer;font-size:1em;transition:all 0.2s;font-family:'Inter',sans-serif}
+.login-card button:hover{background:#7c3aed;transform:translateY(-2px)}
 .login-error{color:#ef4444;font-size:0.85em;margin-top:10px;display:none}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-radius:50%;border-top-color:#fff;animation:spin 0.6s linear infinite;margin-right:6px;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
 .app{display:none;height:100vh}
-.app-layout{display:flex;height:100vh;max-width:1400px;margin:0 auto;background:#fff}
-.sidebar{width:350px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;background:#fff}
-.sidebar-header{padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#fafafa}
-.sidebar-header h2{font-family:'Syne',sans-serif;font-size:1.1em;color:#111827}
+.app-layout{display:flex;height:100vh;max-width:1400px;margin:0 auto;background:#fff;box-shadow:0 0 40px rgba(0,0,0,0.05)}
+.sidebar{width:350px;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;background:#fff}
+.sidebar-header{padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+.sidebar-header h2{font-family:'Space Grotesk',sans-serif;font-size:1.1em}
 .sidebar-header .logout-btn{background:#fee2e2;color:#ef4444;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.78em}
-.sidebar-header .logout-btn:hover{background:#fecaca}
-.search-bar{padding:10px 14px;border-bottom:1px solid #e5e7eb}
-.search-bar input{width:100%;padding:9px 14px;border:1.5px solid #e5e7eb;border-radius:20px;font-size:0.85em;outline:none;background:#f9fafb;font-family:'Inter',sans-serif}
-.search-bar input:focus{border-color:#f97316;background:#fff}
+.search-bar{padding:10px 14px;border-bottom:1px solid #e2e8f0}
+.search-bar input{width:100%;padding:9px 14px;border:2px solid #e2e8f0;border-radius:20px;font-size:0.85em;outline:none;font-family:'Inter',sans-serif}
+.search-bar input:focus{border-color:#8b5cf6}
 .user-list{flex:1;overflow-y:auto}
-.user-list::-webkit-scrollbar{width:4px}
-.user-list::-webkit-scrollbar-thumb{background:#e5e7eb;border-radius:2px}
-.user-item{padding:12px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:1px solid #f3f4f6}
-.user-item:hover{background:#f9fafb}
-.user-item.active{background:#fff7ed;border-left:3px solid #f97316}
-.user-avatar{width:40px;height:40px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:0.9em;flex-shrink:0;position:relative}
+.user-item{padding:12px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background 0.2s}
+.user-item:hover{background:#f8fafc}
+.user-item.active{background:#f5f3ff;border-left:3px solid #8b5cf6}
+.user-avatar{width:40px;height:40px;border-radius:50%;background:#8b5cf6;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:0.9em;flex-shrink:0;position:relative}
 .user-avatar .dot{position:absolute;bottom:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#10b981;border:2px solid #fff}
-.user-info{flex:1;min-width:0}
-.user-info .name{font-weight:600;font-size:0.85em;color:#111827}
-.user-info .email{font-size:0.73em;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.unread{background:#f97316;color:#fff;font-size:0.68em;padding:3px 7px;border-radius:10px;font-weight:700;flex-shrink:0}
-.empty-state{text-align:center;padding:40px 20px;color:#9ca3af}
-.chat-area{flex:1;display:flex;flex-direction:column;background:#f8f9fb}
-.chat-header{padding:14px 20px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:10px}
-.chat-header .avatar{width:38px;height:38px;border-radius:50%;background:#f97316;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:0.9em}
-.chat-header .name{font-weight:600;font-size:0.9em;color:#111827}
-.online-dot{width:7px;height:7px;border-radius:50%;background:#10b981;display:inline-block}
-.offline-dot{width:7px;height:7px;border-radius:50%;background:#d1d5db;display:inline-block}
+.user-info{flex:1;min-width:0}.user-info .name{font-weight:600;font-size:0.85em}.user-info .email{font-size:0.73em;color:#94a3b8}
+.unread{background:#8b5cf6;color:#fff;font-size:0.68em;padding:3px 7px;border-radius:10px;font-weight:700}
+.empty-state{text-align:center;padding:40px;color:#94a3b8}
+.chat-area{flex:1;display:flex;flex-direction:column;background:#f8fafc}
+.chat-header{padding:14px 20px;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px}
+.chat-header .avatar{width:38px;height:38px;border-radius:50%;background:#8b5cf6;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+.chat-header .name{font-weight:600;font-size:0.9em}.online-dot{width:7px;height:7px;border-radius:50%;background:#10b981;display:inline-block}.offline-dot{width:7px;height:7px;border-radius:50%;background:#d1d5db;display:inline-block}
 .chat-messages{flex:1;overflow-y:auto;padding:16px 20px}
-.chat-messages::-webkit-scrollbar{width:4px}
-.chat-messages::-webkit-scrollbar-thumb{background:#e5e7eb;border-radius:2px}
-.message{max-width:65%;padding:8px 14px;border-radius:16px;font-size:0.85em;line-height:1.4;word-wrap:break-word;margin-bottom:4px}
-.message.sent{background:#f97316;color:#fff;margin-left:auto;border-bottom-right-radius:3px}
-.message.received{background:#fff;color:#1f2937;border:1px solid #e5e7eb;border-bottom-left-radius:3px}
+.message{max-width:65%;padding:8px 14px;border-radius:16px;font-size:0.85em;line-height:1.4;margin-bottom:4px}
+.message.sent{background:#8b5cf6;color:#fff;margin-left:auto;border-bottom-right-radius:3px}
+.message.received{background:#fff;color:#1e293b;border:1px solid #e2e8f0;border-bottom-left-radius:3px}
 .message .time{font-size:0.65em;opacity:0.7;margin-top:3px;text-align:right}
-.chat-input{padding:12px 18px;background:#fff;border-top:1px solid #e5e7eb;display:none}
-.chat-input input{flex:1;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:20px;font-size:0.85em;outline:none;font-family:'Inter',sans-serif}
-.chat-input input:focus{border-color:#f97316}
-.chat-input button{background:#f97316;color:#fff;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:1em;margin-left:8px}
+.chat-input{padding:12px 18px;background:#fff;border-top:1px solid #e2e8f0;display:none}
+.chat-input input{flex:1;padding:10px 14px;border:2px solid #e2e8f0;border-radius:20px;font-size:0.85em;outline:none;font-family:'Inter',sans-serif}
+.chat-input input:focus{border-color:#8b5cf6}
+.chat-input button{background:#8b5cf6;color:#fff;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:1em;margin-left:8px}
 @media(max-width:768px){.sidebar{width:100%}.login-card{width:90%;padding:30px}}
 </style>
 </head>
 <body>
 <div class="login-overlay" id="loginOverlay">
   <div class="login-card">
-    <div class="logo">BM</div>
-    <h2>Admin Messenger</h2>
+    <h2>🔐 Admin Messenger</h2>
     <p class="subtitle">Baiilla Maach Support Panel</p>
     <div class="input-group"><label>Email</label><input type="email" id="loginEmail" placeholder="admin@baillamaach.com"></div>
     <div class="input-group"><label>Password</label><input type="password" id="loginPassword" placeholder="Enter password"></div>
@@ -1244,141 +508,23 @@ body{font-family:'Inter',sans-serif;background:#f8f9fb;height:100vh;overflow:hid
 </div>
 <div class="app" id="app">
   <div class="app-layout">
-    <div class="sidebar">
-      <div class="sidebar-header"><h2>💬 Conversations</h2><button class="logout-btn" onclick="Admin.logout()">Logout</button></div>
-      <div class="search-bar"><input type="text" id="searchInput" placeholder="🔍 Search users..." oninput="Admin.filterUsers()"></div>
-      <div class="user-list" id="userList"><div class="empty-state"><p>No conversations</p></div></div>
-    </div>
-    <div class="chat-area">
-      <div class="chat-header"><div class="avatar" id="chatAvatar">?</div><div><div class="name" id="chatName">Select a user</div><div id="chatStatus"></div></div></div>
-      <div class="chat-messages" id="chatMessages"><div class="empty-state"><p>Select a conversation</p></div></div>
-      <div class="chat-input" id="chatInputArea"><div style="display:flex;align-items:center"><input type="text" id="msgInput" placeholder="Type message..." onkeypress="if(event.key==='Enter')Admin.sendMessage()"><button onclick="Admin.sendMessage()">➤</button></div></div>
-    </div>
+    <div class="sidebar"><div class="sidebar-header"><h2>💬 Conversations</h2><button class="logout-btn" onclick="Admin.logout()">Logout</button></div><div class="search-bar"><input type="text" id="searchInput" placeholder="🔍 Search users..." oninput="Admin.filterUsers()"></div><div class="user-list" id="userList"><div class="empty-state"><p>No conversations</p></div></div></div>
+    <div class="chat-area"><div class="chat-header"><div class="avatar" id="chatAvatar">?</div><div><div class="name" id="chatName">Select a user</div><div id="chatStatus"></div></div></div><div class="chat-messages" id="chatMessages"><div class="empty-state"><p>Select a conversation</p></div></div><div class="chat-input" id="chatInputArea"><div style="display:flex;align-items:center"><input type="text" id="msgInput" placeholder="Type message..." onkeypress="if(event.key==='Enter')Admin.sendMessage()"><button onclick="Admin.sendMessage()">➤</button></div></div></div>
   </div>
 </div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
-const Admin = {
-  socket: null, currentUser: null, users: [], messages: [], isLoggedIn: false,
-  init() {
-    this.socket = io({ transports: ['websocket', 'polling'] });
-    this.socket.on('newMsg', (msg) => {
-      if (this.currentUser && ((msg.sender === this.currentUser.email && msg.receiver === 'admin@baillamaach.com') || (msg.sender === 'admin@baillamaach.com' && msg.receiver === this.currentUser.email))) {
-        this.messages.push(msg); this.renderMessages();
-      }
-      this.loadUsers();
-    });
-    this.socket.on('userStatus', (data) => { this.updateUserStatus(data.email, data.online); });
-    const saved = localStorage.getItem('adminSession');
-    if (saved) { const s = JSON.parse(saved); document.getElementById('loginEmail').value = s.email; document.getElementById('loginPassword').value = s.password; this.login(true); }
-  },
-  async login(auto = false) {
-    const email = document.getElementById('loginEmail').value.trim();
-    const password = document.getElementById('loginPassword').value.trim();
-    const errDiv = document.getElementById('loginError');
-    const btn = document.getElementById('loginBtn');
-    if (!email || !password) { errDiv.textContent = 'Fill all fields'; errDiv.style.display = 'block'; return; }
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Signing in...';
-    try {
-      const res = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,password}) });
-      const data = await res.json();
-      if (res.ok) {
-        this.isLoggedIn = true;
-        document.getElementById('loginOverlay').style.display = 'none';
-        document.getElementById('app').style.display = 'block';
-        localStorage.setItem('adminSession', JSON.stringify({email,password}));
-        this.loadUsers();
-      } else { errDiv.textContent = data.error; errDiv.style.display = 'block'; }
-    } catch(e) { errDiv.textContent = 'Network error'; errDiv.style.display = 'block'; }
-    btn.disabled = false; btn.innerHTML = 'Sign In';
-  },
-  async loadUsers() {
-    if (!this.isLoggedIn) return;
-    try {
-      const res = await fetch('/api/admin/users');
-      this.users = await res.json();
-      this.renderUserList();
-    } catch(e) {}
-  },
-  async selectUser(user) {
-    this.currentUser = user;
-    document.getElementById('chatAvatar').textContent = user.name.charAt(0).toUpperCase();
-    document.getElementById('chatName').textContent = user.name;
-    document.getElementById('chatStatus').innerHTML = user.isOnline ? '<span class="online-dot"></span> Online' : '<span class="offline-dot"></span> Offline';
-    document.getElementById('chatInputArea').style.display = 'block';
-    document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
-    document.querySelector('.user-item[data-email="'+user.email+'"]')?.classList.add('active');
-    await this.loadMessages();
-    this.socket.emit('markRead', { user: user.email });
-  },
-  async loadMessages() {
-    if (!this.currentUser) return;
-    try {
-      const res = await fetch('/api/msgs/' + this.currentUser.email);
-      const all = await res.json();
-      this.messages = all.filter(m => (m.sender === this.currentUser.email && m.receiver === 'admin@baillamaach.com') || (m.sender === 'admin@baillamaach.com' && m.receiver === this.currentUser.email));
-      this.renderMessages();
-    } catch(e) {}
-  },
-  renderMessages() {
-    const c = document.getElementById('chatMessages');
-    if (this.messages.length === 0) { c.innerHTML = '<div class="empty-state"><p>No messages</p></div>'; return; }
-    c.innerHTML = this.messages.map(m => {
-      const sent = m.sender === 'admin@baillamaach.com';
-      const time = new Date(m.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-      return '<div class="message '+(sent?'sent':'received')+'">'+m.message+'<div class="time">'+time+'</div></div>';
-    }).join('');
-    c.scrollTop = c.scrollHeight;
-  },
-  async sendMessage() {
-    const input = document.getElementById('msgInput');
-    const msg = input.value.trim();
-    if (!msg || !this.currentUser) return;
-    this.socket.emit('sendMsg', { sender:'admin@baillamaach.com', receiver:this.currentUser.email, message:msg, type:'text' });
-    this.messages.push({ sender:'admin@baillamaach.com', receiver:this.currentUser.email, message:msg, type:'text', timestamp:new Date() });
-    this.renderMessages();
-    input.value = ''; input.focus();
-    setTimeout(() => this.loadUsers(), 500);
-  },
-  updateUserStatus(email, online) {
-    const el = document.querySelector('.user-item[data-email="'+email+'"] .dot');
-    if (el) el.style.background = online ? '#10b981' : '#d1d5db';
-    if (this.currentUser?.email === email) {
-      document.getElementById('chatStatus').innerHTML = online ? '<span class="online-dot"></span> Online' : '<span class="offline-dot"></span> Offline';
-    }
-  },
-  renderUserList() {
-    const c = document.getElementById('userList');
-    const search = document.getElementById('searchInput')?.value?.toLowerCase() || '';
-    const filtered = this.users.filter(u => u.name.toLowerCase().includes(search) || u.email.toLowerCase().includes(search));
-    if (filtered.length === 0) { c.innerHTML = '<div class="empty-state"><p>No users found</p></div>'; return; }
-    c.innerHTML = filtered.map(u => {
-      const active = this.currentUser?.email === u.email;
-      return '<div class="user-item'+(active?' active':'')+'" data-email="'+u.email+'" onclick="Admin.selectUserById(\''+u.email+'\')">' +
-        '<div class="user-avatar">'+u.name.charAt(0).toUpperCase()+'<div class="dot" style="background:'+(u.isOnline?'#10b981':'#d1d5db')+'"></div></div>' +
-        '<div class="user-info"><div class="name">'+u.name+'</div><div class="email">'+u.email+'</div></div>' +
-        (u.unreadCount > 0 ? '<div class="unread">'+u.unreadCount+'</div>' : '') +
-        '</div>';
-    }).join('');
-  },
-  selectUserById(email) { const u = this.users.find(u => u.email === email); if (u) this.selectUser(u); },
-  filterUsers() { this.renderUserList(); },
-  logout() { localStorage.removeItem('adminSession'); location.reload(); }
-};
-document.addEventListener('DOMContentLoaded', () => {
-  Admin.init();
-  document.getElementById('loginPassword').addEventListener('keypress', e => { if (e.key === 'Enter') Admin.login(); });
-});
-setInterval(() => { if (Admin.isLoggedIn) Admin.loadUsers(); }, 30000);
+const Admin={socket:null,currentUser:null,users:[],messages:[],isLoggedIn:false,init(){this.socket=io();this.socket.on('newMsg',(m)=>{if(this.currentUser&&((m.sender===this.currentUser.email&&m.receiver==='admin@baillamaach.com')||(m.sender==='admin@baillamaach.com'&&m.receiver===this.currentUser.email))){this.messages.push(m);this.renderMessages()}this.loadUsers()});this.socket.on('userStatus',(d)=>{this.updateUserStatus(d.email,d.online)});const s=localStorage.getItem('adminSession');if(s){const p=JSON.parse(s);document.getElementById('loginEmail').value=p.email;document.getElementById('loginPassword').value=p.password;this.login(true)}},async login(a=false){const e=document.getElementById('loginEmail').value.trim();const p=document.getElementById('loginPassword').value.trim();const err=document.getElementById('loginError');const btn=document.getElementById('loginBtn');if(!e||!p){err.textContent='Fill all fields';err.style.display='block';return}btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Signing in...';try{const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,password:p})});const d=await r.json();if(r.ok){this.isLoggedIn=true;document.getElementById('loginOverlay').style.display='none';document.getElementById('app').style.display='block';localStorage.setItem('adminSession',JSON.stringify({email:e,password:p}));this.loadUsers()}else{err.textContent=d.error||'Login failed';err.style.display='block'}}catch(x){err.textContent='Network error';err.style.display='block'}btn.disabled=false;btn.innerHTML='Sign In'},async loadUsers(){if(!this.isLoggedIn)return;try{const r=await fetch('/api/admin/users');this.users=await r.json();this.renderUserList()}catch(e){}},async selectUser(u){this.currentUser=u;document.getElementById('chatAvatar').textContent=u.name.charAt(0).toUpperCase();document.getElementById('chatName').textContent=u.name;document.getElementById('chatStatus').innerHTML=u.isOnline?'<span class="online-dot"></span> Online':'<span class="offline-dot"></span> Offline';document.getElementById('chatInputArea').style.display='block';document.querySelectorAll('.user-item').forEach(el=>el.classList.remove('active'));const el=document.querySelector('.user-item[data-email="'+u.email+'"]');if(el)el.classList.add('active');await this.loadMessages();this.socket.emit('markRead',{user:u.email})},async loadMessages(){if(!this.currentUser)return;try{const r=await fetch('/api/msgs/'+this.currentUser.email);const all=await r.json();this.messages=all.filter(m=>(m.sender===this.currentUser.email&&m.receiver==='admin@baillamaach.com')||(m.sender==='admin@baillamaach.com'&&m.receiver===this.currentUser.email));this.renderMessages()}catch(e){}},renderMessages(){const c=document.getElementById('chatMessages');if(this.messages.length===0){c.innerHTML='<div class="empty-state"><p>No messages</p></div>';return}c.innerHTML=this.messages.map(m=>{const s=m.sender==='admin@baillamaach.com';const t=new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});return'<div class="message '+(s?'sent':'received')+'">'+m.message+'<div class="time">'+t+'</div></div>'}).join('');c.scrollTop=c.scrollHeight},async sendMessage(){const i=document.getElementById('msgInput');const m=i.value.trim();if(!m||!this.currentUser)return;this.socket.emit('sendMsg',{sender:'admin@baillamaach.com',receiver:this.currentUser.email,message:m,type:'text'});this.messages.push({sender:'admin@baillamaach.com',receiver:this.currentUser.email,message:m,type:'text',timestamp:new Date()});this.renderMessages();i.value='';i.focus();setTimeout(()=>this.loadUsers(),500)},updateUserStatus(e,o){const el=document.querySelector('.user-item[data-email="'+e+'"] .dot');if(el)el.style.background=o?'#10b981':'#d1d5db';if(this.currentUser&&this.currentUser.email===e){document.getElementById('chatStatus').innerHTML=o?'<span class="online-dot"></span> Online':'<span class="offline-dot"></span> Offline'}},renderUserList(){const c=document.getElementById('userList');const s=document.getElementById('searchInput')?.value?.toLowerCase()||'';const f=this.users.filter(u=>u.name.toLowerCase().includes(s)||u.email.toLowerCase().includes(s));if(f.length===0){c.innerHTML='<div class="empty-state"><p>No users</p></div>';return}c.innerHTML=f.map(u=>{const a=this.currentUser&&this.currentUser.email===u.email;return'<div class="user-item'+(a?' active':'')+'" data-email="'+u.email+'" onclick="Admin.selectUserById(\''+u.email+'\')"><div class="user-avatar">'+u.name.charAt(0).toUpperCase()+'<div class="dot" style="background:'+(u.isOnline?'#10b981':'#d1d5db')+'"></div></div><div class="user-info"><div class="name">'+u.name+'</div><div class="email">'+u.email+'</div></div>'+(u.unreadCount>0?'<div class="unread">'+u.unreadCount+'</div>':'')+'</div>'}).join('')},selectUserById(e){const u=this.users.find(u=>u.email===e);if(u)this.selectUser(u)},filterUsers(){this.renderUserList()},logout(){localStorage.removeItem('adminSession');location.reload()}};
+document.addEventListener('DOMContentLoaded',()=>{Admin.init();document.getElementById('loginPassword').addEventListener('keypress',e=>{if(e.key==='Enter')Admin.login()})});
+setInterval(()=>{if(Admin.isLoggedIn)Admin.loadUsers()},30000);
 </script>
 </body>
 </html>`);
 });
 
-// ============ SOCKET.IO ============
+// Socket.IO
 io.on('connection', (socket) => {
   console.log('🔌 Connected:', socket.id);
-  
   socket.on('register', async (data) => {
     try {
       socket.userData = data;
@@ -1391,41 +537,27 @@ io.on('connection', (socket) => {
       io.emit('userStatus', { email: data.email, online: true });
     } catch (err) { console.error('Register error:', err.message); }
   });
-
   socket.on('sendMsg', async (data) => {
     try {
-      const msg = await Message.create({
-        sender: data.sender,
-        receiver: data.receiver,
-        message: data.message,
-        type: data.type || 'text'
-      });
+      const msg = await Message.create({ sender: data.sender, receiver: data.receiver, message: data.message, type: data.type || 'text' });
       io.emit('newMsg', msg);
-    } catch (err) { console.error('Send msg error:', err.message); }
+    } catch (err) { console.error('Send error:', err.message); }
   });
-
   socket.on('markRead', async (data) => {
-    try {
-      await Message.updateMany(
-        { sender: data.user, receiver: 'admin@baillamaach.com', seen: false },
-        { $set: { seen: true } }
-      );
-    } catch (err) { console.error('Mark read error:', err.message); }
+    try { await Message.updateMany({ sender: data.user, receiver: 'admin@baillamaach.com', seen: false }, { $set: { seen: true } }); } catch (err) {}
   });
-
   socket.on('disconnect', async () => {
     if (socket.userData) {
       try {
         await User.updateOne({ email: socket.userData.email }, { $set: { isOnline: false, lastSeen: new Date() } });
         io.emit('userStatus', { email: socket.userData.email, online: false });
-      } catch (err) { console.error('Disconnect error:', err.message); }
+      } catch (err) {}
     }
   });
 });
 
 server.listen(PORT, () => {
-  console.log('🚀 Server running on http://localhost:' + PORT);
-  console.log('📧 Admin panel: http://localhost:' + PORT + '/messenger');
-  console.log('📧 Admin Email: admin@baillamaach.com');
-  console.log('🔑 Admin Password: Admin@2024!');
+  console.log('🚀 Server: http://localhost:' + PORT);
+  console.log('📧 Messenger: http://localhost:' + PORT + '/messenger');
+  console.log('📧 Admin: admin@baillamaach.com | 🔑 Pass: admin123');
 });
