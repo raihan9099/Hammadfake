@@ -20,7 +20,6 @@ const PORT = process.env.PORT || 4000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/verification_hub?retryWrites=true&w=majority';
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 app.use('/assets', express.static('assets'));
 app.use('/uploads', express.static('uploads'));
 
@@ -28,7 +27,6 @@ app.use('/uploads', express.static('uploads'));
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// SCHEMA
 const userSchema = new mongoose.Schema({
   name: String,
   email: String,
@@ -52,7 +50,6 @@ const messageSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const Message = mongoose.model('Message', messageSchema);
 
-// Connect to MongoDB
 mongoose.connect(MONGO_URI)
   .then(async () => {
     console.log('✅ MongoDB Connected');
@@ -72,7 +69,6 @@ mongoose.connect(MONGO_URI)
     const totalMsgs = await Message.countDocuments({});
     console.log('📊 Total users:', totalUsers);
     console.log('📊 Total messages:', totalMsgs);
-    console.log('👤 Admin login: admin / admin123');
   })
   .catch(e => console.error('❌ MongoDB Error:', e.message));
 
@@ -83,14 +79,11 @@ const ASSETS = {
   blueFB: "/assets/blue_tick_fb.png",
   logoFB: "/assets/logo_fb.png",
   logoTikTok: "/assets/logo_tiktok.png",
-  messageBubble: "/assets/message_bubble.gif",
   microphone: "/assets/microphone-in-hand.gif",
-  reportBtn: "/assets/report_button.png",
   realId: "/assets/real-id-ss.png",
   fakeDetect: "/assets/Fakedetect_updown.png",
   baillamachFake: "/assets/baillamach_fake.png",
-  hammadFake: "/assets/hammadfams.png",
-  playGif: "/assets/play.gif"
+  hammadFake: "/assets/hammadfams.png"
 };
 
 const WELCOME_VOICE = fs.existsSync('assets/realvoice.mp3');
@@ -119,7 +112,6 @@ app.get('/', (req, res) => {
   songs.forEach((s, i) => {
     songsListHTML += '<div class="song-item" onclick="playMusic(' + i + ')" id="song-' + i + '">' +
       '<span class="song-num">' + String(i+1).padStart(2,'0') + '</span>' +
-      '<img src="' + ASSETS.playGif + '" class="song-thumb">' +
       '<div class="song-info"><div class="song-title">' + s.title + '</div><div class="song-artist">Baiilla Maach</div></div>' +
       '</div>';
   });
@@ -199,7 +191,6 @@ app.get('/', (req, res) => {
   '.proof-item .label{font-weight:600;font-size:0.8em}' +
   '.music-section{padding:16px}' +
   '.music-header{display:flex;align-items:center;gap:12px;padding:12px;background:#f0f2f5;border-radius:8px;margin-bottom:12px}' +
-  '.music-cover{width:56px;height:56px;border-radius:8px;object-fit:cover}' +
   '.music-info{flex:1;min-width:0}' +
   '.music-title{font-weight:600;font-size:0.95em}' +
   '.music-artist{font-size:0.8em;color:#65676b}' +
@@ -215,7 +206,6 @@ app.get('/', (req, res) => {
   '.song-item:hover{background:#f0f2f5}' +
   '.song-item.active{background:#e7f3ff}' +
   '.song-num{font-weight:700;color:#65676b;min-width:22px;font-size:0.85em}' +
-  '.song-thumb{width:32px;height:32px;border-radius:4px;object-fit:cover}' +
   '.song-info{flex:1;min-width:0}' +
   '.song-title{font-weight:500;font-size:0.85em}' +
   '.song-artist{font-size:0.75em;color:#65676b}' +
@@ -287,7 +277,7 @@ app.get('/', (req, res) => {
   voiceHTML +
   
   (songs.length > 0 ? '<div class="card"><div class="card-header"><span class="badge badge-blue">MUSIC</span><h3>Cover Songs</h3></div><div class="music-section">' +
-  '<div class="music-header"><img src="' + ASSETS.playGif + '" class="music-cover" id="mCover"><div class="music-info"><div class="music-title" id="mTitle">Select Song</div><div class="music-artist">Baiilla Maach</div></div></div>' +
+  '<div class="music-header"><div class="music-info"><div class="music-title" id="mTitle">Select Song</div><div class="music-artist">Baiilla Maach</div></div></div>' +
   '<div class="music-slider" onclick="seekMusic(event)"><div class="music-slider-fill" id="mSliderFill"></div></div>' +
   '<div class="music-time-row"><span id="mCurrentTime">0:00</span><span id="mDuration">0:00</span></div>' +
   '<div class="music-controls"><button class="music-btn music-btn-nav" onclick="prevMusic()">⏮</button><button class="music-btn music-btn-play" id="mPlayBtn" onclick="toggleMusic()">▶</button><button class="music-btn music-btn-nav" onclick="nextMusic()">⏭</button></div>' +
@@ -336,13 +326,34 @@ app.get('/', (req, res) => {
   'function formatTime(s){if(isNaN(s))return"0:00";var m=Math.floor(s/60),sec=Math.floor(s%60);return m+":"+String(sec).padStart(2,"0")}' +
   'if(welcomeAudio)setTimeout(function(){welcomeAudio.play()},1500);' +
   
-  // CHAT SCRIPT
-  'var socket=io();var chatUser=null;' +
+  // FIXED CHAT SCRIPT
+  'var socket=io({transports:["websocket","polling"]});var chatUser=null;' +
   'function toggleChat(){document.getElementById("chatPanel").classList.toggle("open")}' +
-  'function startChatSession(){var n=document.getElementById("chatNameInput").value.trim();var e=document.getElementById("chatEmailInput").value.trim();if(!n||!e)return;chatUser={name:n,email:e};socket.emit("register",{name:n,email:e});document.getElementById("chatLoginForm").style.display="none";document.getElementById("chatInputArea").style.display="block";loadChatMessages()}' +
-  'async function loadChatMessages(){if(!chatUser)return;var r=await fetch("/api/msgs/"+chatUser.email);var ms=await r.json();var b=document.getElementById("chatBody");b.innerHTML="";for(var i=0;i<ms.length;i++){var m=ms[i];var cls=(m.sender===chatUser.email?"user":"admin");b.innerHTML+=\'<div class="msg \'+cls+\'">\'+m.message+\'<div class="time">\'+new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+\'</div></div>\'}b.scrollTop=b.scrollHeight}' +
-  'function sendChatMsg(){var i=document.getElementById("chatMsgInput");var m=i.value.trim();if(!m||!chatUser)return;socket.emit("sendMsg",{sender:chatUser.email,receiver:"admin",message:m,type:"text"});i.value=""}' +
-  'socket.on("newMsg",function(m){if(chatUser&&(m.sender===chatUser.email||m.receiver===chatUser.email)){var b=document.getElementById("chatBody");var cls=(m.sender===chatUser.email?"user":"admin");b.innerHTML+=\'<div class="msg \'+cls+\'">\'+m.message+\'<div class="time">\'+new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+\'</div></div>\';b.scrollTop=b.scrollHeight}});' +
+  'function startChatSession(){var n=document.getElementById("chatNameInput").value.trim();var e=document.getElementById("chatEmailInput").value.trim();if(!n||!e)return;chatUser={name:n,email:e};' +
+  'socket.emit("register",{name:n,email:e});' +
+  'document.getElementById("chatLoginForm").style.display="none";' +
+  'document.getElementById("chatInputArea").style.display="block";' +
+  'loadChatMessages()}' +
+  
+  'async function loadChatMessages(){if(!chatUser)return;' +
+  'try{var r=await fetch("/api/msgs/"+encodeURIComponent(chatUser.email));' +
+  'if(!r.ok){console.error("Failed to load messages");return}' +
+  'var ms=await r.json();' +
+  'var b=document.getElementById("chatBody");' +
+  'b.innerHTML="";' +
+  'if(ms.length===0){b.innerHTML="<div style=\\"text-align:center;padding:20px;color:#65676b\\">No messages yet. Start chatting!</div>"}' +
+  'else{for(var i=0;i<ms.length;i++){var m=ms[i];var cls=(m.sender===chatUser.email?"user":"admin");' +
+  'b.innerHTML+="<div class=\\"msg "+cls+"\\">"+m.message+"<div class=\\"time\\">"+new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+"</div></div>"}' +
+  'b.scrollTop=b.scrollHeight}}catch(e){console.error("Error loading messages:",e)}}' +
+  
+  'function sendChatMsg(){var i=document.getElementById("chatMsgInput");var m=i.value.trim();if(!m||!chatUser)return;' +
+  'socket.emit("sendMsg",{sender:chatUser.email,receiver:"admin",message:m,type:"text"});i.value=""}' +
+  
+  'socket.on("newMsg",function(m){if(chatUser&&(m.sender===chatUser.email||m.receiver===chatUser.email)){' +
+  'var b=document.getElementById("chatBody");' +
+  'var cls=(m.sender===chatUser.email?"user":"admin");' +
+  'b.innerHTML+="<div class=\\"msg "+cls+"\\">"+m.message+"<div class=\\"time\\">"+new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+"</div></div>";' +
+  'b.scrollTop=b.scrollHeight}});' +
   '</script></body></html>';
   
   res.send(html);
@@ -399,7 +410,7 @@ app.get('/api/admin/users', async (req, res) => {
   }
 });
 
-// ==================== ADMIN MESSENGER PAGE (MOBILE RESPONSIVE) ====================
+// ==================== ADMIN MESSENGER PAGE ====================
 app.get('/messenger', (req, res) => {
   res.send('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">' +
   '<title>Admin Messenger | Baiilla Maach</title>' +
@@ -418,13 +429,9 @@ app.get('/messenger', (req, res) => {
   '.login-card button:disabled{opacity:0.6}' +
   '.error{color:#e41e3f;font-size:0.85em;margin-top:8px;display:none}' +
   '.app{display:none;height:100vh;flex-direction:column}' +
-  
-  // Mobile-first layout
   '@media(min-width:768px){.app{flex-direction:row}}' +
-  
   '.sidebar{width:100%;background:#fff;display:flex;flex-direction:column;border-right:1px solid #e4e6eb;flex-shrink:0}' +
   '@media(min-width:768px){.sidebar{width:320px;height:100vh}}' +
-  
   '.sidebar-head{padding:14px;border-bottom:1px solid #e4e6eb;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}' +
   '.sidebar-head h2{font-size:1.1em;font-weight:700}' +
   '.sidebar-head button{background:none;border:none;color:#1877f2;font-weight:600;cursor:pointer;font-size:0.9em;padding:8px}' +
@@ -441,10 +448,8 @@ app.get('/messenger', (req, res) => {
   '.user-info .name{font-weight:600;font-size:0.9em}' +
   '.user-info .email{font-size:0.8em;color:#65676b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
   '.unread{background:#1877f2;color:#fff;font-size:0.7em;padding:3px 8px;border-radius:10px;font-weight:600;flex-shrink:0}' +
-  
   '.chat-area{flex:1;display:flex;flex-direction:column;background:#fff;min-height:0}' +
   '@media(max-width:767px){.chat-area{position:fixed;top:0;left:0;right:0;bottom:0;z-index:100;display:none}.chat-area.active{display:flex}}' +
-  
   '.chat-head{padding:12px 14px;border-bottom:1px solid #e4e6eb;display:flex;align-items:center;gap:10px;background:#f0f2f5;flex-shrink:0}' +
   '.back-btn{display:none;background:none;border:none;font-size:1.3em;cursor:pointer;padding:4px 8px;color:#1877f2}' +
   '@media(max-width:767px){.back-btn{display:block}}' +
@@ -453,20 +458,17 @@ app.get('/messenger', (req, res) => {
   '.chat-head .status{font-size:0.8em}' +
   '.chat-head .status.online{color:#10b981}' +
   '.chat-head .status.offline{color:#65676b}' +
-  
   '.chat-msgs{flex:1;overflow-y:auto;padding:14px;background:#f0f2f5;-webkit-overflow-scrolling:touch}' +
   '.msg{max-width:80%;padding:8px 12px;border-radius:18px;margin-bottom:6px;font-size:0.85em;word-wrap:break-word}' +
   '.msg.sent{background:#1877f2;color:#fff;margin-left:auto;border-bottom-right-radius:4px}' +
   '.msg.received{background:#e4e6eb;color:#1c1e21;border-bottom-left-radius:4px}' +
   '.msg .time{font-size:0.7em;opacity:0.7;margin-top:2px;text-align:right}' +
-  
   '.chat-input{padding:10px 14px;border-top:1px solid #e4e6eb;display:none;background:#fff;flex-shrink:0}' +
   '.chat-input-row{display:flex;align-items:center;gap:8px}' +
   '.chat-input-row input{flex:1;padding:10px 14px;border:1px solid #ccd0d5;border-radius:20px;font-size:0.95em;outline:none;-webkit-appearance:none}' +
   '.chat-input-row input:focus{border-color:#1877f2}' +
   '.chat-input-row button{background:#1877f2;color:#fff;border:none;width:38px;height:38px;border-radius:50%;cursor:pointer;flex-shrink:0;font-size:1.1em;-webkit-appearance:none}' +
   '.chat-input-row button:active{background:#166fe5}' +
-  
   '.empty-state{text-align:center;color:#65676b;padding:60px 20px}' +
   '.empty-state h3{font-weight:600;margin-bottom:8px}' +
   '.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:20px;font-size:0.85em;z-index:9999;opacity:0;transition:opacity 0.3s}' +
@@ -481,12 +483,10 @@ app.get('/messenger', (req, res) => {
   '<div class="error" id="loginError"></div></div></div>' +
   
   '<div class="app" id="app">' +
-  // Sidebar
   '<div class="sidebar" id="sidebar"><div class="sidebar-head"><h2>💬 Conversations</h2><button onclick="doLogout()">Logout</button></div>' +
   '<div class="search-box"><input type="text" id="searchInput" placeholder="🔍 Search..." oninput="filterUsers()"></div>' +
   '<div class="user-list" id="userList"><div class="empty-state"><p>Loading...</p></div></div></div>' +
   
-  // Chat Area
   '<div class="chat-area" id="chatArea"><div class="chat-head"><button class="back-btn" onclick="goBack()">←</button>' +
   '<div class="avatar" id="chatAvatar">?</div>' +
   '<div><div class="name" id="chatName">Select a user</div><div class="status offline" id="chatStatus">● Offline</div></div></div>' +
@@ -500,61 +500,55 @@ app.get('/messenger', (req, res) => {
   
   '<script src="/socket.io/socket.io.js"></script>' +
   '<script>' +
-  'var socket=io({transports:["websocket","polling"],upgrade:false});' +
+  'var socket=io({transports:["websocket","polling"]});' +
   'var currentUser=null,allUsers=[],isLoggedIn=false,refreshInterval=null;' +
   
   'function showToast(m){var t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},2000)}' +
   
   'socket.on("connect",function(){console.log("Socket connected")});' +
-  'socket.on("connect_error",function(e){console.error("Socket error:",e);showToast("Connection error, retrying...")});' +
-  'socket.on("disconnect",function(){console.log("Socket disconnected")});' +
-  
-  'socket.on("newMsg",function(m){console.log("New msg:",m.sender,"->",m.receiver);if(currentUser&&((m.sender===currentUser.email&&m.receiver==="admin")||(m.sender==="admin"&&m.receiver===currentUser.email))){appendMessage(m)}loadUsers()});' +
+  'socket.on("connect_error",function(e){console.error("Socket error:",e);showToast("Connection error")});' +
+  'socket.on("newMsg",function(m){console.log("New msg:",m);if(currentUser&&((m.sender===currentUser.email&&m.receiver==="admin")||(m.sender==="admin"&&m.receiver===currentUser.email))){appendMessage(m)}loadUsers()});' +
   'socket.on("userStatus",function(d){if(currentUser&&currentUser.email===d.email){var s=document.getElementById("chatStatus");s.textContent=d.online?"● Online":"● Offline";s.className="status "+(d.online?"online":"offline")}loadUsers()});' +
   
   'async function doLogin(){var e=document.getElementById("loginEmail").value.trim();var p=document.getElementById("loginPassword").value.trim();var err=document.getElementById("loginError");var btn=document.getElementById("loginBtn");err.style.display="none";if(!e||!p){err.textContent="Fill all fields";err.style.display="block";return}btn.disabled=true;btn.textContent="Signing...";' +
   'try{var r=await fetch("/api/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:e,password:p})});var d=await r.json();' +
   'if(r.ok){isLoggedIn=true;localStorage.setItem("adminSession",JSON.stringify({email:e,password:p}));document.getElementById("loginOverlay").style.display="none";document.getElementById("app").style.display="flex";await loadUsers();refreshInterval=setInterval(function(){if(isLoggedIn)loadUsers()},10000)}' +
-  'else{err.textContent="❌ Invalid credentials";err.style.display="block"}}catch(ex){err.textContent="❌ Network error - check connection";err.style.display="block";console.error(ex)}btn.disabled=false;btn.textContent="Sign In"}' +
+  'else{err.textContent="❌ Invalid credentials";err.style.display="block"}}catch(ex){err.textContent="❌ Network error";err.style.display="block";console.error(ex)}btn.disabled=false;btn.textContent="Sign In"}' +
   
   'async function loadUsers(){if(!isLoggedIn)return;try{console.log("Loading users...");var r=await fetch("/api/admin/users");if(!r.ok)throw new Error("HTTP "+r.status);var data=await r.json();console.log("Got users:",data.length);allUsers=data;renderUserList()}catch(e){console.error("Load users error:",e);showToast("Failed to load users")}}' +
   
   'function renderUserList(){var s=document.getElementById("searchInput").value.toLowerCase();var f=allUsers.filter(function(u){return u.name.toLowerCase().includes(s)||u.email.toLowerCase().includes(s)});' +
   'var h="";for(var i=0;i<f.length;i++){var u=f[i];var a=currentUser&&currentUser.email===u.email;' +
-  'h+=\'<div class="user-item\'+(a?" active":"")+\'" onclick="selectUser(\\\'\'+u.email+\'\\\')\"><div class="user-avatar">\'+u.name.charAt(0).toUpperCase()+\'</div><div class="user-info"><div class="name">\'+u.name+\'</div><div class="email">\'+u.email+\'</div></div>\'+(u.unreadCount>0?\'<div class="unread">\'+u.unreadCount+\'</div>\':"")+\'</div>\'}' +
-  'document.getElementById("userList").innerHTML=h||\'<div class="empty-state"><p>No users yet</p></div>\'}' +
+  'h+="<div class=\\"user-item"+(a?" active":"")+"\\" onclick=\\"selectUser(\'"+u.email+"\')\\"><div class=\\"user-avatar\\">"+u.name.charAt(0).toUpperCase()+"</div><div class=\\"user-info\\"><div class=\\"name\\">"+u.name+"</div><div class=\\"email\\">"+u.email+"</div></div>"+(u.unreadCount>0?"<div class=\\"unread\\">"+u.unreadCount+"</div>":"")+"</div>"}' +
+  'document.getElementById("userList").innerHTML=h||"<div class=\\"empty-state\\"><p>No users yet</p></div>"}' +
   
   'function filterUsers(){renderUserList()}' +
   
-  'async function selectUser(e){var u=allUsers.find(function(u){return u.email===e});if(!u){console.log("User not found:",e);return}' +
-  'currentUser=u;' +
-  'document.getElementById("chatAvatar").textContent=u.name.charAt(0).toUpperCase();' +
-  'document.getElementById("chatName").textContent=u.name;' +
+  'async function selectUser(e){var u=allUsers.find(function(u){return u.email===e});if(!u){console.log("User not found:",e);return}currentUser=u;' +
+  'document.getElementById("chatAvatar").textContent=u.name.charAt(0).toUpperCase();document.getElementById("chatName").textContent=u.name;' +
   'document.getElementById("chatStatus").textContent=u.isOnline?"● Online":"● Offline";' +
   'document.getElementById("chatStatus").className="status "+(u.isOnline?"online":"offline");' +
   'document.getElementById("chatInputArea").style.display="block";' +
-  
-  // Mobile: show chat
   'document.getElementById("chatArea").classList.add("active");' +
   'if(window.innerWidth<768)document.getElementById("sidebar").style.display="none";' +
   
-  'try{console.log("Loading msgs for:",u.email);var r=await fetch("/api/msgs/"+u.email);if(!r.ok)throw new Error("HTTP "+r.status);var ms=await r.json();console.log("Got msgs:",ms.length);' +
-  'var h="";if(ms.length===0){h=\'<div class="empty-state"><h3>No messages</h3></div>\'}else{' +
+  'try{console.log("Loading msgs for:",u.email);var r=await fetch("/api/msgs/"+encodeURIComponent(u.email));if(!r.ok)throw new Error("HTTP "+r.status);var ms=await r.json();console.log("Got msgs:",ms.length);' +
+  'var h="";if(ms.length===0){h="<div class=\\"empty-state\\"><h3>No messages</h3></div>"}else{' +
   'for(var i=0;i<ms.length;i++){var m=ms[i];var s=m.sender==="admin";var t=new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});' +
-  'h+=\'<div class="msg \'+(s?"sent":"received")+\'">\'+m.message+\'<div class="time">\'+t+\'</div></div>\'}}' +
+  'h+="<div class=\\"msg "+(s?"sent":"received")+"\\">"+m.message+"<div class=\\"time\\">"+t+"</div></div>"}}' +
   'document.getElementById("chatMessages").innerHTML=h;document.getElementById("chatMessages").scrollTop=99999;' +
   '}catch(ex){console.error("Msg load error:",ex);showToast("Failed to load messages")}' +
   
   'socket.emit("markRead",{user:u.email});renderUserList()}' +
   
-  'function appendMessage(m){if(!currentUser)return;var c=document.getElementById("chatMessages");var s=m.sender==="admin";var t=new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});c.innerHTML+=\'<div class="msg \'+(s?"sent":"received")+\'">\'+m.message+\'<div class="time">\'+t+\'</div></div>\';c.scrollTop=99999}' +
+  'function appendMessage(m){if(!currentUser)return;var c=document.getElementById("chatMessages");var s=m.sender==="admin";var t=new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});c.innerHTML+="<div class=\\"msg "+(s?"sent":"received")+"\\">"+m.message+"<div class=\\"time\\">"+t+"</div></div>";c.scrollTop=99999}' +
   
   'function sendMessage(){if(!currentUser){showToast("Select a user first");return}var i=document.getElementById("msgInput");var m=i.value.trim();if(!m)return;' +
   'socket.emit("sendMsg",{sender:"admin",receiver:currentUser.email,message:m,type:"text"});' +
   'appendMessage({sender:"admin",receiver:currentUser.email,message:m,timestamp:new Date()});i.value="";i.focus()}' +
   
   'function goBack(){document.getElementById("chatArea").classList.remove("active");document.getElementById("sidebar").style.display="flex";currentUser=null;' +
-  'document.getElementById("chatMessages").innerHTML=\'<div class="empty-state"><h3>No conversation</h3><p>Select a user to start chatting</p></div>\';' +
+  'document.getElementById("chatMessages").innerHTML="<div class=\\"empty-state\\"><h3>No conversation</h3><p>Select a user to start chatting</p></div>";' +
   'document.getElementById("chatInputArea").style.display="none";renderUserList()}' +
   
   'function doLogout(){if(refreshInterval)clearInterval(refreshInterval);localStorage.removeItem("adminSession");isLoggedIn=false;location.reload()}' +
@@ -564,7 +558,6 @@ app.get('/messenger', (req, res) => {
   'document.addEventListener("DOMContentLoaded",function(){document.getElementById("loginPassword").addEventListener("keypress",function(e){if(e.key==="Enter")doLogin()});' +
   'document.getElementById("loginEmail").addEventListener("keypress",function(e){if(e.key==="Enter")document.getElementById("loginPassword").focus()})});' +
   
-  // Handle back button on mobile
   'window.addEventListener("popstate",function(){if(currentUser)goBack()});' +
   'window.addEventListener("resize",function(){if(window.innerWidth>=768&&currentUser){document.getElementById("sidebar").style.display="flex"}});' +
   '</script></body></html>');
@@ -595,7 +588,7 @@ io.on('connection', (socket) => {
   
   socket.on('sendMsg', async (data) => {
     try {
-      console.log('💬 Msg:', data.sender, '→', data.receiver, ':', data.message.substring(0, 30));
+      console.log('💬 Msg:', data.sender, '→', data.receiver);
       const msg = await Message.create({ 
         sender: data.sender, 
         receiver: data.receiver, 
@@ -619,7 +612,6 @@ io.on('connection', (socket) => {
       try {
         await User.updateOne({ email: socket.userData.email }, { $set: { isOnline: false, lastSeen: new Date() } });
         io.emit('userStatus', { email: socket.userData.email, online: false });
-        console.log('🔴 Offline:', socket.userData.email);
       } catch (err) {}
     }
   });
