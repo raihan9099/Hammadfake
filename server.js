@@ -27,9 +27,10 @@ app.use('/uploads', express.static('uploads'));
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
+// Simple Schema
 const userSchema = new mongoose.Schema({
   name: String,
-  email: { type: String, unique: true },
+  email: { type: String, unique: true, sparse: true },
   password: String,
   isAdmin: { type: Boolean, default: false },
   lastSeen: Date,
@@ -50,23 +51,47 @@ const messageSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const Message = mongoose.model('Message', messageSchema);
 
+// Connect to MongoDB and setup admin
 mongoose.connect(MONGO_URI)
   .then(async () => {
-    console.log('MongoDB Connected');
-    const adminEmail = 'admin';
-    const existingAdmin = await User.findOne({ email: adminEmail });
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-    if (existingAdmin) {
-      await User.updateOne({ email: adminEmail }, { $set: { password: hashedPassword, name: 'Admin', isAdmin: true } });
-      console.log('Admin Password Updated');
-    } else {
-      await User.create({ name: 'Admin', email: adminEmail, password: hashedPassword, isAdmin: true });
-      console.log('Admin Created');
+    console.log('✅ MongoDB Connected Successfully');
+    
+    try {
+      // Check if admin exists
+      const existingAdmin = await User.findOne({ email: 'admin' });
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      
+      if (existingAdmin) {
+        await User.updateOne(
+          { email: 'admin' }, 
+          { $set: { password: hashedPassword, name: 'Admin', isAdmin: true } }
+        );
+        console.log('✅ Admin updated');
+      } else {
+        await User.create({ 
+          name: 'Admin', 
+          email: 'admin', 
+          password: hashedPassword, 
+          isAdmin: true 
+        });
+        console.log('✅ Admin created');
+      }
+      
+      // Count total users
+      const totalUsers = await User.countDocuments({});
+      const totalMsgs = await Message.countDocuments({});
+      console.log('📊 Total Users in DB:', totalUsers);
+      console.log('📊 Total Messages in DB:', totalMsgs);
+      
+    } catch(e) {
+      console.error('Admin setup error:', e.message);
     }
-    console.log('Admin: admin | Pass: admin123');
+    
+    console.log('📧 Admin Login: Username: admin | Password: admin123');
   })
-  .catch(e => console.error('MongoDB Error:', e.message));
+  .catch(e => console.error('❌ MongoDB Connection Error:', e.message));
 
+// Assets paths
 const ASSETS = {
   profile: "/assets/celebrity_pfp.jpeg",
   fbProfile: "/assets/fb_profile.jpg",
@@ -105,8 +130,8 @@ function getSongs() {
   } catch (e) { return []; }
 }
 
-// Serve main page HTML
-function getMainPage() {
+// ==================== MAIN PAGE ====================
+app.get('/', (req, res) => {
   const songs = getSongs();
   const songsJSON = JSON.stringify(songs);
   
@@ -124,19 +149,18 @@ function getMainPage() {
     voiceHTML = '<div class="card"><div class="card-header"><span class="badge badge-blue">VOICE</span>' +
       '<h3>Voice Verification</h3><p>Listen to authentic Baiilla Maach voice</p></div>' +
       '<div class="card-body"><div class="btn-group">' +
-      (WELCOME_VOICE ? '<button class="btn btn-blue" onclick="playWelcomeVoice()"><img src="' + ASSETS.playGif + '" width="20"> Real Voice</button>' : '') +
-      (MANUAL_VOICE ? '<button class="btn btn-red" onclick="playManualVoice()"><img src="' + ASSETS.reportGif + '" width="20"> Fake Alert</button>' : '') +
+      (WELCOME_VOICE ? '<button class="btn btn-blue" onclick="playWelcomeVoice()">🎤 Real Voice</button>' : '') +
+      (MANUAL_VOICE ? '<button class="btn btn-red" onclick="playManualVoice()">🚨 Fake Alert</button>' : '') +
       '</div></div></div>';
   }
 
-  return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+  res.send('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
   '<title>Baiilla Maach Official | Hammad Bin Amir</title>' +
   '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">' +
   '<style>' +
   '*{margin:0;padding:0;box-sizing:border-box}' +
   'body{font-family:"Inter",sans-serif;background:#f0f2f5;color:#1c1e21;line-height:1.5}' +
-  'a{text-decoration:none}' +
-  'img{max-width:100%}' +
+  'a{text-decoration:none}img{max-width:100%}' +
   '.header{position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.1);padding:0 20px;height:60px;display:flex;align-items:center;justify-content:space-between}' +
   '.header-left{display:flex;align-items:center;gap:10px}' +
   '.header-logo{width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid #e4e6eb}' +
@@ -175,8 +199,6 @@ function getMainPage() {
   '.btn-gray:hover{background:#d8dadf}' +
   '.btn-red{background:#e41e3f;color:#fff}' +
   '.btn-red:hover{background:#c81a35}' +
-  '.btn-green{background:#10b981;color:#fff}' +
-  '.btn-green:hover{background:#059669}' +
   '.gif-strip{display:flex;gap:10px;padding:8px 16px 16px;justify-content:center;flex-wrap:wrap}' +
   '.gif-item{text-align:center}' +
   '.gif-item img{width:50px;height:50px;border-radius:8px;object-fit:cover}' +
@@ -343,8 +365,8 @@ function getMainPage() {
   'function playManualVoice(){if(!manualAudio)return;stopAllAudio();manualAudio.play();}' +
   'var tracks=' + songsJSON + ';' +
   'var currentTrack=0,musicPlaying=false;' +
-  'function updatePlayBtn(){var b=document.getElementById("mPlayBtn");if(b){b.innerHTML=musicPlaying?"⏸":"▶";b.style.background=musicPlaying?"#166fe5":"#1877f2";}}' +
-  'function updateMusicUI(i){document.getElementById("mTitle").textContent=tracks[i].title;var items=document.querySelectorAll(".song-item");items.forEach(function(el,j){if(j===i)el.classList.add("active");else el.classList.remove("active");});}' +
+  'function updatePlayBtn(){var b=document.getElementById("mPlayBtn");if(b){b.innerHTML=musicPlaying?"⏸":"▶";}}' +
+  'function updateMusicUI(i){document.getElementById("mTitle").textContent=tracks[i].title;var items=document.querySelectorAll(".song-item");for(var j=0;j<items.length;j++){if(j===i)items[j].classList.add("active");else items[j].classList.remove("active");}}' +
   'function playMusic(i){if(!tracks.length)return;stopAllAudio();currentTrack=i;musicAudio.src=tracks[i].url;musicAudio.play();musicPlaying=true;updatePlayBtn();updateMusicUI(i);}' +
   'function toggleMusic(){if(musicAudio.paused){if(!musicAudio.src&&tracks.length)musicAudio.src=tracks[0].url;stopAllAudio();musicAudio.play();musicPlaying=true;updatePlayBtn();updateMusicUI(currentTrack);}else{musicAudio.pause();musicPlaying=false;updatePlayBtn();}}' +
   'function prevMusic(){playMusic((currentTrack-1+tracks.length)%tracks.length);}' +
@@ -357,17 +379,15 @@ function getMainPage() {
   'var socket=io();var chatUser=null;' +
   'function toggleChat(){document.getElementById("chatPanel").classList.toggle("open");}' +
   'function startChatSession(){var n=document.getElementById("chatNameInput").value.trim();var e=document.getElementById("chatEmailInput").value.trim();if(!n||!e)return;chatUser={name:n,email:e};socket.emit("register",{name:n,email:e});document.getElementById("chatLoginForm").style.display="none";document.getElementById("chatInputArea").style.display="block";loadChatMessages();}' +
-  'async function loadChatMessages(){if(!chatUser)return;var r=await fetch("/api/msgs/"+chatUser.email);var ms=await r.json();var b=document.getElementById("chatBody");b.innerHTML=ms.map(function(m){return\'<div class="msg \'+(m.sender===chatUser.email?"user":"admin")+\'">\'+m.message+\'<div class="time">\'+new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+\'</div></div>\';}).join("");b.scrollTop=b.scrollHeight;}' +
+  'async function loadChatMessages(){if(!chatUser)return;var r=await fetch("/api/msgs/"+chatUser.email);var ms=await r.json();var b=document.getElementById("chatBody");b.innerHTML="";for(var i=0;i<ms.length;i++){var m=ms[i];var cls=(m.sender===chatUser.email?"user":"admin");b.innerHTML+=\'<div class="msg \'+cls+\'">\'+m.message+\'<div class="time">\'+new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+\'</div></div>\';}b.scrollTop=b.scrollHeight;}' +
   'function sendChatMsg(){var i=document.getElementById("chatMsgInput");var m=i.value.trim();if(!m||!chatUser)return;socket.emit("sendMsg",{sender:chatUser.email,receiver:"admin",message:m,type:"text"});i.value="";}' +
-  'socket.on("newMsg",function(m){if(chatUser&&(m.sender===chatUser.email||m.receiver===chatUser.email)){var b=document.getElementById("chatBody");b.insertAdjacentHTML("beforeend",\'<div class="msg \'+(m.sender===chatUser.email?"user":"admin")+\'">\'+m.message+\'<div class="time">\'+new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+\'</div></div>\');b.scrollTop=b.scrollHeight;}});' +
-  '</script></body></html>';
-}
-
-app.get('/', (req, res) => {
-  res.send(getMainPage());
+  'socket.on("newMsg",function(m){if(chatUser&&(m.sender===chatUser.email||m.receiver===chatUser.email)){var b=document.getElementById("chatBody");var cls=(m.sender===chatUser.email?"user":"admin");b.innerHTML+=\'<div class="msg \'+cls+\'">\'+m.message+\'<div class="time">\'+new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+\'</div></div>\';b.scrollTop=b.scrollHeight;}});' +
+  '</script></body></html>');
 });
 
-// API Routes
+// ==================== API ROUTES ====================
+
+// Get messages for a user
 app.get('/api/msgs/:email', async (req, res) => {
   try {
     const msgs = await Message.find({
@@ -377,31 +397,64 @@ app.get('/api/msgs/:email', async (req, res) => {
       ]
     }).sort({ timestamp: 1 }).lean();
     res.json(msgs);
-  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+  } catch (err) { 
+    console.error('API /api/msgs error:', err.message);
+    res.json([]); 
+  }
 });
 
+// Admin login - FIXED
 app.post('/api/admin/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log('Login attempt:', email);
+    
     const user = await User.findOne({ email: email, isAdmin: true });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!user) {
+      console.log('User not found:', email);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+    if (!valid) {
+      console.log('Wrong password for:', email);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    console.log('Login successful:', email);
+    res.json({ success: true, message: 'Login successful' });
+  } catch (err) { 
+    console.error('Login error:', err.message);
+    res.status(500).json({ error: 'Server error' }); 
+  }
 });
 
+// Get all users for admin panel - FIXED
 app.get('/api/admin/users', async (req, res) => {
   try {
-    const users = await User.find({ isAdmin: false }).sort({ lastSeen: -1 }).lean();
-    for (let u of users) {
-      u.unreadCount = await Message.countDocuments({ sender: u.email, receiver: 'admin', seen: false });
+    const users = await User.find({ isAdmin: false })
+      .sort({ lastSeen: -1 })
+      .lean();
+    
+    // Add unread count for each user
+    for (let i = 0; i < users.length; i++) {
+      const count = await Message.countDocuments({ 
+        sender: users[i].email, 
+        receiver: 'admin', 
+        seen: false 
+      });
+      users[i].unreadCount = count;
     }
+    
+    console.log('Users fetched:', users.length);
     res.json(users);
-  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+  } catch (err) { 
+    console.error('API /api/admin/users error:', err.message);
+    res.json([]); 
+  }
 });
 
-// Messenger Admin Page
+// ==================== ADMIN MESSENGER PAGE ====================
 app.get('/messenger', (req, res) => {
   res.send('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
   '<title>Admin Messenger | Baiilla Maach</title>' +
@@ -416,6 +469,7 @@ app.get('/messenger', (req, res) => {
   '.login-card input:focus{border-color:#1877f2}' +
   '.login-card button{width:100%;padding:12px;background:#1877f2;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:1em}' +
   '.login-card button:hover{background:#166fe5}' +
+  '.login-card button:disabled{opacity:0.6;cursor:not-allowed}' +
   '.error{color:#e41e3f;font-size:0.85em;margin-top:8px;display:none}' +
   '.app{display:none;height:100vh}' +
   '.layout{display:flex;height:100vh;max-width:1400px;margin:0 auto;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.1)}' +
@@ -453,20 +507,21 @@ app.get('/messenger', (req, res) => {
   '.chat-input-row input:focus{border-color:#1877f2}' +
   '.chat-input-row button{background:#1877f2;color:#fff;border:none;width:34px;height:34px;border-radius:50%;cursor:pointer}' +
   '.empty-state{text-align:center;color:#65676b;padding:60px 20px}' +
-  '.empty-state h3{font-weight:600;margin-bottom:8px}' +
-  '.empty-state p{font-size:0.9em}' +
   '</style></head><body>' +
+  
+  // Login overlay
   '<div class="login-overlay" id="loginOverlay"><div class="login-card">' +
   '<h2>🔐 Admin Messenger</h2><p class="sub">Baiilla Maach Support Panel</p>' +
   '<input type="text" id="loginEmail" placeholder="Username" value="admin">' +
   '<input type="password" id="loginPassword" placeholder="Password" value="admin123">' +
-  '<button onclick="doLogin()">Sign In</button>' +
+  '<button id="loginBtn" onclick="doLogin()">Sign In</button>' +
   '<div class="error" id="loginError"></div></div></div>' +
   
+  // Main app
   '<div class="app" id="app"><div class="layout">' +
   '<div class="sidebar"><div class="sidebar-head"><h2>💬 Conversations</h2><button onclick="doLogout()">Logout</button></div>' +
   '<div class="search-box"><input type="text" id="searchInput" placeholder="🔍 Search..." oninput="filterUsers()"></div>' +
-  '<div class="user-list" id="userList"></div></div>' +
+  '<div class="user-list" id="userList"><div class="empty-state"><p>Loading users...</p></div></div></div>' +
   
   '<div class="chat-area"><div class="chat-head"><div class="avatar" id="chatAvatar">?</div>' +
   '<div><div class="name" id="chatName">Select a conversation</div><div class="status offline" id="chatStatus">● Offline</div></div></div>' +
@@ -480,63 +535,103 @@ app.get('/messenger', (req, res) => {
   '<script>' +
   'var socket=io();' +
   'var currentUser=null,allUsers=[],isLoggedIn=false;' +
+  
+  // Socket events
   'socket.on("newMsg",function(m){if(currentUser&&((m.sender===currentUser.email&&m.receiver==="admin")||(m.sender==="admin"&&m.receiver===currentUser.email))){appendMessage(m);}loadUsers();});' +
-  'socket.on("userStatus",function(d){updateUserStatus(d.email,d.online);});' +
-  'async function doLogin(){var e=document.getElementById("loginEmail").value.trim();var p=document.getElementById("loginPassword").value.trim();var err=document.getElementById("loginError");err.style.display="none";if(!e||!p){err.textContent="Please fill all fields";err.style.display="block";return;}' +
+  'socket.on("userStatus",function(d){if(currentUser&&currentUser.email===d.email){var s=document.getElementById("chatStatus");s.textContent=d.online?"● Online":"● Offline";s.className="status "+(d.online?"online":"offline");}loadUsers();});' +
+  
+  // Login function
+  'async function doLogin(){var e=document.getElementById("loginEmail").value.trim();var p=document.getElementById("loginPassword").value.trim();var err=document.getElementById("loginError");var btn=document.getElementById("loginBtn");err.style.display="none";if(!e||!p){err.textContent="Please fill all fields";err.style.display="block";return;}btn.disabled=true;btn.textContent="Signing in...";' +
   'try{var r=await fetch("/api/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:e,password:p})});var d=await r.json();' +
-  'if(r.ok){isLoggedIn=true;localStorage.setItem("adminSession",JSON.stringify({email:e,password:p}));document.getElementById("loginOverlay").style.display="none";document.getElementById("app").style.display="block";loadUsers();}' +
-  'else{err.textContent="❌ Invalid credentials";err.style.display="block";}}catch(ex){err.textContent="❌ Network error";err.style.display="block";}}' +
-  'async function loadUsers(){if(!isLoggedIn)return;try{var r=await fetch("/api/admin/users");allUsers=await r.json();renderUserList();}catch(e){}}' +
+  'if(r.ok){isLoggedIn=true;localStorage.setItem("adminSession",JSON.stringify({email:e,password:p}));document.getElementById("loginOverlay").style.display="none";document.getElementById("app").style.display="block";loadUsers();setInterval(function(){if(isLoggedIn)loadUsers();},30000);}' +
+  'else{err.textContent="❌ "+(d.error||"Invalid credentials");err.style.display="block";}}catch(ex){err.textContent="❌ Network error";err.style.display="block";}btn.disabled=false;btn.textContent="Sign In";}' +
+  
+  // Load users
+  'async function loadUsers(){if(!isLoggedIn)return;try{var r=await fetch("/api/admin/users");var data=await r.json();allUsers=data;renderUserList();}catch(e){console.log("Error loading users:",e);}}' +
+  
+  // Render user list
   'function renderUserList(){var s=document.getElementById("searchInput").value.toLowerCase();var f=allUsers.filter(function(u){return u.name.toLowerCase().includes(s)||u.email.toLowerCase().includes(s);});' +
-  'var h="";f.forEach(function(u){var a=currentUser&&currentUser.email===u.email;h+=\'<div class="user-item\'+(a?" active":"")+\'" onclick="selectUser(\\\'\'+u.email+\'\\\')"><div class="user-avatar">\'+u.name.charAt(0).toUpperCase()+\'</div><div class="user-info"><div class="name">\'+u.name+\'</div><div class="email">\'+u.email+\'</div></div>\'+(u.unreadCount>0?\'<div class="unread">\'+u.unreadCount+\'</div>\':"")+\'</div>\';});' +
-  'document.getElementById("userList").innerHTML=h||\'<div class="empty-state"><p>No users found</p></div>\';}' +
+  'var h="";for(var i=0;i<f.length;i++){var u=f[i];var a=currentUser&&currentUser.email===u.email;' +
+  'h+=\'<div class="user-item\'+(a?" active":"")+\'" onclick="selectUser(\\\'\'+u.email+\'\\\')\"><div class="user-avatar">\'+u.name.charAt(0).toUpperCase()+\'</div><div class="user-info"><div class="name">\'+u.name+\'</div><div class="email">\'+u.email+\'</div></div>\'+(u.unreadCount>0?\'<div class="unread">\'+u.unreadCount+\'</div>\':"")+\'</div>\';}' +
+  'document.getElementById("userList").innerHTML=h||\'<div class="empty-state"><p>No users yet</p></div>\';}' +
+  
   'function filterUsers(){renderUserList();}' +
+  
+  // Select user and load messages
   'async function selectUser(e){var u=allUsers.find(function(u){return u.email===e});if(!u)return;currentUser=u;' +
   'document.getElementById("chatAvatar").textContent=u.name.charAt(0).toUpperCase();document.getElementById("chatName").textContent=u.name;' +
   'document.getElementById("chatStatus").textContent=u.isOnline?"● Online":"● Offline";' +
   'document.getElementById("chatStatus").className="status "+(u.isOnline?"online":"offline");' +
   'document.getElementById("chatInputArea").style.display="block";' +
-  'try{var r=await fetch("/api/msgs/"+u.email);var ms=await r.json();var msgs=ms.filter(function(m){return(m.sender===u.email&&m.receiver==="admin")||(m.sender==="admin"&&m.receiver===u.email);});' +
-  'var h="";if(msgs.length===0){h=\'<div class="empty-state"><h3>No messages</h3><p>Start the conversation</p></div>\';}else{' +
-  'msgs.forEach(function(m){var s=m.sender==="admin";var t=new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});h+=\'<div class="msg \'+(s?"sent":"received")+\'">\'+m.message+\'<div class="time">\'+t+\'</div></div>\';});}' +
+  'try{var r=await fetch("/api/msgs/"+u.email);var ms=await r.json();' +
+  'var h="";if(ms.length===0){h=\'<div class="empty-state"><h3>No messages</h3><p>Start the conversation</p></div>\';}else{' +
+  'for(var i=0;i<ms.length;i++){var m=ms[i];var s=m.sender==="admin";var t=new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});' +
+  'h+=\'<div class="msg \'+(s?"sent":"received")+\'">\'+m.message+\'<div class="time">\'+t+\'</div></div>\';}}' +
   'document.getElementById("chatMessages").innerHTML=h;document.getElementById("chatMessages").scrollTop=document.getElementById("chatMessages").scrollHeight;' +
-  '}catch(ex){}' +
+  '}catch(ex){console.log("Error loading messages:",ex);}' +
   'socket.emit("markRead",{user:u.email});renderUserList();}' +
-  'function appendMessage(m){if(!currentUser)return;var c=document.getElementById("chatMessages");var s=m.sender==="admin";var t=new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});c.insertAdjacentHTML("beforeend",\'<div class="msg \'+(s?"sent":"received")+\'">\'+m.message+\'<div class="time">\'+t+\'</div></div>\');c.scrollTop=c.scrollHeight;}' +
+  
+  // Append new message
+  'function appendMessage(m){if(!currentUser)return;var c=document.getElementById("chatMessages");var s=m.sender==="admin";var t=new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});c.innerHTML+=\'<div class="msg \'+(s?"sent":"received")+\'">\'+m.message+\'<div class="time">\'+t+\'</div></div>\';c.scrollTop=c.scrollHeight;}' +
+  
+  // Send message
   'function sendMessage(){if(!currentUser)return;var i=document.getElementById("msgInput");var m=i.value.trim();if(!m)return;' +
   'socket.emit("sendMsg",{sender:"admin",receiver:currentUser.email,message:m,type:"text"});' +
   'appendMessage({sender:"admin",receiver:currentUser.email,message:m,timestamp:new Date()});i.value="";i.focus();}' +
-  'function updateUserStatus(e,o){if(currentUser&&currentUser.email===e){document.getElementById("chatStatus").textContent=o?"● Online":"● Offline";document.getElementById("chatStatus").className="status "+(o?"online":"offline");}}' +
+  
   'function doLogout(){localStorage.removeItem("adminSession");location.reload();}' +
-  'document.addEventListener("DOMContentLoaded",function(){document.getElementById("loginPassword").addEventListener("keypress",function(e){if(e.key==="Enter")doLogin();});var s=localStorage.getItem("adminSession");if(s){var d=JSON.parse(s);document.getElementById("loginEmail").value=d.email;document.getElementById("loginPassword").value=d.password;}});' +
-  'setInterval(function(){if(isLoggedIn)loadUsers();},30000);' +
+  
+  // Auto-login if session saved
+  'var saved=localStorage.getItem("adminSession");if(saved){var d=JSON.parse(saved);document.getElementById("loginEmail").value=d.email;document.getElementById("loginPassword").value=d.password;}' +
+  
+  // Enter key to login
+  'document.addEventListener("DOMContentLoaded",function(){document.getElementById("loginPassword").addEventListener("keypress",function(e){if(e.key==="Enter")doLogin();});});' +
   '</script></body></html>');
 });
 
-// Socket.IO
+// ==================== SOCKET.IO ====================
 io.on('connection', (socket) => {
+  console.log('🔌 New socket connection');
+  
   socket.on('register', async (data) => {
     try {
+      console.log('📝 User registered:', data.email);
       socket.userData = data;
+      
       let user = await User.findOne({ email: data.email });
       if (!user) {
         const hash = await bcrypt.hash('default123', 10);
         user = await User.create({ name: data.name, email: data.email, password: hash });
+        console.log('✅ New user created:', data.email);
       }
+      
       await User.updateOne({ email: data.email }, { $set: { isOnline: true, lastSeen: new Date() } });
       io.emit('userStatus', { email: data.email, online: true });
-    } catch (err) {}
+      console.log('🟢 User online:', data.email);
+    } catch (err) {
+      console.error('Register error:', err.message);
+    }
   });
   
   socket.on('sendMsg', async (data) => {
     try {
-      const msg = await Message.create({ sender: data.sender, receiver: data.receiver, message: data.message, type: data.type || 'text' });
+      console.log('💬 Message:', data.sender, '→', data.receiver);
+      const msg = await Message.create({ 
+        sender: data.sender, 
+        receiver: data.receiver, 
+        message: data.message, 
+        type: data.type || 'text' 
+      });
       io.emit('newMsg', msg);
-    } catch (err) {}
+    } catch (err) {
+      console.error('Send message error:', err.message);
+    }
   });
   
   socket.on('markRead', async (data) => {
-    try { await Message.updateMany({ sender: data.user, receiver: 'admin', seen: false }, { $set: { seen: true } }); } catch (err) {}
+    try { 
+      await Message.updateMany({ sender: data.user, receiver: 'admin', seen: false }, { $set: { seen: true } }); 
+    } catch (err) {}
   });
   
   socket.on('disconnect', async () => {
@@ -544,14 +639,19 @@ io.on('connection', (socket) => {
       try {
         await User.updateOne({ email: socket.userData.email }, { $set: { isOnline: false, lastSeen: new Date() } });
         io.emit('userStatus', { email: socket.userData.email, online: false });
+        console.log('🔴 User offline:', socket.userData.email);
       } catch (err) {}
     }
   });
 });
 
+// ==================== START SERVER ====================
 server.listen(PORT, () => {
-  console.log('Server running on port ' + PORT);
-  console.log('Main page: http://localhost:' + PORT);
-  console.log('Admin messenger: http://localhost:' + PORT + '/messenger');
-  console.log('Admin: admin | Pass: admin123');
+  console.log('========================================');
+  console.log('🚀 Server running on port ' + PORT);
+  console.log('📄 Main page: http://localhost:' + PORT);
+  console.log('🔧 Admin messenger: http://localhost:' + PORT + '/messenger');
+  console.log('👤 Admin: admin');
+  console.log('🔑 Password: admin123');
+  console.log('========================================');
 });
