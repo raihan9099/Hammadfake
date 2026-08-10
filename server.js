@@ -7,7 +7,6 @@ const http = require('http');
 const socketIO = require('socket.io');
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
-const path = require('path');
 const fs = require('fs');
 
 const app = express();
@@ -107,7 +106,7 @@ function getSongs() {
 app.get('/', (req, res) => {
   const songs = getSongs();
   const songsJSON = JSON.stringify(songs);
-  
+
   let songsListHTML = '';
   songs.forEach((s, i) => {
     songsListHTML += `
@@ -134,8 +133,8 @@ app.get('/', (req, res) => {
       <h3>Voice Verification</h3>
       <p class="subtitle">Listen to authentic voice</p></div>
       <div class="card-body"><div class="btn-row">
-      ${WELCOME_VOICE ? '<button class="btn btn-blue" onclick="playWelcomeVoice()">🎤 Real Voice</button>' : ''}
-      ${MANUAL_VOICE ? '<button class="btn btn-red" onclick="playManualVoice()">🚨 Fake Alert</button>' : ''}
+      ${WELCOME_VOICE ? '<button class="btn btn-blue" onclick="playWelcomeVoice()"><img src="'+ASSETS.microphone+'" width="16"> Real Voice</button>' : ''}
+      ${MANUAL_VOICE ? '<button class="btn btn-red" onclick="playManualVoice()"><img src="'+ASSETS.reportBtn+'" width="16"> Fake Alert</button>' : ''}
       </div></div></div>`;
   }
 
@@ -158,10 +157,7 @@ app.get('/', (req, res) => {
 --border:#E4E6EB;
 --hover:#F2F2F2;
 --shadow:0 1px 2px rgba(0,0,0,0.1);
---shadow-lg:0 2px 12px rgba(0,0,0,0.12);
 --radius:8px;
---radius-sm:6px;
---radius-lg:12px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
@@ -185,7 +181,6 @@ button{cursor:pointer}
 .tag-blue{background:#E7F3FF;color:#1877F2}
 .tag-red{background:#FFE5E5;color:#FA383E}
 .tag-green{background:#E5F5E0;color:#42B72A}
-.tag-orange{background:#FFF3E0;color:#F59E0B}
 h3{font-size:1.1em;font-weight:700}
 .subtitle{color:var(--secondary);font-size:0.85em;margin-top:2px}
 
@@ -211,11 +206,9 @@ h3{font-size:1.1em;font-weight:700}
 .actions-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
 .actions-row:last-child{margin-bottom:0}
 .btn{font-weight:600;cursor:pointer;border:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:0.15s;font-size:0.85em}
-.btn-lg{padding:10px 20px;border-radius:var(--radius-sm);font-size:0.9em;flex:1;min-width:100px}
-.btn-sm{padding:6px 14px;border-radius:20px;font-size:0.78em}
+.btn-lg{padding:10px 20px;border-radius:6px;font-size:0.9em;flex:1;min-width:100px}
 .btn-xs{padding:4px 10px;border-radius:4px;font-size:0.72em}
 .btn-blue{background:var(--primary);color:#fff}.btn-blue:hover{background:var(--primary-hover)}
-.btn-gray{background:var(--hover);color:var(--text)}.btn-gray:hover{background:var(--border)}
 .btn-outline{border:1.5px solid var(--primary);color:var(--primary);background:transparent}.btn-outline:hover{background:#E7F3FF}
 .btn-red{background:var(--red);color:#fff}.btn-red:hover{background:#E03131}
 .btn-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
@@ -223,7 +216,7 @@ h3{font-size:1.1em;font-weight:700}
 
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:600px){.grid2{grid-template-columns:1fr}}
-.verified-item{display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border)}
+.verified-item{display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg);border-radius:6px;border:1px solid var(--border)}
 .verified-item .v-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0}
 .verified-item .v-info{flex:1;min-width:0}
 .verified-item .v-info h4{font-weight:600;font-size:0.9em;display:flex;align-items:center;gap:4px}
@@ -231,7 +224,7 @@ h3{font-size:1.1em;font-weight:700}
 .verified-item .v-handle{font-size:0.78em;color:var(--secondary)}
 .verified-item .v-detail{font-size:0.75em;color:var(--text);margin-top:2px}
 
-.fake-card{border:1px solid #FECACA;border-radius:var(--radius-sm);overflow:hidden}
+.fake-card{border:1px solid #FECACA;border-radius:6px;overflow:hidden}
 .fake-img-wrap{position:relative;text-align:center;padding:8px;background:#FAFAFA}
 .fake-img{width:100%;border-radius:4px}
 .fake-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:60px;height:60px;animation:bounce 2s infinite}
@@ -242,11 +235,11 @@ h3{font-size:1.1em;font-weight:700}
 .fake-body p{font-size:0.78em;color:var(--secondary);margin-bottom:6px}
 
 .proof-single{text-align:center;padding:20px}
-.proof-single img{max-width:100%;border-radius:var(--radius-sm);border:1px solid var(--border)}
+.proof-single img{max-width:100%;border-radius:6px;border:1px solid var(--border)}
 .proof-label{font-weight:600;font-size:0.9em;margin-top:8px;color:var(--primary)}
 
 .music-section{padding:14px}
-.music-header{display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg);border-radius:var(--radius-sm);margin-bottom:10px}
+.music-header{display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg);border-radius:6px;margin-bottom:10px}
 .music-cover-wrap{width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0;position:relative}
 .music-cover-static{width:100%;height:100%;object-fit:cover}
 .music-cover-playing{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:none}
@@ -261,7 +254,7 @@ h3{font-size:1.1em;font-weight:700}
 .m-btn-nav{background:var(--hover);color:var(--text)}.m-btn-nav:hover{background:var(--border)}
 .m-btn-play{background:var(--primary);color:#fff;width:46px;height:46px;font-size:1.2em}.m-btn-play:hover{background:var(--primary-hover)}
 .music-list{max-height:200px;overflow-y:auto;border-top:1px solid var(--border);margin-top:10px;padding-top:8px}
-.song-item{display:flex;align-items:center;gap:10px;padding:9px 10px;cursor:pointer;border-radius:var(--radius-sm);transition:0.1s}
+.song-item{display:flex;align-items:center;gap:10px;padding:9px 10px;cursor:pointer;border-radius:6px;transition:0.1s}
 .song-item:hover{background:var(--hover)}
 .song-item.active{background:#E7F3FF}
 .song-item.active .song-num{color:var(--primary)}
@@ -282,18 +275,18 @@ h3{font-size:1.1em;font-weight:700}
 @keyframes eqAnim{0%,100%{height:5px}50%{height:12px}}
 
 .chat-widget{position:fixed;bottom:20px;right:20px;z-index:9999}
-.chat-toggle{width:48px;height:48px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:1.2em;cursor:pointer;box-shadow:var(--shadow-lg);display:flex;align-items:center;justify-content:center;transition:0.15s}
+.chat-toggle{width:48px;height:48px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:1.2em;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;transition:0.15s}
 .chat-toggle:hover{background:var(--primary-hover);transform:scale(1.05)}
-.chat-panel{display:none;position:fixed;bottom:78px;right:20px;width:338px;height:450px;background:#fff;border-radius:var(--radius);box-shadow:0 5px 25px rgba(0,0,0,0.2);flex-direction:column;overflow:hidden;z-index:9999}
+.chat-panel{display:none;position:fixed;bottom:78px;right:20px;width:338px;height:450px;background:#fff;border-radius:8px;box-shadow:0 5px 25px rgba(0,0,0,0.2);flex-direction:column;overflow:hidden;z-index:9999}
 .chat-panel.open{display:flex}
 @media(max-width:480px){.chat-panel{width:100%;right:0;bottom:0;border-radius:0;height:60vh;top:auto}}
 .chat-head{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:0.9em;flex-shrink:0}
 .chat-head button{background:none;border:none;font-size:1.2em;color:var(--secondary);padding:4px 8px;border-radius:50%}
 .chat-head button:hover{background:var(--hover)}
 .chat-body{flex:1;overflow-y:auto;padding:10px;background:var(--bg)}
-.chat-login{text-align:center;padding:20px;background:#fff;border-radius:var(--radius-sm)}
+.chat-login{text-align:center;padding:20px;background:#fff;border-radius:6px}
 .chat-login h4{font-weight:600;margin-bottom:10px}
-.chat-input-field{width:100%;padding:10px;margin-bottom:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.88em;outline:none;background:var(--bg)}
+.chat-input-field{width:100%;padding:10px;margin-bottom:8px;border:1px solid var(--border);border-radius:6px;font-size:0.88em;outline:none;background:var(--bg)}
 .chat-input-field:focus{border-color:var(--primary);background:#fff}
 .chat-login .btn{width:100%;padding:10px}
 .chat-input-area{padding:10px;border-top:1px solid var(--border);display:none;background:#fff;flex-shrink:0}
@@ -612,7 +605,6 @@ io.on('connection', (socket) => {
       io.emit('userStatus', { email: data.email, online: true });
     } catch (err) {}
   });
-  
   socket.on('sendMsg', (data) => {
     try {
       const r = db.prepare('INSERT INTO messages (sender, receiver, message, type) VALUES (?, ?, ?, ?)').run(data.sender, data.receiver, data.message, data.type || 'text');
@@ -620,9 +612,7 @@ io.on('connection', (socket) => {
       io.emit('newMsg', msg);
     } catch (err) {}
   });
-  
   socket.on('markRead', (data) => { try { db.prepare('UPDATE messages SET seen = 1 WHERE sender = ? AND receiver = "admin" AND seen = 0').run(data.user); } catch (err) {} });
-  
   socket.on('disconnect', () => {
     if (socket.userData) {
       try { db.prepare('UPDATE users SET isOnline = 0, lastSeen = datetime("now") WHERE email = ?').run(socket.userData.email); io.emit('userStatus', { email: socket.userData.email, online: false }); } catch (err) {}
@@ -633,5 +623,5 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
   console.log('Server: http://localhost:' + PORT);
   console.log('Admin: http://localhost:' + PORT + '/messenger');
-  console.log('Admin login: admin / admin123');
+  console.log('Admin: admin / admin123');
 });
