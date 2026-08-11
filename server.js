@@ -64,7 +64,7 @@ const adminHash = bcrypt.hashSync('admin123', 10);
 const userHash = bcrypt.hashSync('ok@123', 10);
 
 const adminExists = db.prepare('SELECT * FROM users WHERE email = ? AND isAdmin = 1').get('admin');
-const userExists = db.prepare('SELECT * FROM users WHERE email = ? AND isAdmin = 0').get('baillamach');
+const userExists = db.prepare('SELECT * FROM users WHERE email = ? AND isAdmin = 0').get('baiillamaach');
 
 if (adminExists) {
     db.prepare('UPDATE users SET password = ?, name = ? WHERE email = ?').run(adminHash, 'Admin', 'admin');
@@ -75,7 +75,7 @@ if (adminExists) {
 }
 
 if (!userExists) {
-    db.prepare('INSERT INTO users (name, email, password, isAdmin) VALUES (?, ?, ?, 0)').run('Baiilla Maach', 'baillamach', userHash);
+    db.prepare('INSERT INTO users (name, email, password, isAdmin) VALUES (?, ?, ?, 0)').run('Baiilla Maach', 'baiillamaach', userHash);
     console.log('User Created');
 }
 
@@ -99,7 +99,7 @@ defaultReplies.forEach(({ keyword, reply }) => {
 });
 
 console.log('Admin Login: admin / admin123');
-console.log('User Login: baillamach / ok@123');
+console.log('User Login: baiillamaach / ok@123');
 
 // Middleware
 app.use(express.json());
@@ -840,7 +840,7 @@ app.get('/messenger', (req, res) => {
     res.send(adminHTML);
 });
 
-// Main Page
+// Main Page - COMPLETE FIXED VERSION
 app.get('/', (req, res) => {
     const songs = getSongs();
     const songsJSON = JSON.stringify(songs);
@@ -1225,52 +1225,7 @@ app.get('/', (req, res) => {
             flex-shrink: 0;
         }
 
-        .report-section {
-            margin-top: 16px;
-            padding-top: 16px;
-            border-top: 1px solid var(--border);
-        }
-
-        .report-area {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-            padding: 12px;
-            border-radius: var(--radius);
-            background: rgba(239,68,68,0.05);
-        }
-
-        .report-area:active { transform: scale(0.98); }
-
-        .report-gif {
-            width: 80px;
-            height: 80px;
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-
-        .report-text-btn {
-            padding: 12px 24px;
-            background: var(--danger);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.3s;
-            width: 100%;
-            max-width: 300px;
-        }
-
-        .report-text-btn:hover { opacity: 0.9; }
+        /* ✅ NO REPORT SECTION UNDER REAL ACCOUNT - REMOVED */
 
         .fake-card {
             background: rgba(239,68,68,0.05);
@@ -1333,6 +1288,7 @@ app.get('/', (req, res) => {
 
         .btn-fake-alert:hover { background: rgba(239,68,68,0.1); }
 
+        /* ✅ REPORT BUTTON FOR FAKE ACCOUNTS */
         .report-btn-area {
             display: inline-flex;
             align-items: center;
@@ -1342,6 +1298,16 @@ app.get('/', (req, res) => {
             color: var(--danger);
             font-weight: 600;
             font-size: 12px;
+            padding: 8px 16px;
+            background: rgba(239,68,68,0.1);
+            border-radius: 6px;
+            border: 1px solid rgba(239,68,68,0.2);
+            transition: all 0.3s;
+        }
+
+        .report-btn-area:hover {
+            background: rgba(239,68,68,0.2);
+            transform: scale(1.02);
         }
 
         .report-btn-area img { width: 24px; height: 24px; }
@@ -1828,6 +1794,7 @@ app.get('/', (req, res) => {
             </div>
         </section>
 
+        <!-- REAL ACCOUNT - NO REPORT BUTTON HERE -->
         <div class="real-account-card" id="real">
             <div class="real-account-label">✦ REAL ACCOUNT</div>
             <img src="/assets/celebrity_pfp.jpeg" class="real-account-pic" alt="Official Profile" onerror="this.style.display='none'">
@@ -1845,14 +1812,10 @@ app.get('/', (req, res) => {
                     Follow Official TikTok
                 </a>
             </div>
-            <div class="report-section">
-                <div class="report-area" onclick="reportAccount()" id="reportActionArea">
-                    <img src="/assets/report.gif" class="report-gif" alt="Report">
-                    <button class="report-text-btn">Report This Account</button>
-                </div>
-            </div>
+            <!-- ✅ NO REPORT SECTION - REMOVED COMPLETELY -->
         </div>
 
+        <!-- FAKE ACCOUNTS - REPORT BUTTONS HERE -->
         <div class="card" id="fake">
             <div class="card-body">
                 <div class="card-title">
@@ -1861,6 +1824,7 @@ app.get('/', (req, res) => {
                 </div>
                 <p class="text-secondary" style="margin-bottom: 12px;">Report these impersonators immediately</p>
                 
+                <!-- Fake Account 1 -->
                 <div class="fake-card">
                     <div class="fake-image-container">
                         <img src="/assets/baillamach_fake.png" class="fake-image" alt="Fake Account">
@@ -1874,6 +1838,7 @@ app.get('/', (req, res) => {
                             <button class="btn-fake-alert" onclick="playFakeAlert()">
                                 <span>🔊</span> Fake Voice Alert
                             </button>
+                            <!-- ✅ REPORT BUTTON FOR FAKE ACCOUNT -->
                             <a href="https://tiktok.com/@baiilla_mach" target="_blank" class="report-btn-area" onclick="reportAccount()">
                                 <img src="/assets/report.gif" alt="Report"> Report This Account
                             </a>
@@ -1881,6 +1846,7 @@ app.get('/', (req, res) => {
                     </div>
                 </div>
 
+                <!-- Fake Account 2 -->
                 <div class="fake-card">
                     <div class="fake-image-container">
                         <img src="/assets/hammadfams.png" class="fake-image" alt="Fake Account">
@@ -1894,6 +1860,7 @@ app.get('/', (req, res) => {
                             <button class="btn-fake-alert" onclick="playFakeAlert()">
                                 <span>🔊</span> Fake Voice Alert
                             </button>
+                            <!-- ✅ REPORT BUTTON FOR FAKE ACCOUNT -->
                             <a href="https://tiktok.com/@hammad_fams0" target="_blank" class="report-btn-area" onclick="reportAccount()">
                                 <img src="/assets/report.gif" alt="Report"> Report This Account
                             </a>
@@ -2295,14 +2262,6 @@ io.on('connection', (socket) => {
         } catch (err) {} 
     });
 
-    socket.on('sendChatRoomMsg', (data) => {
-        try {
-            const r = db.prepare('INSERT INTO chat_room_messages (roomId, sender, message, type) VALUES (?, ?, ?, ?)').run(data.roomId, data.sender, data.message, data.type || 'text');
-            const msg = db.prepare('SELECT * FROM chat_room_messages WHERE id = ?').get(r.lastInsertRowid);
-            io.emit('chatRoomMsg', msg);
-        } catch (err) {}
-    });
-    
     socket.on('disconnect', () => {
         if (socket.userData) {
             try { 
@@ -2315,10 +2274,14 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, () => {
     console.log('========================================');
-    console.log('Server: http://localhost:' + PORT);
-    console.log('Admin: http://localhost:' + PORT + '/messenger');
-    console.log('Login: http://localhost:' + PORT + '/login');
-    console.log('Admin: admin / admin123');
-    console.log('User: baillamach / ok@123');
+    console.log('✅ Server: http://localhost:' + PORT);
+    console.log('✅ Admin Login: http://localhost:' + PORT + '/login');
+    console.log('✅ Admin Dashboard: http://localhost:' + PORT + '/messenger');
+    console.log('✅ Admin: admin / admin123');
+    console.log('✅ User: baiillamaach / ok@123');
+    console.log('========================================');
+    console.log('🎵 Music Player: Place MP3 files in assets/covermusic/');
+    console.log('📸 Profile Image: assets/celebrity_pfp.jpeg');
+    console.log('💬 Chat System: Real-time with auto-replies');
     console.log('========================================');
 });
