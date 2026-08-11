@@ -48,31 +48,6 @@ db.exec(`
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS chat_rooms (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        createdBy TEXT NOT NULL,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS chat_room_messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        roomId INTEGER NOT NULL,
-        sender TEXT NOT NULL,
-        message TEXT NOT NULL,
-        type TEXT DEFAULT 'text',
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (roomId) REFERENCES chat_rooms(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS chat_room_members (
-        roomId INTEGER NOT NULL,
-        userEmail TEXT NOT NULL,
-        joinedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (roomId, userEmail),
-        FOREIGN KEY (roomId) REFERENCES chat_rooms(id)
-    );
-
     CREATE TABLE IF NOT EXISTS auto_replies (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         keyword TEXT,
@@ -182,7 +157,7 @@ app.get('/login', (req, res) => {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #0a0a0a;
+            background: #0a0a14;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -190,56 +165,64 @@ app.get('/login', (req, res) => {
             padding: 20px;
         }
         .login-container {
-            background: #1a1a1a;
-            border-radius: 12px;
+            background: #13132b;
+            border-radius: 16px;
             padding: 40px;
             width: 100%;
             max-width: 400px;
-            border: 1px solid #2a2a2a;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 4px 40px rgba(0,0,0,0.5);
         }
-        .logo { text-align: center; margin-bottom: 24px; }
-        .logo h1 { color: #1e90ff; font-size: 28px; font-weight: 700; }
-        .logo p { color: #6b6b6b; font-size: 14px; margin-top: 4px; }
+        .logo { text-align: center; margin-bottom: 28px; }
+        .logo h1 { 
+            color: #8b5cf6; 
+            font-size: 28px; 
+            font-weight: 700;
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .logo p { color: #6060a0; font-size: 14px; margin-top: 4px; }
         .form-group { margin-bottom: 16px; }
         .form-group input {
             width: 100%;
             padding: 14px 16px;
-            background: #0a0a0a;
-            border: 1px solid #2a2a2a;
-            border-radius: 8px;
+            background: #0a0a14;
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
             font-size: 16px;
-            color: #ffffff;
+            color: #f0f0ff;
             outline: none;
             transition: border-color 0.3s;
         }
-        .form-group input:focus { border-color: #1e90ff; }
-        .form-group input::placeholder { color: #6b6b6b; }
+        .form-group input:focus { border-color: #8b5cf6; }
+        .form-group input::placeholder { color: #6060a0; }
         .login-btn {
             width: 100%;
             padding: 14px;
-            background: #1e90ff;
+            background: linear-gradient(135deg, #8b5cf6, #6d28d9);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 18px;
             font-weight: 700;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: all 0.3s;
         }
-        .login-btn:hover { background: #1877f2; }
+        .login-btn:hover { transform: translateY(-2px); box-shadow: 0 0 40px rgba(139,92,246,0.3); }
         .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         .error {
-            color: #ff1744;
+            color: #ef4444;
             font-size: 13px;
             margin-top: 12px;
             display: none;
             text-align: center;
         }
-        .divider { border-top: 1px solid #2a2a2a; margin: 20px 0; }
+        .divider { border-top: 1px solid rgba(255,255,255,0.06); margin: 20px 0; }
         .back-link { text-align: center; }
-        .back-link a { color: #6b6b6b; font-size: 13px; text-decoration: none; }
-        .back-link a:hover { color: #ffffff; }
+        .back-link a { color: #6060a0; font-size: 13px; text-decoration: none; }
+        .back-link a:hover { color: #f0f0ff; }
     </style>
 </head>
 <body>
@@ -374,7 +357,6 @@ app.post('/api/send', (req, res) => {
         const result = db.prepare('INSERT INTO messages (sender, receiver, message, type) VALUES (?, ?, ?, ?)').run(sender, receiver, message, type || 'text');
         const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(result.lastInsertRowid);
         
-        // Check if admin is offline and send auto-reply
         if (receiver === 'admin' && !isAdminOnline()) {
             const autoReply = getAutoReply(message);
             if (autoReply) {
@@ -401,40 +383,6 @@ app.post('/api/mark-read', (req, res) => {
     } catch (err) { res.json({ success: false }); }
 });
 
-app.get('/api/chat/rooms', (req, res) => {
-    try {
-        const rooms = db.prepare('SELECT * FROM chat_rooms ORDER BY createdAt DESC').all();
-        res.json(rooms);
-    } catch (err) { res.json([]); }
-});
-
-app.get('/api/chat/room/:id', (req, res) => {
-    try {
-        const messages = db.prepare('SELECT * FROM chat_room_messages WHERE roomId = ? ORDER BY timestamp ASC LIMIT 100').all(req.params.id);
-        res.json({ messages });
-    } catch (err) { res.json({ messages: [] }); }
-});
-
-app.post('/api/chat/room', (req, res) => {
-    try {
-        const { name, createdBy } = req.body;
-        const result = db.prepare('INSERT INTO chat_rooms (name, createdBy) VALUES (?, ?)').run(name, createdBy);
-        db.prepare('INSERT INTO chat_room_members (roomId, userEmail) VALUES (?, ?)').run(result.lastInsertRowid, createdBy);
-        res.json({ success: true, roomId: result.lastInsertRowid });
-    } catch (err) { res.status(500).json({ success: false }); }
-});
-
-app.post('/api/chat/room/:id/join', (req, res) => {
-    try {
-        const { userEmail } = req.body;
-        const exists = db.prepare('SELECT * FROM chat_room_members WHERE roomId = ? AND userEmail = ?').get(req.params.id, userEmail);
-        if (!exists) {
-            db.prepare('INSERT INTO chat_room_members (roomId, userEmail) VALUES (?, ?)').run(req.params.id, userEmail);
-        }
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false }); }
-});
-
 // Admin Messenger
 app.get('/messenger', (req, res) => {
     const adminHTML = `<!doctype html>
@@ -445,15 +393,15 @@ app.get('/messenger', (req, res) => {
     <title>Admin Messenger - Baiilla Maach</title>
     <style>
         :root {
-            --bg-primary: #0a0a0a;
-            --bg-secondary: #121212;
-            --bg-card: #1a1a1a;
-            --text-primary: #ffffff;
-            --text-secondary: #b0b0b0;
-            --text-muted: #6b6b6b;
-            --accent: #1e90ff;
-            --accent-hover: #1877f2;
-            --border: #2a2a2a;
+            --bg-primary: #0a0a14;
+            --bg-secondary: #13132b;
+            --bg-card: #1a1a35;
+            --text-primary: #f0f0ff;
+            --text-secondary: #a0a0cc;
+            --text-muted: #6060a0;
+            --accent: #8b5cf6;
+            --accent-hover: #7c3aed;
+            --border: rgba(255,255,255,0.06);
             --radius: 12px;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -483,19 +431,20 @@ app.get('/messenger', (req, res) => {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: linear-gradient(135deg, #1a1040, #2d1b69);
         }
         .sb-header h2 { font-size: 18px; font-weight: 700; }
         .sb-header .logout-btn {
             padding: 8px 16px;
-            background: var(--accent);
+            background: rgba(255,255,255,0.1);
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 12px;
         }
-        .sb-header .logout-btn:hover { background: var(--accent-hover); }
+        .sb-header .logout-btn:hover { background: rgba(255,255,255,0.2); }
         .search-box {
             padding: 12px 16px;
             border-bottom: 1px solid var(--border);
@@ -522,7 +471,7 @@ app.get('/messenger', (req, res) => {
             gap: 12px;
             cursor: pointer;
             border-bottom: 1px solid var(--border);
-            transition: background 0.2s;
+            transition: all 0.2s;
         }
         .user-item:hover { background: var(--bg-card); }
         .user-item.active { background: var(--bg-card); border-left: 3px solid var(--accent); }
@@ -530,7 +479,7 @@ app.get('/messenger', (req, res) => {
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: var(--accent);
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -543,7 +492,7 @@ app.get('/messenger', (req, res) => {
         .user-info .name { font-weight: 600; font-size: 14px; }
         .user-info .email { font-size: 12px; color: var(--text-secondary); }
         .user-info .status { font-size: 11px; margin-top: 2px; }
-        .user-info .status.online { color: #00c853; }
+        .user-info .status.online { color: #10b981; }
         .user-info .status.offline { color: var(--text-muted); }
         .unread-badge {
             background: var(--accent);
@@ -579,7 +528,7 @@ app.get('/messenger', (req, res) => {
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            background: var(--accent);
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -588,7 +537,7 @@ app.get('/messenger', (req, res) => {
         }
         .chat-header .user-name { font-weight: 600; font-size: 15px; }
         .chat-header .user-status { font-size: 12px; color: var(--text-secondary); }
-        .chat-header .user-status.online { color: #00c853; }
+        .chat-header .user-status.online { color: #10b981; }
         .chat-messages {
             flex: 1;
             overflow-y: auto;
@@ -605,7 +554,7 @@ app.get('/messenger', (req, res) => {
             word-wrap: break-word;
         }
         .message.sent {
-            background: var(--accent);
+            background: linear-gradient(135deg, #8b5cf6, #6d28d9);
             color: white;
             margin-left: auto;
             border-bottom-right-radius: 4px;
@@ -644,14 +593,15 @@ app.get('/messenger', (req, res) => {
         .chat-input input:focus { border-color: var(--accent); }
         .chat-input button {
             padding: 10px 20px;
-            background: var(--accent);
+            background: linear-gradient(135deg, #8b5cf6, #6d28d9);
             color: white;
             border: none;
             border-radius: 20px;
             font-weight: 600;
             cursor: pointer;
+            transition: all 0.2s;
         }
-        .chat-input button:hover { background: var(--accent-hover); }
+        .chat-input button:hover { transform: scale(1.02); }
         .empty-state {
             display: flex;
             align-items: center;
@@ -922,21 +872,21 @@ app.get('/', (req, res) => {
     <title>Baiilla Maach Official</title>
     <style>
         :root {
-            --bg-primary: #0a0a0a;
-            --bg-secondary: #121212;
-            --bg-card: #1a1a1a;
-            --bg-card-hover: #242424;
-            --text-primary: #ffffff;
-            --text-secondary: #b0b0b0;
-            --text-muted: #6b6b6b;
-            --accent: #1e90ff;
-            --accent-hover: #1877f2;
-            --accent-light: rgba(30, 144, 255, 0.15);
-            --border: #2a2a2a;
-            --border-light: #333333;
-            --success: #00c853;
-            --danger: #ff1744;
-            --warning: #ff9100;
+            --bg-primary: #0a0a14;
+            --bg-secondary: #13132b;
+            --bg-card: #1a1a35;
+            --bg-card-hover: #222244;
+            --text-primary: #f0f0ff;
+            --text-secondary: #a0a0cc;
+            --text-muted: #6060a0;
+            --accent: #8b5cf6;
+            --accent-hover: #7c3aed;
+            --accent-light: rgba(139,92,246,0.15);
+            --border: rgba(255,255,255,0.06);
+            --border-light: rgba(255,255,255,0.1);
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f97316;
             --radius: 12px;
             --shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
@@ -964,13 +914,13 @@ app.get('/', (req, res) => {
         }
 
         .header {
-            background: var(--bg-secondary);
+            background: rgba(10,10,20,0.8);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
             border-bottom: 1px solid var(--border);
             position: sticky;
             top: 0;
             z-index: 100;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
         }
 
         .header-content {
@@ -993,7 +943,7 @@ app.get('/', (req, res) => {
         .brand-icon {
             width: 32px;
             height: 32px;
-            background: linear-gradient(135deg, var(--accent), #00b4d8);
+            background: linear-gradient(135deg, var(--accent), #ec4899);
             border-radius: 8px;
             display: flex;
             align-items: center;
@@ -1059,6 +1009,7 @@ app.get('/', (req, res) => {
             object-fit: cover;
             position: relative;
             z-index: 1;
+            box-shadow: 0 0 40px rgba(139,92,246,0.2);
         }
 
         .verified-badge {
@@ -1067,7 +1018,7 @@ app.get('/', (req, res) => {
             right: 2px;
             width: 28px;
             height: 28px;
-            background: var(--accent);
+            background: var(--success);
             border-radius: 50%;
             border: 3px solid var(--bg-card);
             display: flex;
@@ -1088,6 +1039,10 @@ app.get('/', (req, res) => {
             margin-bottom: 4px;
             position: relative;
             z-index: 1;
+            background: linear-gradient(135deg, #c4b5fd, #f9a8d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .hero-username {
@@ -1156,12 +1111,12 @@ app.get('/', (req, res) => {
         }
 
         .badge-verified {
-            background: var(--accent-light);
-            color: var(--accent);
+            background: rgba(16,185,129,0.15);
+            color: var(--success);
         }
 
         .badge-warning {
-            background: rgba(255, 23, 68, 0.15);
+            background: rgba(239,68,68,0.15);
             color: var(--danger);
         }
 
@@ -1173,13 +1128,14 @@ app.get('/', (req, res) => {
         }
 
         .real-account-card {
-            background: linear-gradient(135deg, var(--bg-card), #1a1a2e);
+            background: linear-gradient(135deg, var(--bg-card), #1a1040);
             border: 2px solid var(--accent);
             border-radius: var(--radius);
             padding: 24px 16px;
             text-align: center;
             margin-bottom: 16px;
             position: relative;
+            box-shadow: 0 0 40px rgba(139,92,246,0.1);
         }
 
         .real-account-label {
@@ -1202,6 +1158,7 @@ app.get('/', (req, res) => {
             object-fit: cover;
             border: 3px solid var(--accent);
             margin: 0 auto 12px;
+            box-shadow: 0 0 40px rgba(139,92,246,0.2);
         }
 
         .real-account-username {
@@ -1283,7 +1240,7 @@ app.get('/', (req, res) => {
             transition: all 0.3s;
             padding: 12px;
             border-radius: var(--radius);
-            background: rgba(255, 23, 68, 0.05);
+            background: rgba(239,68,68,0.05);
         }
 
         .report-area:active { transform: scale(0.98); }
@@ -1316,8 +1273,8 @@ app.get('/', (req, res) => {
         .report-text-btn:hover { opacity: 0.9; }
 
         .fake-card {
-            background: var(--bg-card);
-            border: 1px solid rgba(255, 23, 68, 0.2);
+            background: rgba(239,68,68,0.05);
+            border: 1px solid rgba(239,68,68,0.2);
             border-radius: var(--radius);
             overflow: hidden;
             margin-bottom: 12px;
@@ -1365,7 +1322,7 @@ app.get('/', (req, res) => {
             padding: 8px 16px;
             background: transparent;
             color: var(--danger);
-            border: 1px solid rgba(255, 23, 68, 0.3);
+            border: 1px solid rgba(239,68,68,0.3);
             border-radius: 6px;
             font-weight: 600;
             font-size: 12px;
@@ -1374,7 +1331,7 @@ app.get('/', (req, res) => {
             transition: all 0.3s;
         }
 
-        .btn-fake-alert:hover { background: rgba(255, 23, 68, 0.1); }
+        .btn-fake-alert:hover { background: rgba(239,68,68,0.1); }
 
         .report-btn-area {
             display: inline-flex;
@@ -1474,10 +1431,11 @@ app.get('/', (req, res) => {
         .ctrl-btn-play {
             width: 56px;
             height: 56px;
-            background: var(--accent);
+            background: linear-gradient(135deg, var(--accent), #ec4899);
             border: none;
             position: relative;
             overflow: hidden;
+            box-shadow: 0 0 40px rgba(139,92,246,0.3);
         }
 
         .ctrl-btn-play img {
@@ -1562,7 +1520,9 @@ app.get('/', (req, res) => {
         .chat-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             z-index: 10000;
             display: none;
             align-items: flex-end;
@@ -1580,7 +1540,7 @@ app.get('/', (req, res) => {
             max-height: 600px;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 -4px 40px rgba(0,0,0,0.5);
         }
 
         .chat-header {
@@ -1589,7 +1549,7 @@ app.get('/', (req, res) => {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: var(--bg-card);
+            background: linear-gradient(135deg, #1a1040, #2d1b69);
             border-radius: var(--radius) var(--radius) 0 0;
         }
 
@@ -1604,6 +1564,7 @@ app.get('/', (req, res) => {
             height: 32px;
             border-radius: 50%;
             object-fit: cover;
+            border: 2px solid var(--accent);
         }
 
         .chat-header-left h3 {
@@ -1684,7 +1645,7 @@ app.get('/', (req, res) => {
             width: 28px;
             height: 28px;
             border-radius: 50%;
-            background: var(--accent);
+            background: linear-gradient(135deg, var(--accent), #ec4899);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1710,7 +1671,7 @@ app.get('/', (req, res) => {
         }
 
         .chat-message-row.own .chat-bubble {
-            background: var(--accent);
+            background: linear-gradient(135deg, var(--accent), #ec4899);
             color: white;
             border-bottom-right-radius: 4px;
         }
@@ -1751,7 +1712,7 @@ app.get('/', (req, res) => {
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: var(--accent);
+            background: linear-gradient(135deg, var(--accent), #ec4899);
             color: white;
             border: none;
             cursor: pointer;
@@ -1778,7 +1739,7 @@ app.get('/', (req, res) => {
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 20px rgba(139,92,246,0.4);
         }
 
         .floating-chat-bubble:active { transform: scale(0.95); }
@@ -2075,7 +2036,7 @@ app.get('/', (req, res) => {
             var playGif = document.getElementById("playGif");
             var playBtn = document.getElementById("playBtn");
             if (playGif && playBtn) {
-                playBtn.style.background = playing ? "#1877f2" : "#1e90ff";
+                playBtn.style.background = playing ? "linear-gradient(135deg, #7c3aed, #ec4899)" : "linear-gradient(135deg, #8b5cf6, #ec4899)";
             }
             syncPlaylistUI();
         }
@@ -2175,7 +2136,7 @@ app.get('/', (req, res) => {
                 var r = await fetch("/api/admin/status");
                 var data = await r.json();
                 document.getElementById("adminStatus").textContent = data.isOnline ? "🟢 Online" : "🔴 Offline";
-                document.getElementById("adminStatus").style.color = data.isOnline ? "#00c853" : "#ff1744";
+                document.getElementById("adminStatus").style.color = data.isOnline ? "#10b981" : "#ef4444";
             } catch (e) {}
         }
 
@@ -2275,7 +2236,7 @@ app.get('/', (req, res) => {
         socket.on("userStatus", function(data) {
             if (data.email === "admin") {
                 document.getElementById("adminStatus").textContent = data.online ? "🟢 Online" : "🔴 Offline";
-                document.getElementById("adminStatus").style.color = data.online ? "#00c853" : "#ff1744";
+                document.getElementById("adminStatus").style.color = data.online ? "#10b981" : "#ef4444";
             }
         });
 
