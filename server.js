@@ -113,8 +113,7 @@ function getSongs() {
             .map((f, i) => ({
                 id: i,
                 title: f.replace('.mp3', '').replace(/[-_]/g, ' '),
-                url: '/assets/covermusic/' + encodeURIComponent(f),
-                gif: '/assets/play.gif'
+                url: '/assets/covermusic/' + encodeURIComponent(f)
             }));
     } catch (e) {
         return [];
@@ -287,8 +286,8 @@ app.get('/', (req, res) => {
         <div class="song-item" onclick="playTrack(${i})" id="song-${i}">
             <span class="song-num">${String(i + 1).padStart(2, '0')}</span>
             <div class="song-thumb-box">
-                <img src="${s.gif}" class="song-thumb-static" id="st-${i}">
-                <img src="${s.gif}" class="song-thumb-live" id="sl-${i}" style="display:none">
+                <img src="/assets/play.gif" class="song-thumb-static" id="st-${i}">
+                <img src="/assets/play.gif" class="song-thumb-live" id="sl-${i}" style="display:none">
             </div>
             <div class="song-meta">
                 <div class="song-name">${s.title}</div>
@@ -299,6 +298,7 @@ app.get('/', (req, res) => {
             </div>
         </div>`;
     });
+
     const html = `<!doctype html>
 <html lang="bn">
 <head>
@@ -331,27 +331,13 @@ app.get('/', (req, res) => {
             color: var(--text-primary);
             line-height: 1.5;
             -webkit-font-smoothing: antialiased;
-            overflow-x: hidden;
         }
 
         a { color: var(--accent); text-decoration: none; }
         a:hover { text-decoration: underline; }
-        img { max-width: 100%; display: block; height: auto; }
+        img { max-width: 100%; display: block; }
 
-        .container { 
-            max-width: 600px; 
-            margin: 0 auto; 
-            padding: 0 12px; 
-            width: 100%;
-        }
-
-        @media (min-width: 768px) {
-            .container { padding: 0 16px; }
-        }
-
-        @media (min-width: 1024px) {
-            .container { max-width: 680px; }
-        }
+        .container { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
 
         .header {
             background: var(--bg-secondary);
@@ -365,8 +351,8 @@ app.get('/', (req, res) => {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            height: 52px;
-            gap: 12px;
+            height: 56px;
+            gap: 16px;
         }
 
         .brand {
@@ -374,43 +360,41 @@ app.get('/', (req, res) => {
             align-items: center;
             gap: 8px;
             font-weight: 700;
-            font-size: 20px;
+            font-size: 24px;
             color: var(--accent);
         }
 
         .brand-icon {
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
             background: var(--accent);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 700;
-            flex-shrink: 0;
         }
 
-        .nav-links { display: flex; gap: 4px; }
+        .nav-links { display: flex; gap: 8px; }
 
         .nav-link {
-            padding: 6px 10px;
+            padding: 8px 16px;
             border-radius: var(--radius);
             color: var(--text-secondary);
             font-weight: 500;
-            font-size: 13px;
+            font-size: 14px;
             transition: background 0.2s;
-            white-space: nowrap;
         }
 
         .nav-link:hover { background: var(--accent-light); color: var(--accent); text-decoration: none; }
         .nav-link.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
 
-        .header-actions { display: flex; gap: 6px; align-items: center; }
+        .header-actions { display: flex; gap: 8px; align-items: center; }
 
         .icon-btn {
-            width: 36px; height: 36px;
+            width: 40px; height: 40px;
             border-radius: 50%;
             background: var(--bg-secondary);
             border: 1px solid var(--border);
@@ -420,61 +404,63 @@ app.get('/', (req, res) => {
             cursor: pointer;
             color: var(--text-primary);
             transition: background 0.2s;
-            flex-shrink: 0;
         }
 
         .icon-btn:hover { background: var(--bg-primary); }
 
+        /* Floating Message Bubble - Always Visible */
         .floating-chat-bubble {
             position: fixed;
-            bottom: 20px;
-            right: 16px;
-            width: 56px;
-            height: 56px;
+            bottom: 30px;
+            right: 30px;
+            width: 65px;
+            height: 65px;
             z-index: 9999;
             cursor: pointer;
+            transition: transform 0.3s;
             animation: floatBubble 3s ease-in-out infinite;
-            filter: drop-shadow(0 2px 8px rgba(0,0,0,0.15));
         }
 
-        .floating-chat-bubble:active { transform: scale(0.95); }
-        .floating-chat-bubble img { width: 100%; height: 100%; }
+        .floating-chat-bubble:hover {
+            transform: scale(1.1);
+        }
+
+        .floating-chat-bubble img {
+            width: 100%;
+            height: 100%;
+        }
 
         @keyframes floatBubble {
             0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-8px); }
+            50% { transform: translateY(-10px); }
         }
 
         .hero {
             background: var(--bg-secondary);
             border-radius: var(--radius);
-            padding: 24px 16px;
-            margin: 12px 0;
+            padding: 32px;
+            margin: 16px 0;
             text-align: center;
             border: 1px solid var(--border);
         }
 
-        @media (min-width: 768px) {
-            .hero { padding: 32px; }
+        .avatar-container {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 16px;
         }
 
-        .avatar-container { position: relative; display: inline-block; margin-bottom: 12px; }
-
         .avatar {
-            width: 100px; height: 100px;
+            width: 120px; height: 120px;
             border-radius: 50%;
             border: 3px solid var(--accent);
             object-fit: cover;
         }
 
-        @media (min-width: 768px) {
-            .avatar { width: 120px; height: 120px; }
-        }
-
         .verified-badge {
             position: absolute;
-            bottom: 2px; right: 2px;
-            width: 24px; height: 24px;
+            bottom: 4px; right: 4px;
+            width: 28px; height: 28px;
             background: var(--accent);
             border-radius: 50%;
             border: 2px solid white;
@@ -483,51 +469,30 @@ app.get('/', (req, res) => {
             justify-content: center;
         }
 
-        @media (min-width: 768px) {
-            .verified-badge { width: 28px; height: 28px; }
-        }
+        .verified-badge svg { width: 14px; height: 14px; fill: white; }
 
-        .verified-badge svg { width: 12px; height: 12px; fill: white; }
-        @media (min-width: 768px) {
-            .verified-badge svg { width: 14px; height: 14px; }
-        }
-
-        .hero-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-        @media (min-width: 768px) {
-            .hero-title { font-size: 28px; }
-        }
-        .hero-subtitle { color: var(--text-secondary); font-size: 14px; margin-bottom: 12px; }
+        .hero-title { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+        .hero-subtitle { color: var(--text-secondary); font-size: 16px; margin-bottom: 16px; }
 
         .stats-bar {
             display: flex;
             justify-content: center;
-            gap: 32px;
-            padding: 12px 0;
+            gap: 48px;
+            padding: 16px 0;
             border-top: 1px solid var(--border-light);
             border-bottom: 1px solid var(--border-light);
-            margin: 16px 0;
-        }
-
-        @media (min-width: 768px) {
-            .stats-bar { gap: 48px; }
+            margin: 20px 0;
         }
 
         .stat-item { text-align: center; }
-        .stat-number { font-size: 18px; font-weight: 700; }
-        .stat-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; }
+        .stat-number { font-size: 20px; font-weight: 700; }
+        .stat-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; }
 
         .content-grid {
             display: grid;
-            gap: 12px;
-            grid-template-columns: 1fr;
-            margin: 12px 0 24px;
-        }
-
-        @media (min-width: 768px) {
-            .content-grid {
-                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                gap: 16px;
-            }
+            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+            margin: 16px 0 32px;
         }
 
         .card {
@@ -537,177 +502,145 @@ app.get('/', (req, res) => {
             overflow: hidden;
         }
 
-        .card-body { padding: 16px; }
-        @media (min-width: 768px) {
-            .card-body { padding: 20px; }
-        }
+        .card-body { padding: 20px; }
         .card-full { grid-column: 1 / -1; }
-        .card-title { font-size: 16px; font-weight: 700; margin: 10px 0; }
-        @media (min-width: 768px) {
-            .card-title { font-size: 18px; }
-        }
-        .text-secondary { color: var(--text-secondary); font-size: 13px; }
+        .card-title { font-size: 18px; font-weight: 700; margin: 12px 0; }
+        .text-secondary { color: var(--text-secondary); font-size: 14px; }
 
         .badge {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            padding: 4px 10px;
+            gap: 6px;
+            padding: 4px 12px;
             border-radius: 20px;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 700;
             text-transform: uppercase;
         }
 
         .badge-verified { background: var(--accent-light); color: var(--accent); }
         .badge-warning { background: #ffebee; color: var(--danger); }
-        .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+        .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
-        .real-account-card {
-            background: var(--bg-secondary);
-            border: 2px solid var(--accent);
+        /* Verified Accounts Section */
+        .verified-list { display: grid; gap: 16px; margin-top: 16px; }
+
+        .verified-account-card {
+            background: var(--bg-primary);
             border-radius: var(--radius);
-            padding: 20px 16px;
+            padding: 16px;
             text-align: center;
-            margin-bottom: 12px;
+            border: 1px solid var(--border-light);
             position: relative;
         }
 
-        @media (min-width: 768px) {
-            .real-account-card { padding: 24px 20px; }
+        .verified-account-header {
+            position: relative;
+            margin-bottom: 12px;
         }
 
-        .real-account-label {
-            display: inline-block;
-            background: var(--accent-light);
-            color: var(--accent);
-            padding: 4px 14px;
+        .verified-account-header .account-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 12px;
             border-radius: 4px;
             font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-            text-transform: uppercase;
+            font-weight: 600;
+            z-index: 2;
         }
 
-        .real-account-username {
-            font-weight: 700;
-            font-size: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
-
-        @media (min-width: 768px) {
-            .real-account-username { font-size: 18px; }
-        }
-
-        .verified-tick {
-            width: 20px;
-            height: 20px;
-            animation: tickFloat 2s ease-in-out infinite;
-            flex-shrink: 0;
-        }
-
-        @keyframes tickFloat {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-4px); }
-        }
-
-        .real-account-pic {
+        .verified-account-pic {
             width: 80px;
             height: 80px;
             border-radius: 50%;
             object-fit: cover;
             border: 3px solid var(--accent);
-            margin: 0 auto 12px;
+            margin: 0 auto 8px;
         }
 
-        @media (min-width: 768px) {
-            .real-account-pic { width: 96px; height: 96px; }
-        }
-
-        .follow-buttons {
+        .verified-account-name {
+            font-weight: 700;
+            font-size: 15px;
             display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 14px;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .verified-account-name .tick-mark {
+            width: 18px;
+            height: 18px;
+            animation: tickBounce 1s ease-in-out infinite;
+        }
+
+        @keyframes tickBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .verified-account-platform {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin: 8px 0;
+        }
+
+        .verified-account-platform img {
+            width: 24px;
+            height: 24px;
+        }
+
+        .verified-account-stats {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
         }
 
         .btn-follow {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
             gap: 8px;
-            padding: 14px 20px;
-            border-radius: 10px;
+            padding: 12px 24px;
+            border-radius: 6px;
             font-weight: 700;
             font-size: 15px;
             cursor: pointer;
             border: none;
             text-decoration: none;
             transition: all 0.2s;
-            width: 100%;
-            max-width: 320px;
-            margin: 0 auto;
         }
 
-        .btn-follow:active { transform: scale(0.98); }
-
-        .btn-follow-tiktok { background: #000000; color: white; }
-        .btn-follow-tiktok:hover { background: #1a1a1a; text-decoration: none; }
-        .btn-follow-fb { background: var(--accent); color: white; }
-        .btn-follow-fb:hover { background: var(--accent-hover); text-decoration: none; }
-        .btn-follow img { width: 22px; height: 22px; flex-shrink: 0; }
-
-        .report-section {
-            margin-top: 16px;
-            padding-top: 14px;
-            border-top: 1px solid var(--border-light);
+        .btn-follow-tiktok {
+            background: #000000;
+            color: white;
         }
 
-        .report-area {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            transition: opacity 0.2s;
+        .btn-follow-tiktok:hover {
+            background: #333;
+            text-decoration: none;
         }
 
-        .report-area:active { opacity: 0.7; }
-
-        .report-gif {
-            width: 70px;
-            height: 70px;
-            animation: pulse 2s ease-in-out infinite;
+        .btn-follow-fb {
+            background: var(--accent);
+            color: white;
         }
 
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.06); }
+        .btn-follow-fb:hover {
+            background: var(--accent-hover);
+            text-decoration: none;
         }
 
-        .report-text-btn {
-            display: inline-block;
-            padding: 10px 20px;
-            background: #fff;
-            color: var(--danger);
-            border: 2px solid var(--danger);
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 13px;
-            text-align: center;
-            transition: all 0.2s;
+        .btn-follow img {
+            width: 20px;
+            height: 20px;
         }
 
-        .report-text-btn:hover { background: #fff5f5; }
-
-        .verified-list { display: grid; gap: 12px; margin-top: 12px; }
-
+        /* Fake Accounts */
         .fake-card {
             border: 1px solid #ffcdd2;
             border-radius: var(--radius);
@@ -718,15 +651,13 @@ app.get('/', (req, res) => {
         .fake-image-container {
             position: relative;
             text-align: center;
-            padding: 10px;
+            padding: 12px;
             background: var(--bg-primary);
         }
 
         .fake-image {
             width: 100%;
             border-radius: 4px;
-            max-height: 300px;
-            object-fit: contain;
         }
 
         .fake-overlay-image {
@@ -734,15 +665,15 @@ app.get('/', (req, res) => {
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 60px;
-            height: 60px;
+            width: 70px;
+            height: 70px;
             animation: bounceWarning 1.5s ease-in-out infinite;
             pointer-events: none;
         }
 
         @keyframes bounceWarning {
             0%, 100% { transform: translate(-50%, -50%) translateY(0); }
-            50% { transform: translate(-50%, -50%) translateY(-10px); }
+            50% { transform: translate(-50%, -50%) translateY(-12px); }
         }
 
         .fake-body { padding: 12px; }
@@ -757,102 +688,102 @@ app.get('/', (req, res) => {
         .platform {
             color: var(--warning);
             font-weight: 600;
-            font-size: 11px;
-            margin-bottom: 6px;
+            font-size: 12px;
+            margin-bottom: 8px;
         }
 
-        .fake-alert-section { margin-top: 8px; }
+        .fake-alert-section {
+            margin-top: 8px;
+        }
 
-        .btn-fake-alert {
+        .fake-alert-section .btn-fake-alert {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 8px 12px;
+            padding: 8px 14px;
             background: #fff;
             color: var(--danger);
             border: 1px solid #ffcdd2;
             border-radius: 6px;
             font-weight: 600;
-            font-size: 12px;
+            font-size: 13px;
             cursor: pointer;
             margin-bottom: 8px;
         }
 
-        .btn-fake-alert:active { background: #fff5f5; }
-
         .report-btn-area {
             text-align: center;
             cursor: pointer;
-            display: block;
-            text-decoration: none;
         }
 
         .report-btn-area img {
-            width: 70px;
-            margin: 0 auto 6px;
+            width: 80px;
+            margin: 0 auto 8px;
             animation: pulse 2s ease-in-out infinite;
+            cursor: pointer;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
 
         .report-btn-area .report-text {
             display: block;
-            padding: 8px 14px;
+            padding: 8px 16px;
             background: var(--danger);
             color: white;
             border-radius: 6px;
             font-weight: 700;
-            font-size: 12px;
+            font-size: 13px;
+            text-decoration: none;
         }
 
-        .proof-container { text-align: center; padding: 16px; }
-        .proof-image { 
-            width: 100%; 
-            border-radius: 4px; 
-            border: 1px solid var(--border-light);
-            max-height: 300px;
-            object-fit: contain;
-        }
+        /* Real ID Section */
+        .proof-container { text-align: center; padding: 20px; }
+        .proof-image { width: 100%; border-radius: 4px; border: 1px solid var(--border-light); }
 
+        /* Voice Section */
         .voice-section { margin-top: 12px; }
         .voice-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
 
         .btn {
-            padding: 10px 18px;
+            padding: 10px 20px;
             border-radius: 6px;
             font-weight: 700;
-            font-size: 13px;
+            font-size: 14px;
             cursor: pointer;
             transition: all 0.2s;
             border: none;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             text-decoration: none;
         }
 
         .btn-primary { background: var(--accent); color: white; }
         .btn-primary:hover { background: var(--accent-hover); text-decoration: none; }
-        .btn-primary:active { transform: scale(0.98); }
+        .btn-secondary { background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: #e4e6eb; text-decoration: none; }
+        .btn-danger { background: #fff; color: var(--danger); border: 1px solid #ffcdd2; }
+        .btn-danger:hover { background: #ffebee; text-decoration: none; }
 
+        /* Music Player */
         .music-header {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 14px;
+            gap: 14px;
+            padding: 16px;
             background: var(--bg-primary);
             border-radius: var(--radius);
-            margin-bottom: 12px;
+            margin-bottom: 16px;
         }
 
         .music-cover {
-            width: 48px; height: 48px;
-            border-radius: 6px;
+            width: 56px; height: 56px;
+            border-radius: 4px;
             overflow: hidden;
             position: relative;
-            flex-shrink: 0;
-        }
-
-        @media (min-width: 768px) {
-            .music-cover { width: 56px; height: 56px; }
         }
 
         .music-cover img {
@@ -865,18 +796,15 @@ app.get('/', (req, res) => {
         .cover-live { display: none; }
 
         .music-info { flex: 1; min-width: 0; }
-        .music-title { font-weight: 600; font-size: 14px; }
-        @media (min-width: 768px) {
-            .music-title { font-size: 16px; }
-        }
-        .music-artist { font-size: 12px; color: var(--text-secondary); }
+        .music-title { font-weight: 600; font-size: 16px; }
+        .music-artist { font-size: 14px; color: var(--text-secondary); }
 
         .seek-bar {
             width: 100%; height: 4px;
             background: var(--border);
             border-radius: 2px;
             cursor: pointer;
-            margin: 10px 0;
+            margin: 12px 0;
         }
 
         .seek-fill {
@@ -890,92 +818,79 @@ app.get('/', (req, res) => {
         .time-display {
             display: flex;
             justify-content: space-between;
-            font-size: 11px;
+            font-size: 12px;
             color: var(--text-secondary);
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
 
         .player-controls {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 14px;
+            gap: 16px;
         }
 
         .ctrl-btn {
-            width: 36px; height: 36px;
+            width: 40px; height: 40px;
             border-radius: 50%;
             border: 1px solid var(--border);
             background: var(--bg-secondary);
             color: var(--text-primary);
             cursor: pointer;
-            font-size: 14px;
+            font-size: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: background 0.2s;
         }
 
-        .ctrl-btn:active { background: var(--bg-primary); }
-
-        @media (min-width: 768px) {
-            .ctrl-btn { width: 40px; height: 40px; }
-        }
+        .ctrl-btn:hover { background: var(--bg-primary); }
 
         .ctrl-btn-play {
-            width: 50px; height: 50px;
+            width: 56px; height: 56px;
             background: var(--accent);
             border: none;
             position: relative;
             overflow: hidden;
         }
 
-        .ctrl-btn-play:active { background: var(--accent-hover); }
-
-        @media (min-width: 768px) {
-            .ctrl-btn-play { width: 56px; height: 56px; }
-        }
+        .ctrl-btn-play:hover { background: var(--accent-hover); }
 
         .ctrl-btn-play img {
-            width: 30px; height: 30px;
+            width: 34px; height: 34px;
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
         }
 
         .song-list {
-            max-height: 200px;
+            max-height: 240px;
             overflow-y: auto;
             border-top: 1px solid var(--border-light);
-            margin-top: 12px;
+            margin-top: 16px;
             padding-top: 8px;
-        }
-
-        @media (min-width: 768px) {
-            .song-list { max-height: 240px; }
         }
 
         .song-item {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px;
+            gap: 12px;
+            padding: 10px;
             cursor: pointer;
             border-radius: 4px;
             transition: background 0.15s;
         }
 
-        .song-item:active { background: var(--bg-primary); }
+        .song-item:hover { background: var(--bg-primary); }
         .song-item.active { background: var(--accent-light); }
 
-        .song-num { font-weight: 600; color: var(--text-muted); min-width: 22px; font-size: 12px; }
+        .song-num { font-weight: 600; color: var(--text-muted); min-width: 24px; font-size: 13px; }
 
         .song-thumb-box {
-            width: 28px; height: 28px;
+            width: 32px; height: 32px;
             border-radius: 4px;
             overflow: hidden;
             position: relative;
-            flex-shrink: 0;
         }
 
         .song-thumb-box img {
@@ -986,16 +901,15 @@ app.get('/', (req, res) => {
         }
 
         .song-meta { flex: 1; min-width: 0; }
-        .song-name { font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .song-by { font-size: 11px; color: var(--text-secondary); }
+        .song-name { font-weight: 500; font-size: 14px; }
+        .song-by { font-size: 12px; color: var(--text-secondary); }
 
         .song-eq {
             margin-left: auto;
             display: flex;
             align-items: flex-end;
             gap: 2px;
-            height: 12px;
-            flex-shrink: 0;
+            height: 14px;
         }
 
         .song-eq span {
@@ -1011,9 +925,10 @@ app.get('/', (req, res) => {
 
         @keyframes equalizer {
             0%, 100% { height: 4px; }
-            50% { height: 10px; }
+            50% { height: 12px; }
         }
 
+        /* Chat Overlay */
         .chat-overlay {
             position: fixed;
             inset: 0;
@@ -1029,17 +944,17 @@ app.get('/', (req, res) => {
         .chat-container {
             background: var(--bg-secondary);
             border-radius: var(--radius);
-            width: 94%;
-            max-width: 420px;
-            height: 75vh;
-            max-height: 550px;
+            width: 95%;
+            max-width: 450px;
+            height: 80vh;
+            max-height: 600px;
             display: flex;
             flex-direction: column;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
         }
 
         .chat-header {
-            padding: 12px 14px;
+            padding: 14px 16px;
             border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
@@ -1049,38 +964,47 @@ app.get('/', (req, res) => {
             border-radius: var(--radius) var(--radius) 0 0;
         }
 
-        .chat-header-left { display: flex; align-items: center; gap: 8px; }
-        .chat-header-left img { width: 24px; height: 24px; }
-        .chat-header-left h3 { font-size: 14px; font-weight: 600; }
+        .chat-header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chat-header-left img {
+            width: 28px;
+            height: 28px;
+        }
+
+        .chat-header-left h3 { font-size: 15px; font-weight: 600; }
 
         .chat-close {
             background: none;
             border: none;
             color: white;
-            font-size: 20px;
+            font-size: 22px;
             cursor: pointer;
-            width: 30px;
-            height: 30px;
+            width: 32px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
             border-radius: 50%;
         }
 
-        .chat-close:active { background: rgba(255, 255, 255, 0.2); }
+        .chat-close:hover { background: rgba(255, 255, 255, 0.2); }
 
         .chat-messages {
             flex: 1;
             overflow-y: auto;
-            padding: 12px;
+            padding: 14px;
             background: var(--bg-primary);
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 6px;
         }
 
-        .chat-login-area { text-align: center; padding: 24px 16px; }
-        .chat-login-area h4 { margin-bottom: 10px; font-size: 14px; }
+        .chat-login-area { text-align: center; padding: 30px 20px; }
+        .chat-login-area h4 { margin-bottom: 12px; font-size: 15px; }
         .chat-login-area input {
             width: 100%;
             padding: 10px;
@@ -1091,11 +1015,16 @@ app.get('/', (req, res) => {
             outline: none;
         }
 
-        .chat-message-row { display: flex; gap: 6px; align-items: flex-end; }
+        .chat-message-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
         .chat-message-row.own { flex-direction: row-reverse; }
 
         .chat-msg-avatar {
-            width: 26px; height: 26px;
+            width: 28px; height: 28px;
             border-radius: 50%;
             background: var(--accent);
             display: flex;
@@ -1107,11 +1036,11 @@ app.get('/', (req, res) => {
             flex-shrink: 0;
         }
 
-        .chat-bubble-wrap { max-width: 78%; position: relative; }
+        .chat-bubble-wrap { max-width: 75%; position: relative; }
 
         .chat-bubble {
-            padding: 8px 11px;
-            border-radius: 16px;
+            padding: 9px 12px;
+            border-radius: 18px;
             font-size: 13px;
             word-wrap: break-word;
             position: relative;
@@ -1130,26 +1059,31 @@ app.get('/', (req, res) => {
         }
 
         .chat-bubble img.msg-gif {
-            width: 28px;
-            height: 28px;
+            width: 30px;
+            height: 30px;
             position: absolute;
-            bottom: -5px;
+            bottom: -6px;
             pointer-events: none;
         }
 
-        .chat-message-row:not(.own) .msg-gif { left: -11px; }
-        .chat-message-row.own .msg-gif { right: -11px; }
+        .chat-message-row:not(.own) .msg-gif { left: -12px; }
+        .chat-message-row.own .msg-gif { right: -12px; }
 
-        .chat-msg-time { font-size: 10px; opacity: 0.6; margin-top: 2px; text-align: right; }
+        .chat-msg-time {
+            font-size: 10px;
+            opacity: 0.6;
+            margin-top: 2px;
+            text-align: right;
+        }
 
         .chat-input-area {
-            padding: 10px 12px;
+            padding: 10px 14px;
             border-top: 1px solid var(--border);
             background: var(--bg-secondary);
             border-radius: 0 0 var(--radius) var(--radius);
         }
 
-        .chat-input-row { display: flex; gap: 6px; align-items: center; }
+        .chat-input-row { display: flex; gap: 8px; align-items: center; }
 
         .chat-input-row input {
             flex: 1;
@@ -1165,7 +1099,7 @@ app.get('/', (req, res) => {
         .chat-input-row input:focus { border-color: var(--accent); }
 
         .chat-input-row button {
-            width: 34px; height: 34px;
+            width: 36px; height: 36px;
             border-radius: 50%;
             background: var(--accent);
             color: white;
@@ -1175,16 +1109,14 @@ app.get('/', (req, res) => {
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-shrink: 0;
         }
 
-        .chat-input-row button:active { background: var(--accent-hover); }
-
+        /* Footer */
         .footer {
             background: var(--bg-secondary);
             border-top: 1px solid var(--border);
-            padding: 20px 0;
-            margin-top: 24px;
+            padding: 24px 0;
+            margin-top: 32px;
         }
 
         .footer-content {
@@ -1192,22 +1124,20 @@ app.get('/', (req, res) => {
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 12px;
         }
 
-        .footer-text { font-size: 11px; color: var(--text-muted); }
-        .footer-links { display: flex; gap: 12px; flex-wrap: wrap; }
-        .footer-links a { font-size: 11px; color: var(--text-muted); }
+        .footer-text { font-size: 12px; color: var(--text-muted); }
+        .footer-links { display: flex; gap: 16px; flex-wrap: wrap; }
+        .footer-links a { font-size: 12px; color: var(--text-muted); }
         .footer-links a:hover { color: var(--text-primary); }
 
-        @media (max-width: 320px) {
-            .hero { padding: 16px 10px; }
-            .hero-title { font-size: 18px; }
-            .stats-bar { gap: 20px; }
-            .btn-follow { padding: 12px 16px; font-size: 13px; }
-            .brand { font-size: 17px; }
-            .brand-icon { width: 28px; height: 28px; font-size: 14px; }
-            .nav-link { font-size: 11px; padding: 5px 8px; }
+        @media (max-width: 768px) {
+            .hero { padding: 20px; }
+            .hero-title { font-size: 22px; }
+            .stats-bar { gap: 24px; }
+            .content-grid { grid-template-columns: 1fr; }
+            .nav-links { display: none; }
         }
     </style>
 </head>
@@ -1222,14 +1152,14 @@ app.get('/', (req, res) => {
 
             <nav class="nav-links">
                 <a href="#home" class="nav-link active">Home</a>
-                <a href="#real" class="nav-link">Verified</a>
-                <a href="#fake" class="nav-link">Fake</a>
+                <a href="#verified" class="nav-link">Verified</a>
+                <a href="#fake" class="nav-link">Fake Alert</a>
                 <a href="#music" class="nav-link">Music</a>
             </nav>
 
             <div class="header-actions">
                 <a href="/messenger" class="icon-btn" title="Admin">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                     </svg>
                 </a>
@@ -1265,35 +1195,68 @@ app.get('/', (req, res) => {
             </div>
         </section>
 
-        <div class="content-grid" id="real">
-            <!-- REAL ACCOUNT SECTION - Appears FIRST before fake accounts -->
-            <div class="real-account-card">
-                <div class="real-account-label">REAL ACCOUNT</div>
-                <div class="real-account-username">
-                    baiillamaach_offical
-                    <img src="/assets/bluetick_tiktok.png" class="verified-tick" alt="Verified">
-                </div>
-                <img src="/assets/celebrity_pfp.jpeg" class="real-account-pic" alt="Official Profile" onerror="this.style.display='none'">
-                
-                <div class="follow-buttons">
-                    <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="btn-follow btn-follow-fb">
-                        <img src="/assets/logo_fb.png" alt="Facebook">
-                        Follow on Facebook
-                    </a>
-                    <a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="btn-follow btn-follow-tiktok">
-                        <img src="/assets/logo_tiktok.png" alt="TikTok">
-                        Follow Official TikTok
-                    </a>
-                </div>
-
-                <div class="report-section">
-                    <div class="report-area" onclick="reportAccount()" id="reportActionArea">
-                        <img src="/assets/report.gif" class="report-gif" alt="Report">
-                        <span class="report-text-btn">Report This Account</span>
+        <div class="content-grid" id="verified">
+            <!-- Verified TikTok Account -->
+            <div class="card">
+                <div class="card-body">
+                    <span class="badge badge-verified">
+                        <span class="badge-dot"></span> OFFICIAL TIKTOK
+                    </span>
+                    <h3 class="card-title">Verified Account</h3>
+                    
+                    <div class="verified-account-card">
+                        <div class="verified-account-header">
+                            <img src="/assets/celebrity_pfp.jpeg" class="verified-account-pic" alt="TikTok Profile">
+                            <div class="account-label">Real Account</div>
+                        </div>
+                        <div class="verified-account-name">
+                            baiillamaach_official
+                            <img src="/assets/bluetick_tiktok.png" class="tick-mark" alt="Verified">
+                        </div>
+                        <div class="verified-account-platform">
+                            <img src="/assets/logo_tiktok.png" alt="TikTok">
+                            <span style="font-weight:600;font-size:13px;">TikTok</span>
+                        </div>
+                        <div class="verified-account-stats">7K Followers - 190K Likes</div>
+                        <a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="btn-follow btn-follow-tiktok">
+                            <img src="/assets/follow.gif" alt="Follow">
+                            Follow Official TikTok
+                        </a>
                     </div>
                 </div>
             </div>
-            <!-- FAKE ACCOUNTS SECTION - Appears AFTER real account -->
+
+            <!-- Verified Facebook Account -->
+            <div class="card">
+                <div class="card-body">
+                    <span class="badge badge-verified">
+                        <span class="badge-dot"></span> OFFICIAL FACEBOOK
+                    </span>
+                    <h3 class="card-title">Verified Account</h3>
+                    
+                    <div class="verified-account-card">
+                        <div class="verified-account-header">
+                            <img src="/assets/fb_profile.jpg" class="verified-account-pic" alt="Facebook Profile">
+                            <div class="account-label">Real Account</div>
+                        </div>
+                        <div class="verified-account-name">
+                            BaiillaMaachOfficial
+                            <img src="/assets/blue_tick_fb.png" class="tick-mark" alt="Verified">
+                        </div>
+                        <div class="verified-account-platform">
+                            <img src="/assets/logo_fb.png" alt="Facebook">
+                            <span style="font-weight:600;font-size:13px;">Facebook</span>
+                        </div>
+                        <div class="verified-account-stats">Official Page - Active</div>
+                        <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="btn-follow btn-follow-fb">
+                            <img src="/assets/add.gif" alt="Follow">
+                            Follow on Facebook
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fake Accounts Section -->
             <div class="card" id="fake">
                 <div class="card-body">
                     <span class="badge badge-warning">
@@ -1303,6 +1266,7 @@ app.get('/', (req, res) => {
                     <p class="text-secondary">Report these impersonators immediately</p>
                     
                     <div class="verified-list">
+                        <!-- Fake Account 1 -->
                         <div class="fake-card">
                             <div class="fake-image-container">
                                 <img src="/assets/baillamach_fake.png" class="fake-image" alt="Fake Account">
@@ -1317,7 +1281,7 @@ app.get('/', (req, res) => {
                                     <button class="btn-fake-alert" onclick="playFakeAlert()">
                                         <img src="/assets/report_button.png" width="16"> Fake Voice Alert
                                     </button>
-                                    <a href="https://tiktok.com/@baiilla_mach" target="_blank" class="report-btn-area" onclick="reportAccount()">
+                                    <a href="https://tiktok.com/@baiilla_mach" target="_blank" class="report-btn-area" style="display:block;text-decoration:none;">
                                         <img src="/assets/report.gif" alt="Report">
                                         <span class="report-text">Report This Account</span>
                                     </a>
@@ -1325,6 +1289,7 @@ app.get('/', (req, res) => {
                             </div>
                         </div>
 
+                        <!-- Fake Account 2 -->
                         <div class="fake-card">
                             <div class="fake-image-container">
                                 <img src="/assets/hammadfams.png" class="fake-image" alt="Fake Account">
@@ -1339,7 +1304,7 @@ app.get('/', (req, res) => {
                                     <button class="btn-fake-alert" onclick="playFakeAlert()">
                                         <img src="/assets/report_button.png" width="16"> Fake Voice Alert
                                     </button>
-                                    <a href="https://tiktok.com/@hammad_fams0" target="_blank" class="report-btn-area" onclick="reportAccount()">
+                                    <a href="https://tiktok.com/@hammad_fams0" target="_blank" class="report-btn-area" style="display:block;text-decoration:none;">
                                         <img src="/assets/report.gif" alt="Report">
                                         <span class="report-text">Report This Account</span>
                                     </a>
@@ -1350,7 +1315,7 @@ app.get('/', (req, res) => {
                 </div>
             </div>
 
-            <!-- Real ID & Voice Section -->
+            <!-- Real ID & Voice Verification -->
             <div class="card">
                 <div class="card-body">
                     <span class="badge badge-verified">
@@ -1359,11 +1324,11 @@ app.get('/', (req, res) => {
                     <h3 class="card-title">Real ID Verified</h3>
                     <div class="proof-container">
                         <img src="/assets/real-id-ss.png" class="proof-image" alt="ID Proof">
-                        <p style="margin-top:10px;color:var(--success);font-weight:700;">Official Government ID Verified</p>
+                        <p style="margin-top:12px;color:var(--success);font-weight:700;">Official Government ID Verified</p>
                     </div>
                     
-                    <div class="voice-section" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-light);">
-                        <h4 style="font-weight:600;margin-bottom:8px;font-size:14px;">Voice Authentication</h4>
+                    <div class="voice-section" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-light);">
+                        <h4 style="font-weight:600;margin-bottom:10px;">Voice Authentication</h4>
                         <div class="voice-buttons">
                             <button class="btn btn-primary" onclick="playRealVoice()">
                                 <img src="/assets/microphone-in-hand.gif" width="18"> Real Voice
@@ -1375,7 +1340,7 @@ app.get('/', (req, res) => {
         </div>
 
         ${songs.length > 0 ? `
-        <div class="card card-full" id="music" style="margin-bottom:20px;">
+        <div class="card card-full" id="music" style="margin-bottom:24px;">
             <div class="card-body">
                 <span class="badge badge-verified">
                     <span class="badge-dot"></span> MUSIC
@@ -1422,10 +1387,12 @@ app.get('/', (req, res) => {
 
     </main>
 
+    <!-- Floating Message Bubble - Always Visible -->
     <div class="floating-chat-bubble" onclick="openChat()" title="Community Chat">
         <img src="/assets/message_bubble.gif" alt="Chat">
     </div>
 
+    <!-- Secret Chat Overlay -->
     <div class="chat-overlay" id="chatOverlay">
         <div class="chat-container">
             <div class="chat-header">
@@ -1471,6 +1438,7 @@ app.get('/', (req, res) => {
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
+        // Music Player
         var player = document.getElementById("player");
         var tracks = ${songsJSON};
         var currentTrack = -1;
@@ -1499,27 +1467,17 @@ app.get('/', (req, res) => {
             audio.play();
         }
 
-        function reportAccount() {
-            alert("Report submitted. Thank you for helping keep the community safe.");
-        }
-
-        document.getElementById("reportActionArea").onclick = reportAccount;
-
         function setPlayingState(playing) {
             isPlaying = playing;
             var playGif = document.getElementById("playGif");
             var playBtn = document.getElementById("playBtn");
             if (playGif && playBtn) {
                 playBtn.style.background = playing ? "#166fe5" : "#1877f2";
-                playGif.style.opacity = playing ? "0.35" : "1";
+                playGif.style.opacity = playing ? "0.3" : "1";
             }
             var coverStatic = document.getElementById("coverStatic");
             var coverLive = document.getElementById("coverLive");
             if (coverStatic && coverLive) {
-                if (currentTrack >= 0 && tracks[currentTrack]) {
-                    coverStatic.src = tracks[currentTrack].gif;
-                    coverLive.src = tracks[currentTrack].gif;
-                }
                 coverStatic.style.display = playing ? "none" : "block";
                 coverLive.style.display = playing ? "block" : "none";
             }
@@ -1537,16 +1495,16 @@ app.get('/', (req, res) => {
                     item.classList.add("active");
                     if (isPlaying) {
                         if (staticThumb) staticThumb.style.display = "none";
-                        if (liveThumb) { liveThumb.style.display = "block"; liveThumb.src = tracks[j].gif; }
+                        if (liveThumb) liveThumb.style.display = "block";
                         if (eq) eq.style.display = "flex";
                     } else {
-                        if (staticThumb) { staticThumb.style.display = "block"; staticThumb.src = tracks[j].gif; }
+                        if (staticThumb) staticThumb.style.display = "block";
                         if (liveThumb) liveThumb.style.display = "none";
                         if (eq) eq.style.display = "none";
                     }
                 } else {
                     item.classList.remove("active");
-                    if (staticThumb) { staticThumb.style.display = "block"; staticThumb.src = tracks[j].gif; }
+                    if (staticThumb) staticThumb.style.display = "block";
                     if (liveThumb) liveThumb.style.display = "none";
                     if (eq) eq.style.display = "none";
                 }
@@ -1559,25 +1517,13 @@ app.get('/', (req, res) => {
             currentTrack = i;
             player.src = tracks[i].url;
             document.getElementById("nowPlaying").textContent = tracks[i].title;
-            var coverStatic = document.getElementById("coverStatic");
-            var coverLive = document.getElementById("coverLive");
-            if (coverStatic) coverStatic.src = tracks[i].gif;
-            if (coverLive) coverLive.src = tracks[i].gif;
             player.play().then(function() { setPlayingState(true); }).catch(function() { setPlayingState(false); });
         }
 
         function togglePlay() {
             if (isPlaying) { player.pause(); setPlayingState(false); }
             else {
-                if (!player.src && tracks.length) { 
-                    currentTrack = 0; 
-                    player.src = tracks[0].url; 
-                    document.getElementById("nowPlaying").textContent = tracks[0].title;
-                    var cs = document.getElementById("coverStatic");
-                    var cl = document.getElementById("coverLive");
-                    if (cs) cs.src = tracks[0].gif;
-                    if (cl) cl.src = tracks[0].gif;
-                }
+                if (!player.src && tracks.length) { currentTrack = 0; player.src = tracks[0].url; document.getElementById("nowPlaying").textContent = tracks[0].title; }
                 player.play().then(function() { setPlayingState(true); }).catch(function() {});
             }
         }
@@ -1601,16 +1547,9 @@ app.get('/', (req, res) => {
         player.addEventListener("ended", nextTrack);
 
         function formatTime(s) { if (isNaN(s)) return "0:00"; var m = Math.floor(s / 60), sec = Math.floor(s % 60); return m + ":" + String(sec).padStart(2, "0"); }
-        if (tracks.length > 0) { 
-            document.getElementById("nowPlaying").textContent = tracks[0].title;
-            var cs = document.getElementById("coverStatic");
-            if (cs) cs.src = tracks[0].gif;
-        }
+        if (tracks.length > 0) { document.getElementById("nowPlaying").textContent = tracks[0].title; }
 
-        try {
-            player.play().then(function() { setPlayingState(true); }).catch(function() {});
-        } catch(e) {}
-
+        // Secret Chat System
         var socket = io({ transports: ["websocket", "polling"] });
         var chatUser = null;
         var currentRoom = null;
@@ -1728,6 +1667,7 @@ app.get('/', (req, res) => {
 
     res.send(html);
 });
+
 app.get('/api/msgs/:email', (req, res) => {
     try {
         const msgs = db.prepare("SELECT * FROM messages WHERE (sender = ? AND receiver = 'admin') OR (sender = 'admin' AND receiver = ?) ORDER BY timestamp ASC").all(req.params.email, req.params.email);
