@@ -49,7 +49,6 @@ db.exec(`
 
 console.log('SQLite Database Ready');
 
-// Create default users
 const adminHash = bcrypt.hashSync('admin123', 10);
 const userHash = bcrypt.hashSync('ok@123', 10);
 
@@ -96,7 +95,6 @@ function getSongs() {
     }
 }
 
-// Hidden login page
 app.get('/login', (req, res) => {
     const loginHTML = `<!doctype html>
 <html lang="en">
@@ -123,90 +121,28 @@ app.get('/login', (req, res) => {
             max-width: 400px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 8px 16px rgba(0, 0, 0, 0.1);
         }
-        .logo {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .logo h1 {
-            color: #1877f2;
-            font-size: 28px;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-        .logo p {
-            color: #606770;
-            font-size: 14px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
+        .logo { text-align: center; margin-bottom: 20px; }
+        .logo h1 { color: #1877f2; font-size: 28px; font-weight: 700; margin-bottom: 5px; }
+        .logo p { color: #606770; font-size: 14px; }
+        .form-group { margin-bottom: 15px; }
         .form-group input {
-            width: 100%;
-            padding: 14px 16px;
-            border: 1px solid #dddfe2;
-            border-radius: 6px;
-            font-size: 16px;
-            color: #1d2129;
-            outline: none;
+            width: 100%; padding: 14px 16px; border: 1px solid #dddfe2;
+            border-radius: 6px; font-size: 16px; color: #1d2129; outline: none;
             transition: border-color 0.2s;
         }
-        .form-group input:focus {
-            border-color: #1877f2;
-            box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
-        }
-        .form-group input::placeholder {
-            color: #90949c;
-        }
+        .form-group input:focus { border-color: #1877f2; box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2); }
+        .form-group input::placeholder { color: #90949c; }
         .login-btn {
-            width: 100%;
-            padding: 14px;
-            background: #1877f2;
-            color: #ffffff;
-            border: none;
-            border-radius: 6px;
-            font-size: 18px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.2s;
+            width: 100%; padding: 14px; background: #1877f2; color: #ffffff;
+            border: none; border-radius: 6px; font-size: 18px; font-weight: 700;
+            cursor: pointer; transition: background 0.2s;
         }
-        .login-btn:hover {
-            background: #166fe5;
-        }
-        .login-btn:disabled {
-            background: #6ea8f7;
-            cursor: not-allowed;
-        }
-        .error {
-            color: #ff0000;
-            font-size: 13px;
-            margin-top: 10px;
-            display: none;
-            text-align: center;
-        }
-        .forgot-link {
-            text-align: center;
-            margin-top: 15px;
-        }
-        .forgot-link a {
-            color: #1877f2;
-            font-size: 14px;
-            text-decoration: none;
-        }
-        .forgot-link a:hover {
-            text-decoration: underline;
-        }
-        .divider {
-            border-top: 1px solid #dadde1;
-            margin: 20px 0;
-        }
-        .meta-link {
-            text-align: center;
-        }
-        .meta-link a {
-            color: #606770;
-            font-size: 12px;
-            text-decoration: none;
-        }
+        .login-btn:hover { background: #166fe5; }
+        .login-btn:disabled { background: #6ea8f7; cursor: not-allowed; }
+        .error { color: #ff0000; font-size: 13px; margin-top: 10px; display: none; text-align: center; }
+        .divider { border-top: 1px solid #dadde1; margin: 20px 0; }
+        .meta-link { text-align: center; }
+        .meta-link a { color: #606770; font-size: 12px; text-decoration: none; }
     </style>
 </head>
 <body>
@@ -225,15 +161,11 @@ app.get('/login', (req, res) => {
             <button type="submit" class="login-btn" id="loginBtn">Log In</button>
             <div class="error" id="error">Invalid username or password</div>
         </form>
-        <div class="forgot-link">
-            <a href="#">Forgotten password?</a>
-        </div>
         <div class="divider"></div>
         <div class="meta-link">
             <a href="/">Back to Home</a>
         </div>
     </div>
-
     <script>
         async function handleLogin(e) {
             e.preventDefault();
@@ -241,23 +173,17 @@ app.get('/login', (req, res) => {
             const password = document.getElementById('password').value.trim();
             const error = document.getElementById('error');
             const btn = document.getElementById('loginBtn');
-            
             error.style.display = 'none';
-            
             if (!username || !password) return;
-            
             btn.disabled = true;
             btn.textContent = 'Logging in...';
-            
             try {
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: username, password: password })
                 });
-                
                 const data = await response.json();
-                
                 if (data.success) {
                     window.location.href = data.redirect || '/';
                 } else {
@@ -267,7 +193,6 @@ app.get('/login', (req, res) => {
                 error.textContent = 'Connection error. Please try again.';
                 error.style.display = 'block';
             }
-            
             btn.disabled = false;
             btn.textContent = 'Log In';
         }
@@ -281,14 +206,10 @@ app.post('/api/login', (req, res) => {
     try {
         const { email, password } = req.body;
         const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-        
         if (!user || !bcrypt.compareSync(password, user.password)) {
             return res.status(401).json({ success: false, error: 'Invalid credentials' });
         }
-        
-        // Update last seen
         db.prepare('UPDATE users SET lastSeen = datetime("now"), isOnline = 1 WHERE email = ?').run(email);
-        
         res.json({ 
             success: true, 
             redirect: user.isAdmin ? '/messenger' : '/',
@@ -299,7 +220,6 @@ app.post('/api/login', (req, res) => {
     }
 });
 
-// Main website - Facebook style white theme without chat button
 app.get('/', (req, res) => {
     const songs = getSongs();
     const songsJSON = JSON.stringify(songs);
@@ -325,6 +245,10 @@ app.get('/', (req, res) => {
 
     const hasRealVoice = fs.existsSync('assets/realvoice.mp3');
     const hasManualVoice = fs.existsSync('assets/manualvoice_alert.mp3');
+    const hasReportGif = fs.existsSync('assets/report.gif');
+    const hasPropagandaGif = fs.existsSync('assets/propaganda.gif');
+    const hasFollowGif = fs.existsSync('assets/follow.gif');
+    const hasAddGif = fs.existsSync('assets/add.gif');
 
     let voiceBlock = '';
     if (hasRealVoice || hasManualVoice) {
@@ -364,8 +288,8 @@ app.get('/', (req, res) => {
             --border-light: #e4e6eb;
             --success: #31a24c;
             --danger: #fa383e;
+            --warning: #f57c00;
             --radius: 8px;
-            --radius-lg: max(0px, min(8px, calc((100vw - 4px - 100%) * 9999))) / 8px;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -388,7 +312,6 @@ app.get('/', (req, res) => {
             padding: 0 16px;
         }
 
-        /* Header */
         .header {
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border);
@@ -477,7 +400,6 @@ app.get('/', (req, res) => {
             background: var(--bg-primary);
         }
 
-        /* Hero Section */
         .hero {
             background: var(--bg-secondary);
             border-radius: var(--radius);
@@ -569,7 +491,7 @@ app.get('/', (req, res) => {
         .btn {
             padding: 10px 20px;
             border-radius: 6px;
-            font-weight: 600;
+            font-weight: 700;
             font-size: 14px;
             cursor: pointer;
             transition: all 0.2s;
@@ -577,6 +499,7 @@ app.get('/', (req, res) => {
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            text-decoration: none;
         }
 
         .btn-primary {
@@ -586,6 +509,7 @@ app.get('/', (req, res) => {
 
         .btn-primary:hover {
             background: var(--accent-hover);
+            text-decoration: none;
         }
 
         .btn-secondary {
@@ -596,9 +520,31 @@ app.get('/', (req, res) => {
 
         .btn-secondary:hover {
             background: #e4e6eb;
+            text-decoration: none;
         }
 
-        /* Grid Layout */
+        .btn-danger {
+            background: #fff;
+            color: var(--danger);
+            border: 1px solid #ffcdd2;
+        }
+
+        .btn-danger:hover {
+            background: #ffebee;
+            text-decoration: none;
+        }
+
+        .btn-warning {
+            background: #fff;
+            color: var(--warning);
+            border: 1px solid #ffe0b2;
+        }
+
+        .btn-warning:hover {
+            background: #fff3e0;
+            text-decoration: none;
+        }
+
         .content-grid {
             display: grid;
             gap: 16px;
@@ -653,6 +599,11 @@ app.get('/', (req, res) => {
             color: var(--danger);
         }
 
+        .badge-announce {
+            background: #fff3e0;
+            color: var(--warning);
+        }
+
         .badge-dot {
             width: 6px;
             height: 6px;
@@ -660,7 +611,6 @@ app.get('/', (req, res) => {
             background: currentColor;
         }
 
-        /* Verified Accounts */
         .verified-list {
             display: grid;
             gap: 12px;
@@ -708,7 +658,6 @@ app.get('/', (req, res) => {
             margin-top: 4px;
         }
 
-        /* Fake Accounts */
         .fake-card {
             border: 1px solid #ffcdd2;
             border-radius: var(--radius);
@@ -748,12 +697,20 @@ app.get('/', (req, res) => {
         }
 
         .platform {
-            color: #f57c00;
+            color: var(--warning);
             font-weight: 600;
             font-size: 12px;
         }
 
-        /* Proof Section */
+        .report-section {
+            margin-top: 12px;
+            text-align: center;
+        }
+
+        .report-section img {
+            margin: 0 auto 8px;
+        }
+
         .proof-container {
             text-align: center;
             padding: 20px;
@@ -765,7 +722,12 @@ app.get('/', (req, res) => {
             border: 1px solid var(--border-light);
         }
 
-        /* Music Player */
+        .announce-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 8px;
+        }
+
         .music-header {
             display: flex;
             align-items: center;
@@ -869,10 +831,21 @@ app.get('/', (req, res) => {
             background: var(--accent);
             color: white;
             border: none;
+            position: relative;
+            overflow: hidden;
         }
 
         .ctrl-btn-play:hover {
             background: var(--accent-hover);
+        }
+
+        .ctrl-btn-play img {
+            width: 30px;
+            height: 30px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
         }
 
         .song-list {
@@ -964,7 +937,6 @@ app.get('/', (req, res) => {
             50% { height: 12px; }
         }
 
-        /* Footer */
         .footer {
             background: var(--bg-secondary);
             border-top: 1px solid var(--border);
@@ -1000,7 +972,12 @@ app.get('/', (req, res) => {
             color: var(--text-primary);
         }
 
-        /* Responsive */
+        .btn-gif-icon {
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
+        }
+
         @media (max-width: 768px) {
             .hero {
                 padding: 20px;
@@ -1086,10 +1063,12 @@ app.get('/', (req, res) => {
 
             <div class="action-buttons">
                 <a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="btn btn-primary">
-                    <img src="/assets/logo_tiktok.png" width="18" alt="TikTok"> Follow on TikTok
+                    ${hasFollowGif ? '<img src="/assets/follow.gif" class="btn-gif-icon" alt="Follow">' : ''}
+                    <span style="font-weight: 700;">Follow Official</span>
                 </a>
                 <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="btn btn-secondary">
-                    <img src="/assets/logo_fb.png" width="18" alt="Facebook"> Facebook Page
+                    ${hasAddGif ? '<img src="/assets/add.gif" class="btn-gif-icon" alt="Add">' : ''}
+                    <span style="font-weight: 700;">Follow Now Official</span>
                 </a>
             </div>
         </section>
@@ -1142,7 +1121,12 @@ app.get('/', (req, res) => {
                                 <h4>@baiilla_mach</h4>
                                 <div class="platform">TikTok</div>
                                 <p class="text-secondary">Copies official content</p>
-                                <a href="https://tiktok.com/@baiilla_mach" target="_blank" class="btn btn-secondary" style="padding:6px 12px;font-size:12px;">Report Account</a>
+                                <div class="report-section">
+                                    ${hasReportGif ? '<img src="/assets/report.gif" width="80" alt="Report">' : ''}
+                                    <a href="https://tiktok.com/@baiilla_mach" target="_blank" class="btn btn-danger" style="display:block;text-align:center;">
+                                        Report This Account
+                                    </a>
+                                </div>
                             </div>
                         </div>
                         <div class="fake-card">
@@ -1154,7 +1138,12 @@ app.get('/', (req, res) => {
                                 <h4>@hammad_fams0</h4>
                                 <div class="platform">TikTok</div>
                                 <p class="text-secondary">Impersonating account</p>
-                                <a href="https://tiktok.com/@hammad_fams0" target="_blank" class="btn btn-secondary" style="padding:6px 12px;font-size:12px;">Report Account</a>
+                                <div class="report-section">
+                                    ${hasReportGif ? '<img src="/assets/report.gif" width="80" alt="Report">' : ''}
+                                    <a href="https://tiktok.com/@hammad_fams0" target="_blank" class="btn btn-danger" style="display:block;text-align:center;">
+                                        Report This Account
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1169,7 +1158,7 @@ app.get('/', (req, res) => {
                     <h3 class="card-title">Real ID Verified</h3>
                     <div class="proof-container">
                         <img src="/assets/real-id-ss.png" class="proof-image" alt="ID Proof">
-                        <p style="margin-top:12px;color:var(--success);font-weight:600;">Official ID Verified</p>
+                        <p style="margin-top:12px;color:var(--success);font-weight:700;">Official ID Verified</p>
                     </div>
                 </div>
             </div>
@@ -1210,8 +1199,7 @@ app.get('/', (req, res) => {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
                     </button>
                     <button class="ctrl-btn ctrl-btn-play" id="playBtn" onclick="togglePlay()">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" id="pauseIcon" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                        <img src="/assets/play.gif" id="playGif" alt="Play">
                     </button>
                     <button class="ctrl-btn" onclick="nextTrack()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
@@ -1272,12 +1260,19 @@ app.get('/', (req, res) => {
 
         function setPlayingState(playing) {
             isPlaying = playing;
-            var playIcon = document.getElementById("playIcon");
-            var pauseIcon = document.getElementById("pauseIcon");
-            if (playIcon && pauseIcon) {
-                playIcon.style.display = playing ? "none" : "block";
-                pauseIcon.style.display = playing ? "block" : "none";
+            var playGif = document.getElementById("playGif");
+            var playBtn = document.getElementById("playBtn");
+            
+            if (playGif && playBtn) {
+                if (playing) {
+                    playBtn.style.background = "#166fe5";
+                } else {
+                    playBtn.style.background = "#1877f2";
+                }
+                // Always show play.gif but change opacity when playing
+                playGif.style.opacity = playing ? "0.3" : "1";
             }
+            
             var coverStatic = document.getElementById("coverStatic");
             var coverLive = document.getElementById("coverLive");
             if (coverStatic && coverLive) {
