@@ -154,11 +154,10 @@ app.get('/login', (req, res) => {
             width: 100%; padding: 14px 16px; border: 1px solid #dddfe2;
             border-radius: 6px; font-size: 16px; color: #1d2129; outline: none;
         }
-        .form-group input:focus { border-color: #1877f2; box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2); }
+        .form-group input:focus { border-color: #1877f2; }
         .login-btn {
             width: 100%; padding: 14px; background: #1877f2; color: #ffffff;
-            border: none; border-radius: 6px; font-size: 18px; font-weight: 700;
-            cursor: pointer;
+            border: none; border-radius: 6px; font-size: 18px; font-weight: 700; cursor: pointer;
         }
         .login-btn:hover { background: #166fe5; }
         .login-btn:disabled { background: #6ea8f7; cursor: not-allowed; }
@@ -252,11 +251,9 @@ app.get('/api/chat/rooms', (req, res) => {
 
 app.get('/api/chat/room/:id', (req, res) => {
     try {
-        const room = db.prepare('SELECT * FROM chat_rooms WHERE id = ?').get(req.params.id);
-        const members = db.prepare('SELECT userEmail FROM chat_room_members WHERE roomId = ?').all(req.params.id);
         const messages = db.prepare('SELECT * FROM chat_room_messages WHERE roomId = ? ORDER BY timestamp ASC LIMIT 100').all(req.params.id);
-        res.json({ room, members, messages });
-    } catch (err) { res.json({ room: null, members: [], messages: [] }); }
+        res.json({ messages });
+    } catch (err) { res.json({ messages: [] }); }
 });
 
 app.post('/api/chat/room', (req, res) => {
@@ -289,7 +286,7 @@ app.get('/', (req, res) => {
         <div class="song-item" onclick="playTrack(${i})" id="song-${i}">
             <span class="song-num">${String(i + 1).padStart(2, '0')}</span>
             <div class="song-thumb-box">
-                <img src="/assets/play.gif" class="song-thumb" id="st-${i}">
+                <img src="/assets/play.gif" class="song-thumb-static" id="st-${i}">
                 <img src="/assets/play.gif" class="song-thumb-live" id="sl-${i}" style="display:none">
             </div>
             <div class="song-meta">
@@ -348,7 +345,6 @@ app.get('/', (req, res) => {
             position: sticky;
             top: 0;
             z-index: 100;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         }
 
         .header-content {
@@ -408,24 +404,35 @@ app.get('/', (req, res) => {
             cursor: pointer;
             color: var(--text-primary);
             transition: background 0.2s;
-            position: relative;
         }
 
         .icon-btn:hover { background: var(--bg-primary); }
 
-        .chat-notification {
-            position: absolute;
-            top: -2px; right: -2px;
-            background: var(--danger);
-            color: white;
-            font-size: 10px;
-            width: 18px; height: 18px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            display: none;
+        /* Floating Message Bubble - Always Visible */
+        .floating-chat-bubble {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 65px;
+            height: 65px;
+            z-index: 9999;
+            cursor: pointer;
+            transition: transform 0.3s;
+            animation: floatBubble 3s ease-in-out infinite;
+        }
+
+        .floating-chat-bubble:hover {
+            transform: scale(1.1);
+        }
+
+        .floating-chat-bubble img {
+            width: 100%;
+            height: 100%;
+        }
+
+        @keyframes floatBubble {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
         }
 
         .hero {
@@ -481,41 +488,10 @@ app.get('/', (req, res) => {
         .stat-number { font-size: 20px; font-weight: 700; }
         .stat-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; }
 
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-top: 16px;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-weight: 700;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            text-decoration: none;
-        }
-
-        .btn-primary { background: var(--accent); color: white; }
-        .btn-primary:hover { background: var(--accent-hover); text-decoration: none; }
-        .btn-secondary { background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border); }
-        .btn-secondary:hover { background: #e4e6eb; text-decoration: none; }
-        .btn-danger { background: #fff; color: var(--danger); border: 1px solid #ffcdd2; }
-        .btn-danger:hover { background: #ffebee; text-decoration: none; }
-
-        .btn-gif-icon { width: 20px; height: 20px; object-fit: contain; }
-
         .content-grid {
             display: grid;
             gap: 16px;
-            grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
             margin: 16px 0 32px;
         }
 
@@ -546,30 +522,125 @@ app.get('/', (req, res) => {
         .badge-warning { background: #ffebee; color: var(--danger); }
         .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
-        .verified-list { display: grid; gap: 12px; margin-top: 16px; }
+        /* Verified Accounts Section */
+        .verified-list { display: grid; gap: 16px; margin-top: 16px; }
 
-        .verified-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px;
+        .verified-account-card {
             background: var(--bg-primary);
             border-radius: var(--radius);
+            padding: 16px;
+            text-align: center;
+            border: 1px solid var(--border-light);
+            position: relative;
         }
 
-        .verified-avatar {
-            width: 48px; height: 48px;
+        .verified-account-header {
+            position: relative;
+            margin-bottom: 12px;
+        }
+
+        .verified-account-header .account-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            z-index: 2;
+        }
+
+        .verified-account-pic {
+            width: 80px;
+            height: 80px;
             border-radius: 50%;
             object-fit: cover;
-            border: 2px solid var(--accent);
+            border: 3px solid var(--accent);
+            margin: 0 auto 8px;
         }
 
-        .verified-info h4 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
-        .verified-info h4 img { width: 16px; height: 16px; }
-        .verified-handle { font-size: 12px; color: var(--text-secondary); }
-        .verified-detail { font-size: 12px; color: var(--text-primary); margin-top: 4px; }
+        .verified-account-name {
+            font-weight: 700;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
 
-        /* Fake Account Cards */
+        .verified-account-name .tick-mark {
+            width: 18px;
+            height: 18px;
+            animation: tickBounce 1s ease-in-out infinite;
+        }
+
+        @keyframes tickBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .verified-account-platform {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin: 8px 0;
+        }
+
+        .verified-account-platform img {
+            width: 24px;
+            height: 24px;
+        }
+
+        .verified-account-stats {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .btn-follow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-follow-tiktok {
+            background: #000000;
+            color: white;
+        }
+
+        .btn-follow-tiktok:hover {
+            background: #333;
+            text-decoration: none;
+        }
+
+        .btn-follow-fb {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-follow-fb:hover {
+            background: var(--accent-hover);
+            text-decoration: none;
+        }
+
+        .btn-follow img {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Fake Accounts */
         .fake-card {
             border: 1px solid #ffcdd2;
             border-radius: var(--radius);
@@ -618,23 +689,38 @@ app.get('/', (req, res) => {
             color: var(--warning);
             font-weight: 600;
             font-size: 12px;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
         }
 
-        .fake-body .text-secondary {
-            margin-bottom: 12px;
+        .fake-alert-section {
+            margin-top: 8px;
         }
 
-        .report-section {
+        .fake-alert-section .btn-fake-alert {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: #fff;
+            color: var(--danger);
+            border: 1px solid #ffcdd2;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
+
+        .report-btn-area {
             text-align: center;
-            padding-top: 8px;
-            border-top: 1px solid #ffcdd2;
+            cursor: pointer;
         }
 
-        .report-section img {
+        .report-btn-area img {
             width: 80px;
             margin: 0 auto 8px;
             animation: pulse 2s ease-in-out infinite;
+            cursor: pointer;
         }
 
         @keyframes pulse {
@@ -642,20 +728,45 @@ app.get('/', (req, res) => {
             50% { transform: scale(1.05); }
         }
 
-        /* Real Voice Section */
-        .voice-section {
-            margin-top: 12px;
+        .report-btn-area .report-text {
+            display: block;
+            padding: 8px 16px;
+            background: var(--danger);
+            color: white;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 13px;
+            text-decoration: none;
         }
 
-        .voice-buttons {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        /* Proof Section */
+        /* Real ID Section */
         .proof-container { text-align: center; padding: 20px; }
         .proof-image { width: 100%; border-radius: 4px; border: 1px solid var(--border-light); }
+
+        /* Voice Section */
+        .voice-section { margin-top: 12px; }
+        .voice-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { background: var(--accent-hover); text-decoration: none; }
+        .btn-secondary { background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: #e4e6eb; text-decoration: none; }
+        .btn-danger { background: #fff; color: var(--danger); border: 1px solid #ffcdd2; }
+        .btn-danger:hover { background: #ffebee; text-decoration: none; }
 
         /* Music Player */
         .music-header {
@@ -817,12 +928,12 @@ app.get('/', (req, res) => {
             50% { height: 12px; }
         }
 
-        /* Chat Panel */
+        /* Chat Overlay */
         .chat-overlay {
             position: fixed;
             inset: 0;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
+            z-index: 10000;
             display: none;
             align-items: center;
             justify-content: center;
@@ -834,16 +945,16 @@ app.get('/', (req, res) => {
             background: var(--bg-secondary);
             border-radius: var(--radius);
             width: 95%;
-            max-width: 480px;
-            height: 85vh;
-            max-height: 650px;
+            max-width: 450px;
+            height: 80vh;
+            max-height: 600px;
             display: flex;
             flex-direction: column;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
         }
 
         .chat-header {
-            padding: 16px;
+            padding: 14px 16px;
             border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
@@ -862,10 +973,9 @@ app.get('/', (req, res) => {
         .chat-header-left img {
             width: 28px;
             height: 28px;
-            border-radius: 50%;
         }
 
-        .chat-header-left h3 { font-size: 16px; font-weight: 600; }
+        .chat-header-left h3 { font-size: 15px; font-weight: 600; }
 
         .chat-close {
             background: none;
@@ -873,13 +983,12 @@ app.get('/', (req, res) => {
             color: white;
             font-size: 22px;
             cursor: pointer;
-            width: 34px;
-            height: 34px;
+            width: 32px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
             border-radius: 50%;
-            transition: background 0.2s;
         }
 
         .chat-close:hover { background: rgba(255, 255, 255, 0.2); }
@@ -887,26 +996,23 @@ app.get('/', (req, res) => {
         .chat-messages {
             flex: 1;
             overflow-y: auto;
-            padding: 16px;
+            padding: 14px;
             background: var(--bg-primary);
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
         }
 
-        .chat-login-area {
-            text-align: center;
-            padding: 30px 20px;
-        }
-
-        .chat-login-area h4 { margin-bottom: 12px; font-size: 16px; }
+        .chat-login-area { text-align: center; padding: 30px 20px; }
+        .chat-login-area h4 { margin-bottom: 12px; font-size: 15px; }
         .chat-login-area input {
             width: 100%;
             padding: 10px;
             margin-bottom: 8px;
             border: 1px solid var(--border);
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 13px;
+            outline: none;
         }
 
         .chat-message-row {
@@ -918,7 +1024,7 @@ app.get('/', (req, res) => {
         .chat-message-row.own { flex-direction: row-reverse; }
 
         .chat-msg-avatar {
-            width: 30px; height: 30px;
+            width: 28px; height: 28px;
             border-radius: 50%;
             background: var(--accent);
             display: flex;
@@ -926,17 +1032,14 @@ app.get('/', (req, res) => {
             justify-content: center;
             color: white;
             font-weight: 600;
-            font-size: 12px;
+            font-size: 11px;
             flex-shrink: 0;
         }
 
-        .chat-bubble-wrap {
-            max-width: 75%;
-            position: relative;
-        }
+        .chat-bubble-wrap { max-width: 75%; position: relative; }
 
         .chat-bubble {
-            padding: 10px 14px;
+            padding: 9px 12px;
             border-radius: 18px;
             font-size: 13px;
             word-wrap: break-word;
@@ -956,15 +1059,15 @@ app.get('/', (req, res) => {
         }
 
         .chat-bubble img.msg-gif {
-            width: 35px;
-            height: 35px;
+            width: 30px;
+            height: 30px;
             position: absolute;
-            bottom: -8px;
+            bottom: -6px;
             pointer-events: none;
         }
 
-        .chat-message-row:not(.own) .msg-gif { left: -14px; }
-        .chat-message-row.own .msg-gif { right: -14px; }
+        .chat-message-row:not(.own) .msg-gif { left: -12px; }
+        .chat-message-row.own .msg-gif { right: -12px; }
 
         .chat-msg-time {
             font-size: 10px;
@@ -974,21 +1077,17 @@ app.get('/', (req, res) => {
         }
 
         .chat-input-area {
-            padding: 12px 16px;
+            padding: 10px 14px;
             border-top: 1px solid var(--border);
             background: var(--bg-secondary);
             border-radius: 0 0 var(--radius) var(--radius);
         }
 
-        .chat-input-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
+        .chat-input-row { display: flex; gap: 8px; align-items: center; }
 
         .chat-input-row input {
             flex: 1;
-            padding: 10px 14px;
+            padding: 9px 12px;
             border: 1px solid var(--border);
             border-radius: 20px;
             font-size: 13px;
@@ -1000,20 +1099,17 @@ app.get('/', (req, res) => {
         .chat-input-row input:focus { border-color: var(--accent); }
 
         .chat-input-row button {
-            width: 38px; height: 38px;
+            width: 36px; height: 36px;
             border-radius: 50%;
             background: var(--accent);
             color: white;
             border: none;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-shrink: 0;
         }
-
-        .chat-input-row button:hover { background: var(--accent-hover); }
 
         /* Footer */
         .footer {
@@ -1043,10 +1139,6 @@ app.get('/', (req, res) => {
             .content-grid { grid-template-columns: 1fr; }
             .nav-links { display: none; }
         }
-
-        @media (prefers-reduced-motion: reduce) {
-            * { animation: none !important; transition: none !important; }
-        }
     </style>
 </head>
 <body>
@@ -1061,18 +1153,12 @@ app.get('/', (req, res) => {
             <nav class="nav-links">
                 <a href="#home" class="nav-link active">Home</a>
                 <a href="#verified" class="nav-link">Verified</a>
+                <a href="#fake" class="nav-link">Fake Alert</a>
                 <a href="#music" class="nav-link">Music</a>
-                <a href="#chat" class="nav-link" onclick="openChat()">Chat</a>
             </nav>
 
             <div class="header-actions">
-                <button class="icon-btn" onclick="openChat()" title="Community Chat">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
-                    </svg>
-                    <span class="chat-notification" id="chatNotification">0</span>
-                </button>
-                <a href="/messenger" class="icon-btn" title="Admin Panel">
+                <a href="/messenger" class="icon-btn" title="Admin">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                     </svg>
@@ -1107,58 +1193,77 @@ app.get('/', (req, res) => {
                     <div class="stat-label">Likes</div>
                 </div>
             </div>
-
-            <div class="action-buttons">
-                <a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="btn btn-primary">
-                    <img src="/assets/follow.gif" class="btn-gif-icon" alt="Follow">
-                    <span style="font-weight: 700;">Follow Official</span>
-                </a>
-                <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="btn btn-secondary">
-                    <img src="/assets/add.gif" class="btn-gif-icon" alt="Add">
-                    <span style="font-weight: 700;">Follow Now Official</span>
-                </a>
-            </div>
         </section>
 
         <div class="content-grid" id="verified">
-            <!-- Verified Accounts Card -->
+            <!-- Verified TikTok Account -->
             <div class="card">
                 <div class="card-body">
                     <span class="badge badge-verified">
-                        <span class="badge-dot"></span> OFFICIAL
+                        <span class="badge-dot"></span> OFFICIAL TIKTOK
                     </span>
-                    <h3 class="card-title">Verified Accounts</h3>
-                    <p class="text-secondary">The only authentic accounts</p>
+                    <h3 class="card-title">Verified Account</h3>
                     
-                    <div class="verified-list">
-                        <div class="verified-item">
-                            <img src="/assets/celebrity_pfp.jpeg" class="verified-avatar" alt="TikTok Profile">
-                            <div class="verified-info">
-                                <h4>TikTok <img src="/assets/bluetick_tiktok.png" alt="Verified"></h4>
-                                <div class="verified-handle">@baiillamaach_official</div>
-                                <div class="verified-detail">Active - 7K Followers - 190K Likes</div>
-                            </div>
+                    <div class="verified-account-card">
+                        <div class="verified-account-header">
+                            <img src="/assets/celebrity_pfp.jpeg" class="verified-account-pic" alt="TikTok Profile">
+                            <div class="account-label">Real Account</div>
                         </div>
-                        <div class="verified-item">
-                            <img src="/assets/fb_profile.jpg" class="verified-avatar" alt="Facebook Profile">
-                            <div class="verified-info">
-                                <h4>Facebook <img src="/assets/blue_tick_fb.png" alt="Verified"></h4>
-                                <div class="verified-handle">@BaiillaMaachOfficial</div>
-                                <div class="verified-detail">Active - Official Page</div>
-                            </div>
+                        <div class="verified-account-name">
+                            baiillamaach_official
+                            <img src="/assets/bluetick_tiktok.png" class="tick-mark" alt="Verified">
                         </div>
+                        <div class="verified-account-platform">
+                            <img src="/assets/logo_tiktok.png" alt="TikTok">
+                            <span style="font-weight:600;font-size:13px;">TikTok</span>
+                        </div>
+                        <div class="verified-account-stats">7K Followers - 190K Likes</div>
+                        <a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="btn-follow btn-follow-tiktok">
+                            <img src="/assets/follow.gif" alt="Follow">
+                            Follow Official TikTok
+                        </a>
                     </div>
                 </div>
             </div>
 
-            <!-- Fake Accounts Card -->
+            <!-- Verified Facebook Account -->
             <div class="card">
+                <div class="card-body">
+                    <span class="badge badge-verified">
+                        <span class="badge-dot"></span> OFFICIAL FACEBOOK
+                    </span>
+                    <h3 class="card-title">Verified Account</h3>
+                    
+                    <div class="verified-account-card">
+                        <div class="verified-account-header">
+                            <img src="/assets/fb_profile.jpg" class="verified-account-pic" alt="Facebook Profile">
+                            <div class="account-label">Real Account</div>
+                        </div>
+                        <div class="verified-account-name">
+                            BaiillaMaachOfficial
+                            <img src="/assets/blue_tick_fb.png" class="tick-mark" alt="Verified">
+                        </div>
+                        <div class="verified-account-platform">
+                            <img src="/assets/logo_fb.png" alt="Facebook">
+                            <span style="font-weight:600;font-size:13px;">Facebook</span>
+                        </div>
+                        <div class="verified-account-stats">Official Page - Active</div>
+                        <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="btn-follow btn-follow-fb">
+                            <img src="/assets/add.gif" alt="Follow">
+                            Follow on Facebook
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fake Accounts Section -->
+            <div class="card" id="fake">
                 <div class="card-body">
                     <span class="badge badge-warning">
                         <span class="badge-dot"></span> WARNING
                     </span>
-                    <h3 class="card-title">Fake Accounts</h3>
-                    <p class="text-secondary">Report these impersonators</p>
+                    <h3 class="card-title">Fake Accounts Alert</h3>
+                    <p class="text-secondary">Report these impersonators immediately</p>
                     
                     <div class="verified-list">
                         <!-- Fake Account 1 -->
@@ -1169,12 +1274,16 @@ app.get('/', (req, res) => {
                             </div>
                             <div class="fake-body">
                                 <h4>@baiilla_mach</h4>
-                                <div class="platform">TikTok - Fake Account</div>
-                                <p class="text-secondary">Copies official content and impersonates</p>
-                                <div class="report-section">
-                                    <img src="/assets/report.gif" alt="Report">
-                                    <a href="https://tiktok.com/@baiilla_mach" target="_blank" class="btn btn-danger" style="display:block;text-align:center;margin-top:8px;">
-                                        Report This Fake Account
+                                <div class="platform">TikTok - Impersonator</div>
+                                <p class="text-secondary">Copies official content and steals identity</p>
+                                
+                                <div class="fake-alert-section">
+                                    <button class="btn-fake-alert" onclick="playFakeAlert()">
+                                        <img src="/assets/report_button.png" width="16"> Fake Voice Alert
+                                    </button>
+                                    <a href="https://tiktok.com/@baiilla_mach" target="_blank" class="report-btn-area" style="display:block;text-decoration:none;">
+                                        <img src="/assets/report.gif" alt="Report">
+                                        <span class="report-text">Report This Account</span>
                                     </a>
                                 </div>
                             </div>
@@ -1188,12 +1297,16 @@ app.get('/', (req, res) => {
                             </div>
                             <div class="fake-body">
                                 <h4>@hammad_fams0</h4>
-                                <div class="platform">TikTok - Fake Account</div>
-                                <p class="text-secondary">Impersonating account with false identity</p>
-                                <div class="report-section">
-                                    <img src="/assets/report.gif" alt="Report">
-                                    <a href="https://tiktok.com/@hammad_fams0" target="_blank" class="btn btn-danger" style="display:block;text-align:center;margin-top:8px;">
-                                        Report This Fake Account
+                                <div class="platform">TikTok - Impersonator</div>
+                                <p class="text-secondary">Fake identity using our name</p>
+                                
+                                <div class="fake-alert-section">
+                                    <button class="btn-fake-alert" onclick="playFakeAlert()">
+                                        <img src="/assets/report_button.png" width="16"> Fake Voice Alert
+                                    </button>
+                                    <a href="https://tiktok.com/@hammad_fams0" target="_blank" class="report-btn-area" style="display:block;text-decoration:none;">
+                                        <img src="/assets/report.gif" alt="Report">
+                                        <span class="report-text">Report This Account</span>
                                     </a>
                                 </div>
                             </div>
@@ -1202,7 +1315,7 @@ app.get('/', (req, res) => {
                 </div>
             </div>
 
-            <!-- Real ID Verified Card -->
+            <!-- Real ID & Voice Verification -->
             <div class="card">
                 <div class="card-body">
                     <span class="badge badge-verified">
@@ -1213,24 +1326,12 @@ app.get('/', (req, res) => {
                         <img src="/assets/real-id-ss.png" class="proof-image" alt="ID Proof">
                         <p style="margin-top:12px;color:var(--success);font-weight:700;">Official Government ID Verified</p>
                     </div>
-                </div>
-            </div>
-
-            <!-- Voice Verification Card -->
-            <div class="card">
-                <div class="card-body">
-                    <span class="badge badge-verified">
-                        <span class="badge-dot"></span> VOICE VERIFICATION
-                    </span>
-                    <h3 class="card-title">Voice Authentication</h3>
-                    <p class="text-secondary">Listen to authentic voice samples</p>
-                    <div class="voice-section">
+                    
+                    <div class="voice-section" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-light);">
+                        <h4 style="font-weight:600;margin-bottom:10px;">Voice Authentication</h4>
                         <div class="voice-buttons">
                             <button class="btn btn-primary" onclick="playRealVoice()">
                                 <img src="/assets/microphone-in-hand.gif" width="18"> Real Voice
-                            </button>
-                            <button class="btn btn-danger" onclick="playFakeAlert()">
-                                <img src="/assets/report_button.png" width="16"> Fake Alert
                             </button>
                         </div>
                     </div>
@@ -1286,7 +1387,12 @@ app.get('/', (req, res) => {
 
     </main>
 
-    <!-- Chat Overlay -->
+    <!-- Floating Message Bubble - Always Visible -->
+    <div class="floating-chat-bubble" onclick="openChat()" title="Community Chat">
+        <img src="/assets/message_bubble.gif" alt="Chat">
+    </div>
+
+    <!-- Secret Chat Overlay -->
     <div class="chat-overlay" id="chatOverlay">
         <div class="chat-container">
             <div class="chat-header">
@@ -1308,7 +1414,7 @@ app.get('/', (req, res) => {
                 <div class="chat-input-row">
                     <input type="text" id="chatMessageInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendChatMessage()">
                     <button onclick="sendChatMessage()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                     </button>
                 </div>
             </div>
@@ -1443,7 +1549,7 @@ app.get('/', (req, res) => {
         function formatTime(s) { if (isNaN(s)) return "0:00"; var m = Math.floor(s / 60), sec = Math.floor(s % 60); return m + ":" + String(sec).padStart(2, "0"); }
         if (tracks.length > 0) { document.getElementById("nowPlaying").textContent = tracks[0].title; }
 
-        // Chat System
+        // Secret Chat System
         var socket = io({ transports: ["websocket", "polling"] });
         var chatUser = null;
         var currentRoom = null;
@@ -1502,9 +1608,6 @@ app.get('/', (req, res) => {
                 var r = await fetch("/api/chat/room/" + roomId);
                 var data = await r.json();
                 var container = document.getElementById("chatMessages");
-                if (document.getElementById("chatLoginArea")) {
-                    document.getElementById("chatLoginArea").style.display = chatUser ? "none" : "block";
-                }
                 var existing = container.querySelectorAll(".chat-message-row");
                 existing.forEach(function(el) { el.remove(); });
                 if (data.messages && data.messages.length > 0) {
