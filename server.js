@@ -1,898 +1,609 @@
 require('dotenv').config();
-process.on('uncaughtException',(e)=>{console.error('Uncaught Exception:',e.message)});
-process.on('unhandledRejection',(e)=>{console.error('Unhandled Rejection:',e.message)});
+process.on('uncaughtException', (e) => { console.error('Uncaught:', e.message); });
+process.on('unhandledRejection', (e) => { console.error('Rejection:', e); });
 
-const express=require('express');
-const http=require('http');
-const socketIO=require('socket.io');
-const mongoose=require('mongoose');
-const bcrypt=require('bcryptjs');
-const path=require('path');
-const fs=require('fs');
-const multer=require('multer');
-const crypto=require('crypto');
+const express = require('express');
+const http = require('http');
+const socketIO = require('socket.io');
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const path = require('path');
+const fs = require('fs');
 
-const app=express();
-const server=http.createServer(app);
-const io=socketIO(server,{
-  maxHttpBufferSize:1e7,
-  pingTimeout:60000,
-  pingInterval:25000,
-  upgradeTimeout:30000,
-  allowUpgrades:true,
-  transports:['websocket','polling'],
-  cookie:false
+const app = express();
+const server = http.createServer(app);
+const io = socketIO(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-const PORT=process.env.PORT||3000;
-const MONGO_URI=process.env.MONGO_URI||'mongodb://localhost:27017/verification_hub';
-const ADMIN_EMAIL=process.env.ADMIN_EMAIL||'admin';
-const ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||'admin123';
-const SESSION_SECRET=process.env.SESSION_SECRET||crypto.randomBytes(32).toString('hex');
+const PORT = process.env.PORT || 4000;
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://Milowitz_ok_fine1100:IJ5oodf0RHxM9H4S@cluster0.ns0lcvd.mongodb.net/verification_hub?retryWrites=true&w=majority';
 
-app.use(express.json({limit:'1mb'}));
-app.use(express.urlencoded({extended:true,limit:'1mb'}));
-app.use('/assets',express.static('assets'));
-app.use('/uploads',express.static('uploads'));
-app.use('/assets/covermusic',express.static('assets/covermusic'));
-app.use('/assets/gallery',express.static('assets/gallery'));
+app.use(express.json());
+app.use('/assets', express.static('assets'));
+app.use('/uploads', express.static('uploads'));
 
-// Security headers
-app.use((req,res,next)=>{
-  res.setHeader('X-Content-Type-Options','nosniff');
-  res.setHeader('X-Frame-Options','DENY');
-  res.setHeader('X-XSS-Protection','1; mode=block');
-  res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
-  next();
+['uploads', 'assets/covermusic'].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// Rate limiting
-const rateLimit=new Map();
-function rateLimiter(limit=100,windowMs=60000){
-  return (req,res,next)=>{
-    const key=req.ip;
-    const now=Date.now();
-    if(!rateLimit.has(key))rateLimit.set(key,[]);
-    const timestamps=rateLimit.get(key).filter(t=>now-t<windowMs);
-    if(timestamps.length>=limit)return res.status(429).json({error:'Too many requests'});
-    timestamps.push(now);
-    rateLimit.set(key,timestamps);
-    next();
-  };
-}
-
-['uploads','assets/covermusic','assets/gallery'].forEach(d=>{if(!fs.existsSync(d))fs.mkdirSync(d,{recursive:true})});
-
-// MongoDB Schemas
-const UserSchema=new mongoose.Schema({
-  name:{type:String,required:true,trim:true,maxlength:50},
-  email:{type:String,required:true,unique:true,trim:true,lowercase:true},
-  password:{type:String,required:true},
-  avatar:{type:String,default:''},
-  isAdmin:{type:Boolean,default:false},
-  isOnline:{type:Boolean,default:false},
-  lastSeen:{type:Date,default:Date.now},
-  lastActive:{type:Date,default:Date.now},
-  socketIds:{type:[String],default:[]},
-  unreadCount:{type:Number,default:0},
-  createdAt:{type:Date,default:Date.now},
-  updatedAt:{type:Date,default:Date.now}
+// SCHEMA - Simple without unique constraint on email
+const userSchema = new mongoose.Schema({
+  name: String,
+  email: String,
+  password: String,
+  isAdmin: { type: Boolean, default: false },
+  lastSeen: Date,
+  isOnline: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
 });
 
-const ConversationSchema=new mongoose.Schema({
-  participants:{type:[String],required:true,index:true},
-  lastMessage:{type:mongoose.Schema.Types.ObjectId,ref:'Message',default:null},
-  lastMessageAt:{type:Date,default:Date.now},
-  unreadCounts:{type:Map,of:Number,default:{}},
-  createdAt:{type:Date,default:Date.now},
-  updatedAt:{type:Date,default:Date.now}
+const messageSchema = new mongoose.Schema({
+  sender: String,
+  receiver: String,
+  message: String,
+  type: { type: String, default: 'text' },
+  fileUrl: String,
+  seen: { type: Boolean, default: false },
+  timestamp: { type: Date, default: Date.now }
 });
-ConversationSchema.index({participants:1,updatedAt:-1});
-ConversationSchema.index({lastMessageAt:-1});
 
-const MessageSchema=new mongoose.Schema({
-  messageId:{type:String,unique:true,required:true},
-  conversationId:{type:String,required:true,index:true},
-  sender:{type:String,required:true,index:true},
-  receiver:{type:String,required:true,index:true},
-  message:{type:String,default:''},
-  type:{type:String,default:'text',enum:['text','image','file','system']},
-  fileUrl:{type:String,default:''},
-  fileName:{type:String,default:''},
-  fileSize:{type:Number,default:0},
-  mimeType:{type:String,default:''},
-  replyTo:{type:mongoose.Schema.Types.ObjectId,ref:'Message',default:null},
-  reactions:{type:Map,of:String,default:{}},
-  deliveredAt:{type:Date,default:null},
-  seenAt:{type:Date,default:null},
-  deletedAt:{type:Date,default:null},
-  createdAt:{type:Date,default:Date.now}
-});
-MessageSchema.index({conversationId:1,createdAt:-1});
-MessageSchema.index({sender:1,receiver:1,createdAt:-1});
-MessageSchema.index({messageId:1});
+const User = mongoose.model('User', userSchema);
+const Message = mongoose.model('Message', messageSchema);
 
-const User=mongoose.model('User',UserSchema);
-const Conversation=mongoose.model('Conversation',ConversationSchema);
-const Message=mongoose.model('Message',MessageSchema);
-
-// Connect to MongoDB with retry
-async function connectDB(){
-  try{
-    await mongoose.connect(MONGO_URI,{useNewUrlParser:true,useUnifiedTopology:true});
-    console.log('MongoDB connected');
+// Connect to MongoDB
+mongoose.connect(MONGO_URI)
+  .then(async () => {
+    console.log('✅ MongoDB Connected');
     
     // Create admin if not exists
-    const admin=await User.findOne({email:ADMIN_EMAIL});
-    if(!admin){
-      await User.create({
-        name:'Baiilla Maach',
-        email:ADMIN_EMAIL,
-        password:await bcrypt.hash(ADMIN_PASSWORD,12),
-        isAdmin:true,
-        avatar:'/assets/celebrity_pfp.jpeg'
-      });
-      console.log('Admin created');
+    const adminExists = await User.findOne({ email: 'admin', isAdmin: true });
+    if (adminExists) {
+      const hash = await bcrypt.hash('admin123', 10);
+      await User.updateOne({ email: 'admin' }, { $set: { password: hash, name: 'Admin', isAdmin: true } });
+      console.log('✅ Admin updated');
+    } else {
+      const hash = await bcrypt.hash('admin123', 10);
+      await User.create({ name: 'Admin', email: 'admin', password: hash, isAdmin: true });
+      console.log('✅ Admin created');
     }
     
-    // Create indexes
-    await User.createIndexes();
-    await Conversation.createIndexes();
-    await Message.createIndexes();
-    
-  }catch(e){
-    console.error('MongoDB connection error:',e.message);
-    setTimeout(connectDB,5000);
-  }
-}
-connectDB();
+    // Show stats
+    const totalUsers = await User.countDocuments({ isAdmin: false });
+    const totalMsgs = await Message.countDocuments({});
+    console.log('📊 Total users:', totalUsers);
+    console.log('📊 Total messages:', totalMsgs);
+    console.log('👤 Admin login: admin / admin123');
+  })
+  .catch(e => console.error('❌ MongoDB Error:', e.message));
 
-// File upload configuration
-const storage=multer.diskStorage({
-  destination:(req,file,cb)=>cb(null,'uploads/'),
-  filename:(req,file,cb)=>{
-    const ext=path.extname(file.originalname).toLowerCase();
-    const name=crypto.randomBytes(16).toString('hex')+ext;
-    cb(null,name);
-  }
-});
-
-const fileFilter=(req,file,cb)=>{
-  const allowedTypes=['image/jpeg','image/jpg','image/png','image/webp','image/gif','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-  if(allowedTypes.includes(file.mimetype))cb(null,true);
-  else cb(new Error('Invalid file type'),false);
+const ASSETS = {
+  profile: "/assets/celebrity_pfp.jpeg",
+  fbProfile: "/assets/fb_profile.jpg",
+  blueTikTok: "/assets/bluetick_tiktok.png",
+  blueFB: "/assets/blue_tick_fb.png",
+  logoFB: "/assets/logo_fb.png",
+  logoTikTok: "/assets/logo_tiktok.png",
+  messageBubble: "/assets/message_bubble.gif",
+  microphone: "/assets/microphone-in-hand.gif",
+  reportBtn: "/assets/report_button.png",
+  realId: "/assets/real-id-ss.png",
+  fakeDetect: "/assets/Fakedetect_updown.png",
+  baillamachFake: "/assets/baillamach_fake.png",
+  hammadFake: "/assets/hammadfams.png",
+  followGif: "/assets/follow.gif",
+  propagandaGif: "/assets/propaganda.gif",
+  addGif: "/assets/add.gif",
+  reportGif: "/assets/report.gif",
+  playGif: "/assets/play.gif"
 };
 
-const upload=multer({
-  storage,
-  fileFilter,
-  limits:{fileSize:10*1024*1024}
-});
+const WELCOME_VOICE = fs.existsSync('assets/realvoice.mp3');
+const MANUAL_VOICE = fs.existsSync('assets/manualvoice_alert.mp3');
 
-// Authentication middleware
-async function authenticateUser(req,res,next){
-  const email=req.headers['x-user-email'];
-  if(!email)return res.status(401).json({error:'Authentication required'});
-  
-  const user=await User.findOne({email});
-  if(!user)return res.status(401).json({error:'User not found'});
-  
-  req.user=user;
-  next();
+function getSongs() {
+  try {
+    const dir = 'assets/covermusic';
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir)
+      .filter(f => f.endsWith('.mp3'))
+      .map((f, i) => ({
+        id: i,
+        title: f.replace('.mp3', '').replace(/[-_]/g, ' '),
+        url: '/assets/covermusic/' + encodeURIComponent(f)
+      }));
+  } catch (e) { return []; }
 }
 
-async function authenticateAdmin(req,res,next){
-  const email=req.headers['x-admin-email'];
-  if(!email)return res.status(401).json({error:'Admin authentication required'});
+// ==================== MAIN PAGE ====================
+app.get('/', (req, res) => {
+  const songs = getSongs();
+  const songsJSON = JSON.stringify(songs);
   
-  const user=await User.findOne({email,isAdmin:true});
-  if(!user)return res.status(401).json({error:'Admin not found'});
-  
-  req.user=user;
-  next();
-}
+  let songsListHTML = '';
+  songs.forEach((s, i) => {
+    songsListHTML += '<div class="song-item" onclick="playMusic(' + i + ')" id="song-' + i + '">' +
+      '<span class="song-num">' + String(i+1).padStart(2,'0') + '</span>' +
+      '<img src="' + ASSETS.playGif + '" class="song-thumb">' +
+      '<div class="song-info"><div class="song-title">' + s.title + '</div><div class="song-artist">Baiilla Maach</div></div>' +
+      '</div>';
+  });
 
-// Helper functions
-function getConversationId(user1,user2){
-  return [user1,user2].sort().join('_');
-}
-
-async function getOrCreateConversation(user1,user2){
-  const convId=getConversationId(user1,user2);
-  let conv=await Conversation.findOne({participants:convId});
-  
-  if(!conv){
-    conv=await Conversation.create({
-      participants:convId,
-      unreadCounts:{[user1]:0,[user2]:0}
-    });
-  }
-  
-  return conv;
-}
-
-// API Routes
-app.get('/',(req,res)=>{
-  // Serve existing verification hub with enhanced chat
-  const songs=getSongs();
-  const gallery=getGallery();
-  
-  let musicSection='';
-  if(songs.length>0){
-    musicSection=`
-    <section class="section" id="music">
-      <h2>🎵 Cover Music</h2>
-      <p>Official covers by Baiilla Maach</p>
-      <div class="music-player">
-        <img src="/assets/celebrity_pfp.jpeg" class="music-cover">
-        <h3 id="trackTitle">Select Song</h3>
-        <p class="music-artist">Baiilla Maach</p>
-        <div class="music-controls">
-          <button class="music-btn" onclick="prevTrack()">⏮</button>
-          <button class="music-btn music-play" id="playBtn" onclick="togglePlay()">▶️</button>
-          <button class="music-btn" onclick="nextTrack()">⏭</button>
-        </div>
-        <div class="music-progress" onclick="seekTrack(event)"><div id="progressBar"></div></div>
-        <div class="music-time"><span id="currentTime">0:00</span> / <span id="duration">0:00</span></div>
-      </div>
-      <div class="music-list">
-        ${songs.map((s,i)=>`<div onclick="playTrack(${i})" class="music-item" id="song${i}"><span class="music-num">${i+1}.</span><span>${s.title}</span></div>`).join('')}
-      </div>
-    </section>`;
+  let voiceHTML = '';
+  if (WELCOME_VOICE || MANUAL_VOICE) {
+    voiceHTML = '<div class="card"><div class="card-header"><span class="badge badge-blue">VOICE</span>' +
+      '<h3>Voice Verification</h3><p>Listen to authentic voice</p></div>' +
+      '<div class="card-body"><div class="btn-group">' +
+      (WELCOME_VOICE ? '<button class="btn btn-blue" onclick="playWelcomeVoice()">🎤 Real Voice</button>' : '') +
+      (MANUAL_VOICE ? '<button class="btn btn-red" onclick="playManualVoice()">🚨 Fake Alert</button>' : '') +
+      '</div></div></div>';
   }
 
-  let gallerySection='';
-  if(gallery.length>0){
-    gallerySection=`
-    <section class="section" id="gallery">
-      <h2>📸 Gallery</h2>
-      <p>Official photos and moments</p>
-      <div class="gallery-grid">
-        ${gallery.map(g=>`<div class="gallery-item"><img src="${g.url}" alt="${g.name}" loading="lazy"></div>`).join('')}
-      </div>
-    </section>`;
-  }
-
-  res.send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#09090b">
-<title>Baiilla Maach Official | Verification Hub</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
-body{font-family:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#09090b 0%,#101014 50%,#141418 100%);color:#e5e5e5;min-height:100vh;overflow-x:hidden;line-height:1.6}
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:rgba(255,255,255,0.02);border-radius:2px}
-::-webkit-scrollbar-thumb{background:rgba(139,92,246,0.15);border-radius:2px}
-::-webkit-scrollbar-thumb:hover{background:rgba(139,92,246,0.3)}
-
-.gradient-text{background:linear-gradient(135deg,#a78bfa 0%,#ec4899 50%,#a78bfa 100%);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:gradientShift 3s ease infinite}
-@keyframes gradientShift{0%,100%{background-position:left center}50%{background-position:right center}}
-
-.glass{background:rgba(24,24,28,0.7);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.04)}
-.glass-card{background:rgba(24,24,28,0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.06);border-radius:18px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}
-.hover-lift{transition:all 0.3s cubic-bezier(0.175,0.885,0.32,1.275)}
-.hover-lift:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(0,0,0,0.3)}
-
-.verified-glow{animation:verifiedPulse 2s ease-in-out infinite}
-@keyframes verifiedPulse{0%,100%{box-shadow:0 0 12px rgba(34,197,94,0.3)}50%{box-shadow:0 0 28px rgba(34,197,94,0.6)}}
-
-.danger-glow{animation:dangerPulse 1.5s ease-in-out infinite}
-@keyframes dangerPulse{0%,100%{box-shadow:0 0 8px rgba(239,68,68,0.3)}50%{box-shadow:0 0 20px rgba(239,68,68,0.6)}}
-
-.header{position:fixed;top:0;left:0;right:0;z-index:50;padding:0 16px;height:60px;display:flex;align-items:center;justify-content:space-between;transition:transform 0.3s ease}
-.header-inner{max-width:900px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;width:100%}
-.header-left{display:flex;align-items:center;gap:8px}
-.header-left img{width:28px;height:28px;object-fit:contain}
-.header-left span{font-size:0.9rem;font-weight:700}
-.header-nav{display:flex;gap:4px}
-.header-nav a{color:#9ca3af;text-decoration:none;font-size:0.75rem;padding:4px 10px;border-radius:6px;transition:0.2s}
-.header-nav a:hover{color:#fff;background:rgba(255,255,255,0.05)}
-
-main{max-width:900px;margin:0 auto;padding:70px 12px 20px}
-
-.hero{text-align:center;padding:30px 0}
-.hero-avatar-wrap{position:relative;display:inline-block;margin-bottom:12px}
-.hero-avatar{width:90px;height:90px;border-radius:50%;border:3px solid #9333ea;object-fit:cover}
-.hero-tick{position:absolute;bottom:0;right:0;width:26px;height:26px;object-fit:contain}
-.hero-name{font-size:1.5rem;font-weight:800}
-.hero-bio{font-size:0.8rem;color:#9ca3af;margin:4px 0 10px}
-.hero-stats{display:flex;justify-content:center;gap:16px;margin-bottom:12px}
-.hero-stat{text-align:center}
-.hero-stat-num{font-size:1.2rem;font-weight:700;color:#fff}
-.hero-stat-label{font-size:0.65rem;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px}
-.hero-badges{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-.hero-badge{display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:20px;font-size:0.7rem;font-weight:600}
-.badge-green{background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.25)}
-.badge-purple{background:rgba(147,51,234,0.1);color:#a78bfa;border:1px solid rgba(147,51,234,0.25)}
-.badge-gray{background:rgba(255,255,255,0.05);color:#d1d5db;border:1px solid rgba(255,255,255,0.1)}
-.hero-links{display:flex;justify-content:center;gap:8px}
-.hero-links a{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:22px;text-decoration:none;font-size:0.8rem;font-weight:600;color:#fff;transition:0.2s}
-.btn-tiktok{background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1)}
-.btn-tiktok:hover{background:rgba(0,0,0,0.6)}
-.btn-facebook{background:rgba(24,119,242,0.2);border:1px solid rgba(24,119,242,0.3)}
-.btn-facebook:hover{background:rgba(24,119,242,0.3)}
-
-.section{padding:25px 0}
-.section h2{font-size:1.2rem;font-weight:700;margin-bottom:4px}
-.section p{font-size:0.8rem;color:#9ca3af;margin-bottom:16px}
-
-.official-card{padding:20px;position:relative;overflow:hidden}
-.official-header{display:flex;align-items:center;gap:10px;margin-bottom:16px}
-.official-verify-icon{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#22c55e,#16a34a);display:flex;align-items:center;justify-content:center}
-.official-body{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:600px){.official-body{grid-template-columns:1fr}}
-.official-account{background:rgba(31,31,35,0.5);border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.04)}
-.account-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-.account-platform{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;color:#6b7280;font-weight:600}
-.account-info{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-.account-avatar{width:48px;height:48px;border-radius:12px;object-fit:cover;border:1px solid rgba(255,255,255,0.1)}
-.account-name{font-size:0.9rem;font-weight:700}
-.account-detail{font-size:0.75rem;color:#9ca3af}
-.account-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
-.account-stat{background:rgba(39,39,43,0.4);border-radius:8px;padding:8px}
-.account-stat-num{font-size:0.9rem;font-weight:700;color:#fff}
-.account-stat-label{font-size:0.6rem;color:#6b7280}
-
-.fake-alert-box{padding:12px;border-radius:12px;background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.15);display:flex;align-items:center;gap:8px;margin-bottom:12px}
-.fake-alert-icon{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.fake-alert-text h4{font-size:0.8rem;font-weight:700;color:#f87171}
-.fake-alert-text p{font-size:0.7rem;color:#9ca3af;margin:0}
-
-.music-player{background:rgba(24,24,28,0.9);border-radius:16px;padding:20px;text-align:center;max-width:500px;margin:0 auto}
-.music-cover{width:80px;height:80px;border-radius:12px;object-fit:cover;margin-bottom:10px}
-.music-player h3{font-size:1rem;font-weight:700;color:#fff}
-.music-artist{font-size:0.75rem;color:#9ca3af;margin:2px 0 12px}
-.music-controls{display:flex;justify-content:center;gap:10px;margin-bottom:12px}
-.music-btn{background:none;border:none;color:#9ca3af;cursor:pointer;font-size:1.2rem;padding:5px;border-radius:50%;transition:0.2s}
-.music-btn:hover{color:#fff}
-.music-play{background:#fff;color:#09090b;width:44px;height:44px;border-radius:50%;font-size:1rem}
-.music-play:hover{transform:scale(1.05);color:#09090b}
-.music-progress{background:rgba(255,255,255,0.08);height:4px;border-radius:2px;cursor:pointer;margin-bottom:4px}
-.music-progress div{background:linear-gradient(90deg,#1db954,#169c46);height:100%;border-radius:2px;width:0;transition:width 0.1s linear}
-.music-time{font-size:0.65rem;color:#6b7280}
-.music-list{max-width:500px;margin:8px auto 0;background:rgba(24,24,28,0.7);border-radius:12px;max-height:250px;overflow-y:auto}
-.music-item{padding:10px 16px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.03);font-size:0.8rem;transition:0.2s;display:flex;gap:8px}
-.music-item:hover{background:rgba(255,255,255,0.04)}
-.music-item.active{background:rgba(29,185,84,0.08);border-left:2px solid #1db954}
-.music-num{color:#6b7280;font-weight:600}
-
-.gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-@media(max-width:500px){.gallery-grid{grid-template-columns:repeat(2,1fr)}}
-.gallery-item{border-radius:10px;overflow:hidden;cursor:pointer;transition:0.3s}
-.gallery-item:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3)}
-.gallery-item img{width:100%;height:120px;object-fit:cover;display:block}
-
-.chat-widget-btn{position:fixed;bottom:20px;right:20px;width:60px;height:60px;border-radius:50%;cursor:pointer;z-index:1000;border:none;padding:0;overflow:hidden;box-shadow:0 4px 20px rgba(147,51,234,0.4);transition:0.3s;background:linear-gradient(135deg,#9333ea,#ec4899)}
-.chat-widget-btn:hover{transform:scale(1.1);box-shadow:0 8px 30px rgba(147,51,234,0.6)}
-.chat-widget-btn img{width:100%;height:100%;object-fit:cover}
-.chat-widget-btn .unread-count{position:absolute;top:-2px;right:-2px;background:#ef4444;color:#fff;border-radius:50%;width:22px;height:22px;font-size:0.65rem;display:flex;align-items:center;justify-content:center;font-weight:700}
-
-.chat-widget{position:fixed;bottom:85px;right:20px;width:380px;height:600px;max-height:calc(100vh - 100px);border-radius:20px;display:none;flex-direction:column;overflow:hidden;z-index:999;box-shadow:0 10px 40px rgba(0,0,0,0.5);background:rgba(24,24,28,0.95);backdrop-filter:blur(20px)}
-@media(max-width:400px){.chat-widget{width:calc(100vw - 32px);height:75vh;bottom:85px;right:16px}}
-.chat-widget.open{display:flex}
-
-.footer{text-align:center;padding:20px;font-size:0.7rem;color:#6b7280;border-top:1px solid rgba(255,255,255,0.05)}
-</style>
-</head>
-<body>
-
-<div class="header glass" id="mainHeader">
-  <div class="header-inner">
-    <div class="header-left">
-      <img src="/assets/logo_tiktok.png" alt="">
-      <span class="gradient-text">Verification Hub</span>
-    </div>
-    <nav class="header-nav">
-      <a href="#official">Official</a>
-      <a href="#fake">Fakes</a>
-      <a href="#music">Music</a>
-      <a href="#gallery">Gallery</a>
-    </nav>
-  </div>
-</div>
-
-<main>
-  <section class="hero">
-    <div class="hero-avatar-wrap">
-      <img src="/assets/celebrity_pfp.jpeg" class="hero-avatar" alt="">
-      <img src="/assets/bluetick_tiktok.png" class="hero-tick" alt="">
-    </div>
-    <h1 class="hero-name gradient-text">Baiilla Maach Official</h1>
-    <p class="hero-bio">@baiillamaach_official | Official Entertainment Profile</p>
-    <div class="hero-stats">
-      <div class="hero-stat"><div class="hero-stat-num">7K</div><div class="hero-stat-label">Followers</div></div>
-      <div class="hero-stat"><div class="hero-stat-num">0</div><div class="hero-stat-label">Following</div></div>
-      <div class="hero-stat"><div class="hero-stat-num">190K</div><div class="hero-stat-label">Likes</div></div>
-    </div>
-    <div class="hero-badges">
-      <span class="hero-badge badge-green verified-glow">✓ Verified Official</span>
-      <span class="hero-badge badge-purple">Creator</span>
-      <span class="hero-badge badge-gray">Bangladesh</span>
-    </div>
-    <div class="hero-links">
-      <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="btn-tiktok">TikTok</a>
-      <a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" rel="noopener" class="btn-facebook">Facebook</a>
-    </div>
-  </section>
-
-  <section class="section" id="official">
-    <h2>✓ Official Verified Account</h2>
-    <p>The ONLY authentic Baiilla Maach account with blue tick verification</p>
-    <div class="glass-card official-card hover-lift">
-      <div class="official-header">
-        <div class="official-verify-icon verified-glow">✓</div>
-        <div><h3>The Only Authentic Account</h3><p>This account has been verified as the one and only official profile</p></div>
-      </div>
-      <div class="official-body">
-        <div class="official-accounts">
-          <div class="official-account">
-            <div class="account-header"><span class="account-platform">TikTok</span>✓</div>
-            <div class="account-info"><img src="/assets/celebrity_pfp.jpeg" class="account-avatar" alt=""><div><div class="account-name">@baiillamaach_official</div><div class="account-detail">TikTok • 7K followers</div></div></div>
-            <div class="account-stats"><div class="account-stat"><div class="account-stat-num">7K</div><div class="account-stat-label">Followers</div></div><div class="account-stat"><div class="account-stat-num">0</div><div class="account-stat-label">Following</div></div><div class="account-stat"><div class="account-stat-num">190K</div><div class="account-stat-label">Likes</div></div></div>
-          </div>
-          <div class="official-account">
-            <div class="account-header"><span class="account-platform">Facebook</span>✓</div>
-            <div class="account-info"><img src="/assets/fb_profile.jpg" class="account-avatar" alt=""><div><div class="account-name">Baiilla Maach Official</div><div class="account-detail">Facebook Page</div></div></div>
-          </div>
-        </div>
-        <div class="official-preview">
-          <img src="/assets/celebrity_pfp.jpeg" alt="">
-          <div class="official-preview-name">@baiillamaach_official</div>
-          <div class="official-preview-platform">TikTok • Facebook</div>
-          <a href="https://tiktok.com/@baiillamaach_official" target="_blank" rel="noopener" class="official-follow">Follow Official Account</a>
-          <p class="official-note">This is the only authentic account. All others are fake.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="fake">
-    <h2>⚠️ Fake Accounts Detected</h2>
-    <p>2 impersonator accounts found - Report them immediately</p>
-    <div class="fake-alert-box">
-      <div class="fake-alert-icon danger-glow">!</div>
-      <div class="fake-alert-text"><h4>Warning: 2 Fake Accounts Found</h4><p>Not affiliated with Baiilla Maach. Report immediately.</p></div>
-    </div>
-    <div class="fake-carousel" id="fakeCarousel">
-      <div class="fake-track" id="fakeTrack">
-        <div class="fake-slide"><div class="glass-card fake-card"><div class="fake-card-top"><div class="fake-card-title">! Fake Account #1</div><span class="fake-card-badge">Critical</span></div><div class="fake-card-body"><div class="fake-screenshot"><img src="/assets/baillamach_fake.png" alt="" loading="lazy"><div class="fake-watermark"><span>FAKE ACCOUNT</span><span>DO NOT TRUST</span></div></div><div class="fake-details"><div class="fake-detail-row"><span class="fake-detail-label">Platform</span><span class="fake-detail-value">TikTok</span></div><div class="fake-detail-row"><span class="fake-detail-label">Username</span><span class="fake-detail-value">@baiilla_mach</span></div><div class="fake-detail-row"><span class="fake-detail-label">Status</span><span class="fake-detail-value">Active Threat</span></div><div class="fake-detail-row"><span class="fake-detail-label">Reports</span><span class="fake-detail-value">156+</span></div><div class="fake-reason">Copies official content and logo to deceive followers. Requests money from fans.</div></div></div><div class="fake-actions"><a href="https://tiktok.com/@baiilla_mach" target="_blank" rel="noopener" class="btn-report">Report</a><button class="btn-copy" data-username="@baiilla_mach">Copy Username</button></div></div></div>
-        <div class="fake-slide"><div class="glass-card fake-card"><div class="fake-card-top"><div class="fake-card-title">! Fake Account #2</div><span class="fake-card-badge">High</span></div><div class="fake-card-body"><div class="fake-screenshot"><img src="/assets/hammadfams.png" alt="" loading="lazy"><div class="fake-watermark"><span>FAKE ACCOUNT</span><span>DO NOT TRUST</span></div></div><div class="fake-details"><div class="fake-detail-row"><span class="fake-detail-label">Platform</span><span class="fake-detail-value">TikTok</span></div><div class="fake-detail-row"><span class="fake-detail-label">Username</span><span class="fake-detail-value">@hammad_fams0</span></div><div class="fake-detail-row"><span class="fake-detail-label">Status</span><span class="fake-detail-value">Active Threat</span></div><div class="fake-detail-row"><span class="fake-detail-label">Reports</span><span class="fake-detail-value">89+</span></div><div class="fake-reason">Uses official name and photo to mislead followers. Posts fake giveaways.</div></div></div><div class="fake-actions"><a href="https://tiktok.com/@hammad_fams0" target="_blank" rel="noopener" class="btn-report">Report</a><button class="btn-copy" data-username="@hammad_fams0">Copy Username</button></div></div></div>
-      </div>
-    </div>
-    <div class="carousel-nav">
-      <button class="carousel-arrow" onclick="moveCarousel(-1)">◀</button>
-      <div class="carousel-dots" id="carouselDots"><button class="carousel-dot on" onclick="goSlide(0)"></button><button class="carousel-dot" onclick="goSlide(1)"></button></div>
-      <button class="carousel-arrow" onclick="moveCarousel(1)">▶</button>
-    </div>
-  </section>
-
-  ${musicSection}
-  ${gallerySection}
-
-  <div class="footer">
-    <p>© ${new Date().getFullYear()} Baiilla Maach Official. All Rights Reserved.</p>
-    <p style="margin-top:4px">This is the only official verification hub</p>
-    <p style="margin-top:4px"><a href="/admin" style="color:#6b7280">Admin Login</a></p>
-  </div>
-</main>
-
-<button class="chat-widget-btn" id="chatWidgetBtn" onclick="toggleChatWidget()">
-  <img src="/assets/message_bubble.gif" alt="Chat">
-  <span class="unread-count" id="chatUnreadCount" style="display:none">0</span>
-</button>
-<div class="chat-widget" id="chatWidget"></div>
-
-<script src="/socket.io/socket.io.js"></script>
-<script src="/Chat.js"></script>
-</body>
-</html>`);
+  const html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+  '<title>Baiilla Maach Official | Hammad Bin Amir</title>' +
+  '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">' +
+  '<style>' +
+  '*{margin:0;padding:0;box-sizing:border-box}' +
+  'body{font-family:Inter,sans-serif;background:#f0f2f5;color:#1c1e21;line-height:1.5}' +
+  'a{text-decoration:none}img{max-width:100%}' +
+  '.header{position:sticky;top:0;z-index:100;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.1);padding:0 20px;height:60px;display:flex;align-items:center;justify-content:space-between}' +
+  '.header-left{display:flex;align-items:center;gap:10px}' +
+  '.header-logo{width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid #e4e6eb}' +
+  '.header-name{font-weight:700;font-size:1.2em;color:#1877f2}' +
+  '.header-btn{background:#1877f2;color:#fff;padding:8px 20px;border-radius:20px;font-weight:600;font-size:0.9em;cursor:pointer;transition:0.2s}' +
+  '.header-btn:hover{background:#166fe5}' +
+  '.container{max-width:680px;margin:16px auto;padding:0 16px}' +
+  '.card{background:#fff;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,0.1);margin-bottom:16px;overflow:hidden}' +
+  '.card-header{padding:16px;border-bottom:1px solid #e4e6eb}' +
+  '.card-body{padding:16px}' +
+  '.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:0.7em;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}' +
+  '.badge-blue{background:#e7f3ff;color:#1877f2}' +
+  '.badge-red{background:#fce4e4;color:#e41e3f}' +
+  '.badge-green{background:#e6f7e6;color:#10b981}' +
+  'h3{font-size:1.2em;font-weight:700;margin-bottom:4px}' +
+  'p{color:#65676b;font-size:0.9em}' +
+  '.profile-card{text-align:center;padding:0}' +
+  '.profile-cover{height:180px;background:linear-gradient(135deg,#1877f2,#8b5cf6,#ec4899);border-radius:8px 8px 0 0}' +
+  '.profile-avatar-wrap{margin-top:-60px;position:relative;display:inline-block}' +
+  '.profile-avatar{width:120px;height:120px;border-radius:50%;border:4px solid #fff;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,0.15)}' +
+  '.verified-badge{position:absolute;bottom:8px;right:8px;background:#1877f2;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff}' +
+  '.verified-badge svg{width:12px;height:12px;fill:#fff}' +
+  '.profile-name{font-size:1.5em;font-weight:800;margin-top:8px}' +
+  '.profile-username{color:#65676b;font-size:0.95em;margin-bottom:4px}' +
+  '.profile-bio{color:#65676b;font-size:0.85em;margin-bottom:12px}' +
+  '.stats-row{display:flex;justify-content:center;gap:40px;padding:12px 0;border-top:1px solid #e4e6eb;border-bottom:1px solid #e4e6eb;margin-bottom:12px}' +
+  '.stat{text-align:center}' +
+  '.stat-num{font-size:1.1em;font-weight:700}' +
+  '.stat-label{font-size:0.75em;color:#65676b}' +
+  '.btn-group{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:12px 0}' +
+  '.btn{padding:8px 16px;border-radius:6px;font-weight:600;font-size:0.9em;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:6px;transition:0.2s}' +
+  '.btn-blue{background:#1877f2;color:#fff}.btn-blue:hover{background:#166fe5}' +
+  '.btn-gray{background:#e4e6eb;color:#1c1e21}.btn-gray:hover{background:#d8dadf}' +
+  '.btn-red{background:#e41e3f;color:#fff}.btn-red:hover{background:#c81a35}' +
+  '.gif-strip{display:flex;gap:10px;padding:8px 16px 16px;justify-content:center;flex-wrap:wrap}' +
+  '.gif-item{text-align:center}' +
+  '.gif-item img{width:50px;height:50px;border-radius:8px;object-fit:cover}' +
+  '.gif-item span{display:block;font-size:0.7em;color:#65676b;margin-top:4px}' +
+  '.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}' +
+  '@media(max-width:600px){.grid-2{grid-template-columns:1fr}}' +
+  '.verified-item{display:flex;align-items:center;gap:10px;padding:12px;background:#f0f2f5;border-radius:8px;margin-bottom:8px}' +
+  '.verified-item .v-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover}' +
+  '.verified-item .v-info h4{font-weight:600;font-size:0.95em;display:flex;align-items:center;gap:4px}' +
+  '.verified-item .v-info h4 img{width:16px;height:16px}' +
+  '.verified-item .v-info .v-handle{font-size:0.8em;color:#65676b}' +
+  '.verified-item .v-info .v-detail{font-size:0.8em;color:#1c1e21;margin-top:2px}' +
+  '.fake-card{border:1px solid #fecaca;border-radius:8px;overflow:hidden;margin-bottom:8px}' +
+  '.fake-img-wrap{position:relative;text-align:center;padding:12px;background:#fafafa}' +
+  '.fake-img{max-width:100%;border-radius:4px}' +
+  '.fake-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:70px;height:70px;animation:bounce 2s infinite}' +
+  '@keyframes bounce{0%,100%{transform:translate(-50%,-50%) translateY(0)}50%{transform:translate(-50%,-50%) translateY(-14px)}}' +
+  '.fake-body{padding:12px}' +
+  '.fake-body h4{font-weight:600;font-size:0.95em}' +
+  '.fake-body .platform{color:#f59e0b;font-weight:600;font-size:0.8em;margin:2px 0}' +
+  '.fake-body p{font-size:0.8em;color:#65676b;margin-bottom:8px}' +
+  '.proof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}' +
+  '@media(max-width:600px){.proof-grid{grid-template-columns:1fr}}' +
+  '.proof-item{background:#f0f2f5;border-radius:8px;padding:10px;text-align:center}' +
+  '.proof-item img{width:100%;border-radius:4px;margin-bottom:6px}' +
+  '.proof-item .label{font-weight:600;font-size:0.8em}' +
+  '.music-section{padding:16px}' +
+  '.music-header{display:flex;align-items:center;gap:12px;padding:12px;background:#f0f2f5;border-radius:8px;margin-bottom:12px}' +
+  '.music-cover{width:56px;height:56px;border-radius:8px;object-fit:cover}' +
+  '.music-info{flex:1;min-width:0}' +
+  '.music-title{font-weight:600;font-size:0.95em}' +
+  '.music-artist{font-size:0.8em;color:#65676b}' +
+  '.music-slider{width:100%;height:4px;background:#e4e6eb;border-radius:2px;cursor:pointer;margin:8px 0}' +
+  '.music-slider-fill{height:100%;background:#1877f2;border-radius:2px;width:0}' +
+  '.music-time-row{display:flex;justify-content:space-between;font-size:0.75em;color:#65676b;margin-bottom:8px}' +
+  '.music-controls{display:flex;align-items:center;justify-content:center;gap:12px}' +
+  '.music-btn{width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;font-size:1em;display:flex;align-items:center;justify-content:center}' +
+  '.music-btn-nav{background:#e4e6eb;color:#1c1e21}' +
+  '.music-btn-play{background:#1877f2;color:#fff;width:48px;height:48px;font-size:1.2em}' +
+  '.music-list{max-height:200px;overflow-y:auto;border-top:1px solid #e4e6eb;margin-top:12px;padding-top:8px}' +
+  '.song-item{display:flex;align-items:center;gap:10px;padding:8px 10px;cursor:pointer;border-radius:6px;transition:0.15s}' +
+  '.song-item:hover{background:#f0f2f5}' +
+  '.song-item.active{background:#e7f3ff}' +
+  '.song-num{font-weight:700;color:#65676b;min-width:22px;font-size:0.85em}' +
+  '.song-thumb{width:32px;height:32px;border-radius:4px;object-fit:cover}' +
+  '.song-info{flex:1;min-width:0}' +
+  '.song-title{font-weight:500;font-size:0.85em}' +
+  '.song-artist{font-size:0.75em;color:#65676b}' +
+  '.chat-widget{position:fixed;bottom:20px;right:20px;z-index:9999}' +
+  '.chat-toggle{width:50px;height:50px;border-radius:50%;background:#1877f2;color:#fff;border:none;font-size:1.3em;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.2)}' +
+  '.chat-toggle:hover{background:#166fe5;transform:scale(1.05)}' +
+  '.chat-panel{display:none;position:fixed;bottom:80px;right:20px;width:340px;height:450px;background:#fff;border-radius:8px;box-shadow:0 5px 25px rgba(0,0,0,0.2);flex-direction:column;overflow:hidden;z-index:9999}' +
+  '.chat-panel.open{display:flex}' +
+  '.chat-head{padding:10px 14px;border-bottom:1px solid #e4e6eb;display:flex;justify-content:space-between;align-items:center;font-weight:600}' +
+  '.chat-head button{background:none;border:none;font-size:1.2em;cursor:pointer;color:#65676b}' +
+  '.chat-body{flex:1;overflow-y:auto;padding:10px;background:#f0f2f5}' +
+  '.chat-login{text-align:center;padding:20px}' +
+  '.chat-login input{width:100%;padding:10px;margin-bottom:8px;border:1px solid #ccd0d5;border-radius:6px;font-size:0.9em;outline:none}' +
+  '.chat-login input:focus{border-color:#1877f2}' +
+  '.chat-login button{width:100%;padding:10px;background:#1877f2;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer}' +
+  '.chat-input-area{padding:10px;border-top:1px solid #e4e6eb;display:none;background:#fff}' +
+  '.chat-input-row{display:flex;align-items:center;gap:6px}' +
+  '.chat-input-row input{flex:1;padding:8px 12px;border:1px solid #ccd0d5;border-radius:20px;font-size:0.9em;outline:none}' +
+  '.chat-input-row input:focus{border-color:#1877f2}' +
+  '.chat-input-row button{background:#1877f2;color:#fff;border:none;width:34px;height:34px;border-radius:50%;cursor:pointer}' +
+  '.msg{max-width:75%;padding:7px 10px;border-radius:18px;margin-bottom:4px;font-size:0.85em}' +
+  '.msg.user{background:#1877f2;color:#fff;margin-left:auto;border-bottom-right-radius:4px}' +
+  '.msg.admin{background:#e4e6eb;color:#1c1e21;border-bottom-left-radius:4px}' +
+  '.msg .time{font-size:0.7em;opacity:0.7;margin-top:2px;text-align:right}' +
+  '</style></head><body>' +
+  
+  '<header class="header">' +
+  '<div class="header-left"><img src="' + ASSETS.profile + '" class="header-logo" onerror="this.style.display=\'none\'"><span class="header-name">Baiilla Maach</span></div>' +
+  '<a href="/messenger" class="header-btn">💬 Support Chat</a>' +
+  '</header>' +
+  
+  '<div class="container">' +
+  
+  '<div class="card profile-card">' +
+  '<div class="profile-cover"></div>' +
+  '<div class="profile-avatar-wrap"><img src="' + ASSETS.profile + '" class="profile-avatar" onerror="this.style.display=\'none\'">' +
+  '<div class="verified-badge"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div></div>' +
+  '<h2 class="profile-name">Hammad Bin Amir</h2>' +
+  '<div class="profile-username">@baiillamaach_official</div>' +
+  '<div class="profile-bio">Official Entertainment Profile · Verified Creator</div>' +
+  '<div class="stats-row">' +
+  '<div class="stat"><div class="stat-num">7K</div><div class="stat-label">Followers</div></div>' +
+  '<div class="stat"><div class="stat-num">0</div><div class="stat-label">Following</div></div>' +
+  '<div class="stat"><div class="stat-num">190K</div><div class="stat-label">Likes</div></div>' +
+  '</div>' +
+  '<div class="btn-group">' +
+  '<a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="btn btn-blue"><img src="' + ASSETS.logoTikTok + '" width="20"> Follow TikTok</a>' +
+  '<a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="btn btn-blue"><img src="' + ASSETS.logoFB + '" width="20"> Follow Facebook</a>' +
+  '</div>' +
+  '<div class="gif-strip">' +
+  '<div class="gif-item"><img src="' + ASSETS.followGif + '"><span>Follow</span></div>' +
+  '<div class="gif-item"><img src="' + ASSETS.addGif + '"><span>Add</span></div>' +
+  '<div class="gif-item"><img src="' + ASSETS.propagandaGif + '"><span>Official</span></div>' +
+  '<div class="gif-item"><img src="' + ASSETS.reportGif + '"><span>Report</span></div>' +
+  '<div class="gif-item"><img src="' + ASSETS.playGif + '"><span>Play</span></div>' +
+  '</div>' +
+  '</div>' +
+  
+  '<div class="card"><div class="card-header"><span class="badge badge-green">OFFICIAL</span><h3>Verified Accounts</h3><p>The only authentic accounts</p></div><div class="card-body"><div class="grid-2">' +
+  '<div class="verified-item"><img src="' + ASSETS.profile + '" class="v-avatar"><div class="v-info"><h4>TikTok <img src="' + ASSETS.blueTikTok + '"></h4><div class="v-handle">@baiillamaach_official</div><div class="v-detail">✓ Active · <strong>7K</strong> Followers · <strong>190K</strong> Likes</div><a href="https://tiktok.com/@baiillamaach_official" target="_blank" class="btn btn-blue" style="margin-top:6px;padding:5px 12px;font-size:0.8em">Follow</a></div></div>' +
+  '<div class="verified-item"><img src="' + ASSETS.fbProfile + '" class="v-avatar"><div class="v-info"><h4>Facebook <img src="' + ASSETS.blueFB + '"></h4><div class="v-handle">@BaiillaMaachOfficial</div><div class="v-detail">✓ Active · Official Page</div><a href="https://www.facebook.com/profile.php?id=61575202118828" target="_blank" class="btn btn-blue" style="margin-top:6px;padding:5px 12px;font-size:0.8em">Follow</a></div></div>' +
+  '</div></div></div>' +
+  
+  '<div class="card"><div class="card-header"><span class="badge badge-red">WARNING</span><h3>Fake Accounts Detected</h3><p>Report these accounts</p></div><div class="card-body"><div class="grid-2">' +
+  '<div class="fake-card"><div class="fake-img-wrap"><img src="' + ASSETS.baillamachFake + '" class="fake-img"><img src="' + ASSETS.fakeDetect + '" class="fake-overlay"></div><div class="fake-body"><h4>@baiilla_mach</h4><div class="platform">📍 TikTok</div><p>Copies official content to deceive.</p><a href="https://tiktok.com/@baiilla_mach" target="_blank" class="btn btn-red" style="padding:5px 12px;font-size:0.8em">🚨 Report</a></div></div>' +
+  '<div class="fake-card"><div class="fake-img-wrap"><img src="' + ASSETS.hammadFake + '" class="fake-img"><img src="' + ASSETS.fakeDetect + '" class="fake-overlay"></div><div class="fake-body"><h4>@hammad_fams0</h4><div class="platform">📍 TikTok</div><p>Impersonating with fake content.</p><a href="https://tiktok.com/@hammad_fams0" target="_blank" class="btn btn-red" style="padding:5px 12px;font-size:0.8em">🚨 Report</a></div></div>' +
+  '</div></div></div>' +
+  
+  '<div class="card"><div class="card-header"><span class="badge badge-blue">PROOF</span><h3>Identity Verification</h3></div><div class="card-body"><div class="proof-grid">' +
+  '<div class="proof-item"><img src="' + ASSETS.realId + '"><div class="label">Real ID Verified</div></div>' +
+  '<div class="proof-item"><img src="' + ASSETS.microphone + '"><div class="label">Voice Recording</div></div>' +
+  '<div class="proof-item"><img src="' + ASSETS.fakeDetect + '"><div class="label">Fake Detection</div></div>' +
+  '</div></div></div>' +
+  
+  voiceHTML +
+  
+  (songs.length > 0 ? '<div class="card"><div class="card-header"><span class="badge badge-blue">MUSIC</span><h3>Cover Songs</h3></div><div class="music-section">' +
+  '<div class="music-header"><img src="' + ASSETS.playGif + '" class="music-cover" id="mCover"><div class="music-info"><div class="music-title" id="mTitle">Select Song</div><div class="music-artist">Baiilla Maach</div></div></div>' +
+  '<div class="music-slider" onclick="seekMusic(event)"><div class="music-slider-fill" id="mSliderFill"></div></div>' +
+  '<div class="music-time-row"><span id="mCurrentTime">0:00</span><span id="mDuration">0:00</span></div>' +
+  '<div class="music-controls"><button class="music-btn music-btn-nav" onclick="prevMusic()">⏮</button><button class="music-btn music-btn-play" id="mPlayBtn" onclick="toggleMusic()">▶</button><button class="music-btn music-btn-nav" onclick="nextMusic()">⏭</button></div>' +
+  '<div class="music-list">' + songsListHTML + '</div>' +
+  '</div></div>' : '') +
+  
+  '</div>' +
+  
+  '<div class="chat-widget"><button class="chat-toggle" onclick="toggleChat()">💬</button></div>' +
+  '<div class="chat-panel" id="chatPanel">' +
+  '<div class="chat-head">💬 Chat Support<button onclick="toggleChat()">✕</button></div>' +
+  '<div class="chat-body" id="chatBody">' +
+  '<div class="chat-login" id="chatLoginForm">' +
+  '<h4 style="margin-bottom:8px">Start Chat</h4>' +
+  '<input type="text" id="chatNameInput" placeholder="Your Name">' +
+  '<input type="text" id="chatEmailInput" placeholder="Email or Phone">' +
+  '<button onclick="startChatSession()">Start Chatting</button>' +
+  '</div></div>' +
+  '<div class="chat-input-area" id="chatInputArea">' +
+  '<div class="chat-input-row"><input type="text" id="chatMsgInput" placeholder="Type message..." onkeypress="if(event.key===\'Enter\')sendChatMsg()"><button onclick="sendChatMsg()">➤</button></div>' +
+  '</div></div>' +
+  
+  (WELCOME_VOICE ? '<audio id="welcomeAudio" src="/assets/realvoice.mp3" preload="auto"></audio>' : '') +
+  (MANUAL_VOICE ? '<audio id="manualAudio" src="/assets/manualvoice_alert.mp3" preload="auto"></audio>' : '') +
+  '<audio id="musicAudio" preload="auto"></audio>' +
+  
+  '<script src="/socket.io/socket.io.js"></script>' +
+  '<script>' +
+  'var welcomeAudio=document.getElementById("welcomeAudio");' +
+  'var manualAudio=document.getElementById("manualAudio");' +
+  'var musicAudio=document.getElementById("musicAudio");' +
+  'function stopAllAudio(){if(welcomeAudio){welcomeAudio.pause();welcomeAudio.currentTime=0}if(manualAudio){manualAudio.pause();manualAudio.currentTime=0}if(musicAudio){musicAudio.pause()}musicPlaying=false;updatePlayBtn()}' +
+  'function playWelcomeVoice(){if(!welcomeAudio)return;stopAllAudio();welcomeAudio.play()}' +
+  'function playManualVoice(){if(!manualAudio)return;stopAllAudio();manualAudio.play()}' +
+  'var tracks=' + songsJSON + ';' +
+  'var currentTrack=0,musicPlaying=false;' +
+  'function updatePlayBtn(){var b=document.getElementById("mPlayBtn");if(b)b.innerHTML=musicPlaying?"⏸":"▶"}' +
+  'function updateMusicUI(i){document.getElementById("mTitle").textContent=tracks[i].title;var items=document.querySelectorAll(".song-item");for(var j=0;j<items.length;j++){if(j===i)items[j].classList.add("active");else items[j].classList.remove("active")}}' +
+  'function playMusic(i){if(!tracks.length)return;stopAllAudio();currentTrack=i;musicAudio.src=tracks[i].url;musicAudio.play();musicPlaying=true;updatePlayBtn();updateMusicUI(i)}' +
+  'function toggleMusic(){if(musicAudio.paused){if(!musicAudio.src&&tracks.length)musicAudio.src=tracks[0].url;stopAllAudio();musicAudio.play();musicPlaying=true;updatePlayBtn();updateMusicUI(currentTrack)}else{musicAudio.pause();musicPlaying=false;updatePlayBtn()}}' +
+  'function prevMusic(){playMusic((currentTrack-1+tracks.length)%tracks.length)}' +
+  'function nextMusic(){playMusic((currentTrack+1)%tracks.length)}' +
+  'function seekMusic(e){if(!musicAudio.duration)return;var r=e.currentTarget.getBoundingClientRect();musicAudio.currentTime=((e.clientX-r.left)/r.width)*musicAudio.duration}' +
+  'musicAudio.addEventListener("timeupdate",function(){if(musicAudio.duration){document.getElementById("mSliderFill").style.width=(musicAudio.currentTime/musicAudio.duration)*100+"%";document.getElementById("mCurrentTime").textContent=formatTime(musicAudio.currentTime);document.getElementById("mDuration").textContent=formatTime(musicAudio.duration)}});' +
+  'musicAudio.addEventListener("ended",nextMusic);' +
+  'function formatTime(s){if(isNaN(s))return"0:00";var m=Math.floor(s/60),sec=Math.floor(s%60);return m+":"+String(sec).padStart(2,"0")}' +
+  'if(welcomeAudio)setTimeout(function(){welcomeAudio.play()},1500);' +
+  
+  // CHAT SCRIPT
+  'var socket=io();var chatUser=null;' +
+  'function toggleChat(){document.getElementById("chatPanel").classList.toggle("open")}' +
+  'function startChatSession(){var n=document.getElementById("chatNameInput").value.trim();var e=document.getElementById("chatEmailInput").value.trim();if(!n||!e)return;chatUser={name:n,email:e};socket.emit("register",{name:n,email:e});document.getElementById("chatLoginForm").style.display="none";document.getElementById("chatInputArea").style.display="block";loadChatMessages()}' +
+  'async function loadChatMessages(){if(!chatUser)return;var r=await fetch("/api/msgs/"+chatUser.email);var ms=await r.json();var b=document.getElementById("chatBody");b.innerHTML="";for(var i=0;i<ms.length;i++){var m=ms[i];var cls=(m.sender===chatUser.email?"user":"admin");b.innerHTML+=\'<div class="msg \'+cls+\'">\'+m.message+\'<div class="time">\'+new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+\'</div></div>\'}b.scrollTop=b.scrollHeight}' +
+  'function sendChatMsg(){var i=document.getElementById("chatMsgInput");var m=i.value.trim();if(!m||!chatUser)return;socket.emit("sendMsg",{sender:chatUser.email,receiver:"admin",message:m,type:"text"});i.value=""}' +
+  'socket.on("newMsg",function(m){if(chatUser&&(m.sender===chatUser.email||m.receiver===chatUser.email)){var b=document.getElementById("chatBody");var cls=(m.sender===chatUser.email?"user":"admin");b.innerHTML+=\'<div class="msg \'+cls+\'">\'+m.message+\'<div class="time">\'+new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+\'</div></div>\';b.scrollTop=b.scrollHeight}});' +
+  '</script></body></html>';
+  
+  res.send(html);
 });
 
-// Helper functions for public site
-function getSongs(){
-  try{
-    const dir='assets/covermusic';
-    if(!fs.existsSync(dir))return[];
-    return fs.readdirSync(dir).filter(f=>f.endsWith('.mp3')).map((f,i)=>({
-      id:i,
-      title:f.replace('.mp3','').replace(/[-_#]/g,' ').replace(/\b\w/g,l=>l.toUpperCase()),
-      url:'/assets/covermusic/'+encodeURIComponent(f)
-    }));
-  }catch(e){return[]}
-}
+// ==================== API ROUTES ====================
 
-function getGallery(){
-  try{
-    const dir='assets/gallery';
-    if(!fs.existsSync(dir))return[];
-    return fs.readdirSync(dir).filter(f=>['.jpg','.jpeg','.png','.gif','.webp'].includes(path.extname(f).toLowerCase())).map(f=>({
-      url:'/assets/gallery/'+encodeURIComponent(f),
-      name:f
-    }));
-  }catch(e){return[]}
-}
-
-// Serve Chat.js and Admin.js
-app.get('/Chat.js',(req,res)=>{
-  res.setHeader('Content-Type','application/javascript');
-  res.sendFile(path.join(__dirname,'Chat.js'));
-});
-
-app.get('/Admin.js',(req,res)=>{
-  res.setHeader('Content-Type','application/javascript');
-  res.sendFile(path.join(__dirname,'Admin.js'));
-});
-
-// Auth API
-app.post('/api/auth/register',rateLimiter(10,60000),async(req,res)=>{
-  try{
-    const {name,email,password}=req.body;
-    
-    if(!name||!email||!password)return res.status(400).json({error:'All fields are required'});
-    if(name.length<2||name.length>50)return res.status(400).json({error:'Name must be 2-50 characters'});
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)&&!/^[0-9+\-\s()]{7,20}$/.test(email))return res.status(400).json({error:'Invalid email or phone'});
-    if(password.length<6)return res.status(400).json({error:'Password must be at least 6 characters'});
-    
-    const existing=await User.findOne({email:email.toLowerCase()});
-    if(existing)return res.status(400).json({error:'User already exists'});
-    
-    const hashedPassword=await bcrypt.hash(password,12);
-    const user=await User.create({
-      name:name.trim(),
-      email:email.toLowerCase(),
-      password:hashedPassword,
-      avatar:'/assets/celebrity_pfp.jpeg'
-    });
-    
-    res.json({success:true,user:{name:user.name,email:user.email,avatar:user.avatar}});
-  }catch(e){
-    console.error('Register error:',e);
-    res.status(500).json({error:'Registration failed'});
-  }
-});
-
-app.post('/api/auth/login',rateLimiter(20,60000),async(req,res)=>{
-  try{
-    const {email,password}=req.body;
-    
-    if(!email||!password)return res.status(400).json({error:'Email and password are required'});
-    
-    const user=await User.findOne({email:email.toLowerCase()});
-    if(!user)return res.status(400).json({error:'User not found'});
-    
-    const validPassword=await bcrypt.compare(password,user.password);
-    if(!validPassword)return res.status(400).json({error:'Invalid password'});
-    
-    res.json({success:true,user:{name:user.name,email:user.email,avatar:user.avatar}});
-  }catch(e){
-    console.error('Login error:',e);
-    res.status(500).json({error:'Login failed'});
+app.get('/api/msgs/:email', async (req, res) => {
+  try {
+    const msgs = await Message.find({
+      $or: [
+        { sender: req.params.email, receiver: 'admin' },
+        { sender: 'admin', receiver: req.params.email }
+      ]
+    }).sort({ timestamp: 1 }).lean();
+    res.json(msgs);
+  } catch (err) { 
+    console.error('Error /api/msgs:', err.message);
+    res.json([]); 
   }
 });
 
 // Admin login
-app.post('/api/admin/login',rateLimiter(10,60000),async(req,res)=>{
-  try{
-    const {email,password}=req.body;
-    
-    if(!email||!password)return res.status(400).json({error:'Email and password are required'});
-    
-    const user=await User.findOne({email:email.toLowerCase(),isAdmin:true});
-    if(!user)return res.status(400).json({error:'Admin not found'});
-    
-    const validPassword=await bcrypt.compare(password,user.password);
-    if(!validPassword)return res.status(400).json({error:'Invalid password'});
-    
-    res.json({success:true,user:{name:user.name,email:user.email,avatar:user.avatar}});
-  }catch(e){
-    console.error('Admin login error:',e);
-    res.status(500).json({error:'Login failed'});
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email, isAdmin: true });
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+    res.json({ success: true });
+  } catch (err) { 
+    res.status(500).json({ error: 'Server error' }); 
   }
 });
 
-// Get conversations
-app.get('/api/conversations',authenticateUser,async(req,res)=>{
-  try{
-    const userEmail=req.user.email;
-    const conversations=await Conversation.find({participants:userEmail})
-      .sort({lastMessageAt:-1})
-      .limit(50)
-      .populate('lastMessage')
+// Get users for admin panel - MOST IMPORTANT FIX
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    // Get all users except admin
+    const users = await User.find({ isAdmin: { $ne: true } })
+      .sort({ lastSeen: -1 })
       .lean();
     
-    const formatted=await Promise.all(conversations.map(async(conv)=>{
-      const otherEmail=conv.participants.find(p=>p!==userEmail);
-      const otherUser=await User.findOne({email:otherEmail}).select('name email avatar isOnline lastSeen').lean();
-      
-      return {
-        id:conv._id,
-        otherUser,
-        lastMessage:conv.lastMessage,
-        lastMessageAt:conv.lastMessageAt,
-        unreadCount:conv.unreadCounts?.get(userEmail)||0
-      };
-    }));
-    
-    res.json(formatted);
-  }catch(e){
-    console.error('Get conversations error:',e);
-    res.status(500).json({error:'Failed to load conversations'});
-  }
-});
-
-// Get messages for conversation
-app.get('/api/messages/:conversationId',authenticateUser,async(req,res)=>{
-  try{
-    const {conversationId}=req.params;
-    const {before,limit=20}=req.query;
-    
-    const query={conversationId,deletedAt:null};
-    if(before)query.createdAt={$lt:new Date(before)};
-    
-    const messages=await Message.find(query)
-      .sort({createdAt:-1})
-      .limit(parseInt(limit))
-      .lean();
-    
-    res.json(messages.reverse());
-  }catch(e){
-    console.error('Get messages error:',e);
-    res.status(500).json({error:'Failed to load messages'});
-  }
-});
-
-// Upload file
-app.post('/api/upload',authenticateUser,upload.single('file'),async(req,res)=>{
-  try{
-    if(!req.file)return res.status(400).json({error:'No file uploaded'});
-    
-    const fileUrl='/uploads/'+req.file.filename;
-    res.json({fileUrl,fileName:req.file.originalname,fileSize:req.file.size,mimeType:req.file.mimetype});
-  }catch(e){
-    console.error('Upload error:',e);
-    res.status(500).json({error:'Upload failed'});
-  }
-});
-
-// Admin APIs
-app.get('/api/admin/users',authenticateAdmin,async(req,res)=>{
-  try{
-    const users=await User.find({isAdmin:false})
-      .select('name email avatar isOnline lastSeen unreadCount')
-      .sort({lastActive:-1})
-      .limit(100)
-      .lean();
-    
-    const formatted=await Promise.all(users.map(async(user)=>{
-      const conversations=await Conversation.find({participants:user.email})
-        .sort({lastMessageAt:-1})
-        .limit(1)
-        .populate('lastMessage')
-        .lean();
-      
-      return {
-        ...user,
-        lastMessage:conversations[0]?.lastMessage,
-        lastMessageAt:conversations[0]?.lastMessageAt,
-        unreadCount:conversations[0]?.unreadCounts?.get('admin')||0
-      };
-    }));
-    
-    res.json(formatted);
-  }catch(e){
-    console.error('Admin users error:',e);
-    res.status(500).json({error:'Failed to load users'});
-  }
-});
-
-app.get('/api/admin/stats',authenticateAdmin,async(req,res)=>{
-  try{
-    const [totalUsers,onlineUsers,totalMessages,totalConversations] = await Promise.all([
-      User.countDocuments({isAdmin:false}),
-      User.countDocuments({isAdmin:false,isOnline:true}),
-      Message.countDocuments({deletedAt:null}),
-      Conversation.countDocuments()
-    ]);
-    
-    const unreadMessages=await Message.countDocuments({receiver:'admin',seenAt:null,deletedAt:null});
-    
-    res.json({totalUsers,onlineUsers,totalMessages,totalConversations,unreadMessages});
-  }catch(e){
-    console.error('Admin stats error:',e);
-    res.status(500).json({error:'Failed to load stats'});
-  }
-});
-
-// Socket.IO handling
-const connectedSockets=new Map();
-const typingUsers=new Map();
-
-io.use(async(socket,next)=>{
-  const email=socket.handshake.auth?.email;
-  if(!email)return next(new Error('Authentication required'));
-  
-  const user=await User.findOne({email:email.toLowerCase()});
-  if(!user)return next(new Error('User not found'));
-  
-  socket.user=user;
-  next();
-});
-
-io.on('connection',(socket)=>{
-  const userEmail=socket.user.email;
-  
-  // Update user online status
-  socket.join(userEmail);
-  
-  if(!socket.user.socketIds.includes(socket.id)){
-    socket.user.socketIds.push(socket.id);
-  }
-  
-  User.updateOne({email:userEmail},{
-    $set:{isOnline:true,lastSeen:new Date(),lastActive:new Date()},
-    $addToSet:{socketIds:socket.id}
-  }).exec();
-  
-  io.emit('presence:update',{email:userEmail,isOnline:true});
-  
-  socket.on('authenticate',async(data)=>{
-    try{
-      const user=await User.findOne({email:data.email});
-      if(user){
-        socket.user=user;
-        socket.join(user.email);
-        
-        User.updateOne({email:user.email},{
-          $set:{isOnline:true,lastSeen:new Date()},
-          $addToSet:{socketIds:socket.id}
-        }).exec();
-        
-        socket.emit('authenticated',{success:true,user:{name:user.name,email:user.email,avatar:user.avatar}});
-        io.emit('presence:update',{email:user.email,isOnline:true});
-      }
-    }catch(e){
-      console.error('Socket auth error:',e);
-      socket.emit('authenticated',{success:false,error:'Authentication failed'});
-    }
-  });
-  
-  socket.on('message:send',async(data)=>{
-    try{
-      const {conversationId,sender,receiver,message,type,fileUrl,fileName,fileSize,mimeType,replyTo,messageId}=data;
-      
-      // Check for duplicate
-      if(messageId){
-        const existing=await Message.findOne({messageId});
-        if(existing){
-          socket.emit('message:sent',{messageId,status:'duplicate'});
-          return;
-        }
-      }
-      
-      const conversation=await getOrCreateConversation(sender,receiver);
-      const newMessage=await Message.create({
-        messageId:messageId||crypto.randomUUID(),
-        conversationId,
-        sender,
-        receiver,
-        message:message||'',
-        type:type||'text',
-        fileUrl:fileUrl||'',
-        fileName:fileName||'',
-        fileSize:fileSize||0,
-        mimeType:mimeType||'',
-        replyTo:replyTo||null
+    // Add unread count
+    for (let u of users) {
+      u.unreadCount = await Message.countDocuments({ 
+        sender: u.email, 
+        receiver: 'admin', 
+        seen: false 
       });
-      
-      await Conversation.updateOne({_id:conversation._id},{
-        $set:{lastMessage:newMessage._id,lastMessageAt:new Date(),updatedAt:new Date()},
-        $inc:{[`unreadCounts.${receiver}`]:1}
-      });
-      
-      // Emit to both sender and receiver
-      io.to(sender).emit('message:new',newMessage);
-      io.to(receiver).emit('message:new',newMessage);
-      
-      socket.emit('message:sent',{messageId:newMessage.messageId,status:'sent'});
-    }catch(e){
-      console.error('Message send error:',e);
-      socket.emit('message:error',{error:'Failed to send message'});
     }
-  });
-  
-  socket.on('message:delivered',async(data)=>{
-    try{
-      const {messageId,deliveredAt}=data;
-      await Message.updateOne({messageId},{$set:{deliveredAt:deliveredAt||new Date()}});
-      io.emit('message:delivered',{messageId,deliveredAt:deliveredAt||new Date()});
-    }catch(e){
-      console.error('Message delivered error:',e);
-    }
-  });
-  
-  socket.on('message:seen',async(data)=>{
-    try{
-      const {conversationId,seenBy}=data;
-      await Message.updateMany(
-        {conversationId,receiver:seenBy,seenAt:null,deletedAt:null},
-        {$set:{seenAt:new Date()}}
-      );
-      
-      await Conversation.updateOne(
-        {participants:conversationId},
-        {$set:{[`unreadCounts.${seenBy}`]:0}}
-      );
-      
-      io.emit('message:seen',{conversationId,seenBy});
-    }catch(e){
-      console.error('Message seen error:',e);
-    }
-  });
-  
-  socket.on('typing',(data)=>{
-    const {sender,receiver,isTyping}=data;
-    const key=sender+'_'+receiver;
     
-    if(isTyping){
-      typingUsers.set(key,{sender,receiver,timestamp:Date.now()});
-      io.to(receiver).emit('typing',{sender,isTyping:true});
-    }else{
-      typingUsers.delete(key);
-      io.to(receiver).emit('typing',{sender,isTyping:false});
-    }
-  });
+    console.log('📊 Users fetched from DB:', users.length);
+    users.forEach(u => console.log('  -', u.name, '|', u.email, '| unread:', u.unreadCount));
+    
+    res.json(users);
+  } catch (err) { 
+    console.error('Error /api/admin/users:', err.message);
+    res.json([]); 
+  }
+});
+
+// ==================== ADMIN MESSENGER PAGE ====================
+app.get('/messenger', (req, res) => {
+  res.send('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+  '<title>Admin Messenger | Baiilla Maach</title>' +
+  '<style>' +
+  '*{margin:0;padding:0;box-sizing:border-box}' +
+  'body{font-family:Inter,sans-serif;background:#f0f2f5;height:100vh;overflow:hidden;color:#1c1e21;font-size:15px}' +
+  '.login-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000}' +
+  '.login-card{background:#fff;padding:30px;border-radius:12px;width:380px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.2)}' +
+  '.login-card h2{font-weight:700;margin-bottom:4px;font-size:1.3em}' +
+  '.login-card .sub{color:#65676b;font-size:0.9em;margin-bottom:20px}' +
+  '.login-card input{width:100%;padding:12px;margin-bottom:10px;border:1px solid #ccd0d5;border-radius:8px;font-size:0.95em;outline:none}' +
+  '.login-card input:focus{border-color:#1877f2}' +
+  '.login-card button{width:100%;padding:12px;background:#1877f2;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:1em}' +
+  '.login-card button:hover{background:#166fe5}' +
+  '.login-card button:disabled{opacity:0.6}' +
+  '.error{color:#e41e3f;font-size:0.85em;margin-top:8px;display:none}' +
+  '.app{display:none;height:100vh}' +
+  '.layout{display:flex;height:100vh;max-width:1400px;margin:0 auto;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.1)}' +
+  '.sidebar{width:340px;border-right:1px solid #e4e6eb;display:flex;flex-direction:column}' +
+  '.sidebar-head{padding:14px;border-bottom:1px solid #e4e6eb;display:flex;justify-content:space-between;align-items:center}' +
+  '.sidebar-head h2{font-size:1.1em;font-weight:700}' +
+  '.sidebar-head button{background:none;border:none;color:#1877f2;font-weight:600;cursor:pointer;font-size:0.9em}' +
+  '.search-box{padding:10px 14px;border-bottom:1px solid #e4e6eb}' +
+  '.search-box input{width:100%;padding:8px 12px;border:1px solid #ccd0d5;border-radius:20px;font-size:0.9em;outline:none}' +
+  '.search-box input:focus{border-color:#1877f2}' +
+  '.user-list{flex:1;overflow-y:auto}' +
+  '.user-item{padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:1px solid #f0f2f5;transition:0.15s}' +
+  '.user-item:hover{background:#f0f2f5}' +
+  '.user-item.active{background:#e7f3ff}' +
+  '.user-avatar{width:42px;height:42px;border-radius:50%;background:#1877f2;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0;font-size:1.1em}' +
+  '.user-info{flex:1;min-width:0}' +
+  '.user-info .name{font-weight:600;font-size:0.9em}' +
+  '.user-info .email{font-size:0.8em;color:#65676b}' +
+  '.unread{background:#1877f2;color:#fff;font-size:0.7em;padding:3px 8px;border-radius:10px;font-weight:600}' +
+  '.chat-area{flex:1;display:flex;flex-direction:column}' +
+  '.chat-head{padding:12px 14px;border-bottom:1px solid #e4e6eb;display:flex;align-items:center;gap:10px;background:#f0f2f5}' +
+  '.chat-head .avatar{width:36px;height:36px;border-radius:50%;background:#1877f2;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:0.9em}' +
+  '.chat-head .name{font-weight:600;font-size:0.95em}' +
+  '.chat-head .status{font-size:0.8em}' +
+  '.chat-head .status.online{color:#10b981}' +
+  '.chat-head .status.offline{color:#65676b}' +
+  '.chat-msgs{flex:1;overflow-y:auto;padding:14px;background:#f0f2f5}' +
+  '.msg{max-width:65%;padding:8px 12px;border-radius:18px;margin-bottom:4px;font-size:0.85em}' +
+  '.msg.sent{background:#1877f2;color:#fff;margin-left:auto;border-bottom-right-radius:4px}' +
+  '.msg.received{background:#e4e6eb;color:#1c1e21;border-bottom-left-radius:4px}' +
+  '.msg .time{font-size:0.7em;opacity:0.7;margin-top:2px;text-align:right}' +
+  '.chat-input{padding:10px 14px;border-top:1px solid #e4e6eb;display:none;background:#fff}' +
+  '.chat-input-row{display:flex;align-items:center;gap:8px}' +
+  '.chat-input-row input{flex:1;padding:8px 12px;border:1px solid #ccd0d5;border-radius:20px;font-size:0.9em;outline:none}' +
+  '.chat-input-row input:focus{border-color:#1877f2}' +
+  '.chat-input-row button{background:#1877f2;color:#fff;border:none;width:34px;height:34px;border-radius:50%;cursor:pointer}' +
+  '.empty-state{text-align:center;color:#65676b;padding:60px 20px}' +
+  '</style></head><body>' +
   
-  socket.on('conversation:read',async(data)=>{
-    try{
-      const {conversationId,reader}=data;
-      await Conversation.updateOne(
-        {participants:conversationId},
-        {$set:{[`unreadCounts.${reader}`]:0}}
-      );
-      io.emit('conversation:read',{conversationId,reader});
-    }catch(e){
-      console.error('Conversation read error:',e);
-    }
-  });
+  '<div class="login-overlay" id="loginOverlay"><div class="login-card">' +
+  '<h2>🔐 Admin Messenger</h2><p class="sub">Baiilla Maach Support Panel</p>' +
+  '<input type="text" id="loginEmail" placeholder="Username" value="admin">' +
+  '<input type="password" id="loginPassword" placeholder="Password" value="admin123">' +
+  '<button id="loginBtn" onclick="doLogin()">Sign In</button>' +
+  '<div class="error" id="loginError"></div></div></div>' +
   
-  socket.on('disconnect',async()=>{
-    try{
-      const user=await User.findOne({email:userEmail});
-      if(user){
-        user.socketIds=user.socketIds.filter(id=>id!==socket.id);
-        
-        if(user.socketIds.length===0){
-          user.isOnline=false;
-          user.lastSeen=new Date();
-          user.lastActive=new Date();
-        }
-        
-        await user.save();
-        
-        if(user.socketIds.length===0){
-          io.emit('presence:update',{email:userEmail,isOnline:false});
-        }
+  '<div class="app" id="app"><div class="layout">' +
+  '<div class="sidebar"><div class="sidebar-head"><h2>💬 Conversations</h2><button onclick="doLogout()">Logout</button></div>' +
+  '<div class="search-box"><input type="text" id="searchInput" placeholder="🔍 Search..." oninput="filterUsers()"></div>' +
+  '<div class="user-list" id="userList"><div class="empty-state"><p>Loading users...</p></div></div></div>' +
+  
+  '<div class="chat-area"><div class="chat-head"><div class="avatar" id="chatAvatar">?</div>' +
+  '<div><div class="name" id="chatName">Select a conversation</div><div class="status offline" id="chatStatus">● Offline</div></div></div>' +
+  '<div class="chat-msgs" id="chatMessages"><div class="empty-state"><h3>No conversation selected</h3><p>Click on a user to view messages</p></div></div>' +
+  '<div class="chat-input" id="chatInputArea"><div class="chat-input-row">' +
+  '<input type="text" id="msgInput" placeholder="Type a message..." onkeypress="if(event.key===\'Enter\')sendMessage()">' +
+  '<button onclick="sendMessage()">➤</button></div></div></div>' +
+  '</div></div>' +
+  
+  '<script src="/socket.io/socket.io.js"></script>' +
+  '<script>' +
+  'var socket=io();' +
+  'var currentUser=null,allUsers=[],isLoggedIn=false;' +
+  
+  'socket.on("newMsg",function(m){if(currentUser&&((m.sender===currentUser.email&&m.receiver==="admin")||(m.sender==="admin"&&m.receiver===currentUser.email))){appendMessage(m)}loadUsers()});' +
+  'socket.on("userStatus",function(d){if(currentUser&&currentUser.email===d.email){var s=document.getElementById("chatStatus");s.textContent=d.online?"● Online":"● Offline";s.className="status "+(d.online?"online":"offline")}loadUsers()});' +
+  
+  'async function doLogin(){var e=document.getElementById("loginEmail").value.trim();var p=document.getElementById("loginPassword").value.trim();var err=document.getElementById("loginError");var btn=document.getElementById("loginBtn");err.style.display="none";if(!e||!p){err.textContent="Fill all fields";err.style.display="block";return}btn.disabled=true;btn.textContent="Signing...";' +
+  'try{var r=await fetch("/api/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:e,password:p})});var d=await r.json();' +
+  'if(r.ok){isLoggedIn=true;localStorage.setItem("adminSession",JSON.stringify({email:e,password:p}));document.getElementById("loginOverlay").style.display="none";document.getElementById("app").style.display="block";loadUsers();setInterval(function(){if(isLoggedIn)loadUsers()},15000)}' +
+  'else{err.textContent="❌ Invalid credentials";err.style.display="block"}}catch(ex){err.textContent="❌ Network error";err.style.display="block"}btn.disabled=false;btn.textContent="Sign In"}' +
+  
+  'async function loadUsers(){if(!isLoggedIn)return;try{var r=await fetch("/api/admin/users");var data=await r.json();console.log("Users loaded:",data.length,data);allUsers=data;renderUserList()}catch(e){console.log("Error:",e)}}' +
+  
+  'function renderUserList(){var s=document.getElementById("searchInput").value.toLowerCase();var f=allUsers.filter(function(u){return u.name.toLowerCase().includes(s)||u.email.toLowerCase().includes(s)});' +
+  'var h="";for(var i=0;i<f.length;i++){var u=f[i];var a=currentUser&&currentUser.email===u.email;' +
+  'h+=\'<div class="user-item\'+(a?" active":"")+\'" onclick="selectUser(\\\'\'+u.email+\'\\\')\"><div class="user-avatar">\'+u.name.charAt(0).toUpperCase()+\'</div><div class="user-info"><div class="name">\'+u.name+\'</div><div class="email">\'+u.email+\'</div></div>\'+(u.unreadCount>0?\'<div class="unread">\'+u.unreadCount+\'</div>\':"")+\'</div>\'}' +
+  'document.getElementById("userList").innerHTML=h||\'<div class="empty-state"><p>No users yet</p></div>\'}' +
+  
+  'function filterUsers(){renderUserList()}' +
+  
+  'async function selectUser(e){var u=allUsers.find(function(u){return u.email===e});if(!u)return;currentUser=u;' +
+  'document.getElementById("chatAvatar").textContent=u.name.charAt(0).toUpperCase();document.getElementById("chatName").textContent=u.name;' +
+  'document.getElementById("chatStatus").textContent=u.isOnline?"● Online":"● Offline";' +
+  'document.getElementById("chatStatus").className="status "+(u.isOnline?"online":"offline");' +
+  'document.getElementById("chatInputArea").style.display="block";' +
+  'try{var r=await fetch("/api/msgs/"+u.email);var ms=await r.json();' +
+  'var h="";if(ms.length===0){h=\'<div class="empty-state"><h3>No messages</h3></div>\'}else{' +
+  'for(var i=0;i<ms.length;i++){var m=ms[i];var s=m.sender==="admin";var t=new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});' +
+  'h+=\'<div class="msg \'+(s?"sent":"received")+\'">\'+m.message+\'<div class="time">\'+t+\'</div></div>\'}}' +
+  'document.getElementById("chatMessages").innerHTML=h;document.getElementById("chatMessages").scrollTop=99999;' +
+  '}catch(ex){console.log(ex)}' +
+  'socket.emit("markRead",{user:u.email});renderUserList()}' +
+  
+  'function appendMessage(m){if(!currentUser)return;var c=document.getElementById("chatMessages");var s=m.sender==="admin";var t=new Date(m.timestamp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});c.innerHTML+=\'<div class="msg \'+(s?"sent":"received")+\'">\'+m.message+\'<div class="time">\'+t+\'</div></div>\';c.scrollTop=99999}' +
+  
+  'function sendMessage(){if(!currentUser)return;var i=document.getElementById("msgInput");var m=i.value.trim();if(!m)return;' +
+  'socket.emit("sendMsg",{sender:"admin",receiver:currentUser.email,message:m,type:"text"});' +
+  'appendMessage({sender:"admin",receiver:currentUser.email,message:m,timestamp:new Date()});i.value="";i.focus()}' +
+  
+  'function doLogout(){localStorage.removeItem("adminSession");location.reload()}' +
+  
+  'var saved=localStorage.getItem("adminSession");if(saved){var d=JSON.parse(saved);document.getElementById("loginEmail").value=d.email;document.getElementById("loginPassword").value=d.password}' +
+  'document.addEventListener("DOMContentLoaded",function(){document.getElementById("loginPassword").addEventListener("keypress",function(e){if(e.key==="Enter")doLogin()})});' +
+  '</script></body></html>');
+});
+
+// ==================== SOCKET.IO ====================
+io.on('connection', (socket) => {
+  console.log('🔌 Socket connected');
+  
+  socket.on('register', async (data) => {
+    try {
+      console.log('📝 Register:', data.email);
+      socket.userData = data;
+      
+      // Check if user exists
+      let user = await User.findOne({ email: data.email });
+      if (!user) {
+        const hash = await bcrypt.hash('default123', 10);
+        user = await User.create({ name: data.name, email: data.email, password: hash });
+        console.log('✅ New user created:', data.email);
       }
-    }catch(e){
-      console.error('Disconnect error:',e);
+      
+      await User.updateOne({ email: data.email }, { $set: { isOnline: true, lastSeen: new Date() } });
+      io.emit('userStatus', { email: data.email, online: true });
+    } catch (err) {
+      console.error('Register error:', err.message);
+    }
+  });
+  
+  socket.on('sendMsg', async (data) => {
+    try {
+      console.log('💬 Msg:', data.sender, '→', data.receiver, ':', data.message.substring(0, 30));
+      const msg = await Message.create({ 
+        sender: data.sender, 
+        receiver: data.receiver, 
+        message: data.message, 
+        type: data.type || 'text' 
+      });
+      io.emit('newMsg', msg);
+    } catch (err) {
+      console.error('Msg error:', err.message);
+    }
+  });
+  
+  socket.on('markRead', async (data) => {
+    try { 
+      await Message.updateMany({ sender: data.user, receiver: 'admin', seen: false }, { $set: { seen: true } }); 
+    } catch (err) {}
+  });
+  
+  socket.on('disconnect', async () => {
+    if (socket.userData) {
+      try {
+        await User.updateOne({ email: socket.userData.email }, { $set: { isOnline: false, lastSeen: new Date() } });
+        io.emit('userStatus', { email: socket.userData.email, online: false });
+        console.log('🔴 Offline:', socket.userData.email);
+      } catch (err) {}
     }
   });
 });
 
-// Error handling middleware
-app.use((err,req,res,next)=>{
-  console.error('Server error:',err);
-  res.status(500).json({error:'Internal server error'});
-});
-
-// Start server
-server.listen(PORT,()=>{
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log('========================================');
+  console.log('🚀 Server: http://localhost:' + PORT);
+  console.log('🔧 Admin: http://localhost:' + PORT + '/messenger');
+  console.log('👤 User: admin | 🔑 Pass: admin123');
+  console.log('========================================');
 });
