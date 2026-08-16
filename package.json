@@ -1,32 +1,31 @@
 {
-  "name": "verification-hub",
-  "version": "3.0.0",
-  "description": "Premium Verification Hub with Messenger-Style Admin Panel",
+  "name": "baiilla-maach-verification-hub",
+  "version": "1.0.0",
+  "description": "Official Verification Hub for Baiilla Maach with chat and admin panel",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
-  "keywords": [
-    "verification",
-    "messenger",
-    "chat",
-    "admin",
-    "realtime",
-    "socketio"
-  ],
-  "author": "Baiilla Maach Official",
-  "license": "MIT",
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "formidable": "^2.1.2",
-    "mongodb": "^5.9.2",
-    "socket.io": "^4.7.2"
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mongoose": "^8.5.1",
+    "multer": "^1.4.5-lts.1",
+    "socket.io": "^4.7.5"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.1.4"
   },
-  "engines": {
-    "node": ">=16.0.0"
-  }
+  "keywords": [
+    "verification",
+    "chat",
+    "admin-panel",
+    "socket-io",
+    "mongodb",
+    "express"
+  ],
+  "author": "Baiilla Maach Official",
+  "license": "ISC"
 }
