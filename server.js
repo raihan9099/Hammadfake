@@ -26,7 +26,7 @@ const CHAT_MEDIA_DIR = path.join(__dir, 'assets', 'chatmedia');
 const ICONS = {
     voiceCall: "/assets/cpl.png",
     videoCall: "/assets/s.png",
-    camera: "/assets/1p.png",
+    camera: "/assets/1p.g.png",
     chatContact: "/assets/cpn.png",
     sendMessage: "/assets/dv.png",
     sendAlt: "/assets/x.png",
@@ -38,15 +38,15 @@ const ICONS = {
     fullscreen: "/assets/ef.png",
     refresh: "/assets/ds.png",
     retry: "/assets/fg.png",
-    speaker: "/assets/0v.png",
-    upload: "/assets/0q.png",
+    speaker: "/assets/0v.g.png",
+    upload: "/assets/0q.g.png",
     back: "/assets/0l.png",
-    menu: "/assets/5_q.png",
+    menu: "/assets/5_.g.png",
     timeRecent: "/assets/15.g.png",
     checked: "/assets/12.g.png",
-    settings: "/assets/7_q.png",
-    messenger: "/assets/0a.png",
-    verified: "/assets/07.png",
+    settings: "/assets/7_.g.png",
+    messenger: "/assets/0a.g.png",
+    verified: "/assets/07.g.png",
     reactionLike: "/assets/hlo.png",
     like: "/assets/col.png",
     dislike: "/assets/cop.png",
@@ -55,19 +55,34 @@ const ICONS = {
     sadAlt: "/assets/za.png",
     online: "/assets/y.g.png",
     offline: "/assets/z.g.png",
-    privateSecure: "/assets/r.png"
+    privateSecure: "/assets/r.png",
+    report: "/assets/report_button.png",
+    playGif: "/assets/play.gif",
+    followGif: "/assets/follow.gif",
+    addGif: "/assets/add.gif",
+    propaganda: "/assets/propaganda.gif",
+    messageBubble: "/assets/message_bubble.gif",
+    microphone: "/assets/microphone-in-hand.gif",
+    logoFb: "/assets/logo_fb.png",
+    logoTiktok: "/assets/logo_tiktok.png",
+    logoFbPage: "/assets/logo_fbpage.png",
+    blueTickFb: "/assets/blue_tick_fb.png",
+    blueTickTiktok: "/assets/bluetick_tiktok.png",
+    fakeDetect: "/assets/Fakedetect_updown.png",
+    realId: "/assets/real-id-ss.png"
 };
 
 const IMAGES = {
-    profile: "/assets/tiktok_video_Aj2NO.jpeg",
-    official: "/assets/1785276289604.png",
+    profile: "/assets/celebrity_pfp.jpeg",
+    official: "/assets/real-id-ss.png",
     fraud: "/assets/hammadfams.png",
-    danger: "/assets/baillamach.png"
+    danger: "/assets/baillamach_fake.png",
+    fbProfile: "/assets/fb_profile.jpg"
 };
 
 const VOICE = {
-    welcome: "/assets/my%20user%20name.mp3",
-    fakeAlert: "/assets/7%20lak%20like%20but%20its%20fake.mp3"
+    welcome: "/assets/realvoice.mp3",
+    fakeAlert: "/assets/manualvoice_alert.mp3"
 };
 
 function getCoverSongs() {
@@ -213,7 +228,7 @@ const DATA = {
     },
     realAccounts: [
         { platform: "TikTok", username: "@baiillamaach_official", url: "https://tiktok.com/@baiillamaach_official", screenshot: IMAGES.official, verified: true, followers: "5,000", following: "0", likes: "50K" },
-        { platform: "Facebook", username: "Baiilla Maach Official", url: "https://www.facebook.com/profile.php?id=61575202118828", screenshot: null, verified: true, followers: "Growing" }
+        { platform: "Facebook", username: "Baiilla Maach Official", url: "https://www.facebook.com/profile.php?id=61575202118828", screenshot: IMAGES.fbProfile, verified: true, followers: "Growing" }
     ],
     fakeAccounts: [
         { platform: "TikTok", username: "@baiilla_mach", profileUrl: "https://tiktok.com/@baiilla_mach", screenshot: IMAGES.danger, reason: "Copies official content and logo to deceive followers.", threatLevel: "Critical", reportedCount: 156 },
@@ -261,7 +276,7 @@ body{font-family:'Inter',sans-serif;background:#09090b;color:#e5e5e5;min-height:
 .chat-window.open{display:flex}
 .chat-header{background:#202c33;padding:12px 16px;display:flex;align-items:center;gap:10px}
 .chat-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:16px;position:relative}
-.chat-online{width:10px;height:10px;background:#25d366;border-radius:50%;position:absolute;bottom:0;right:0;border:2px solid #202c33}
+.chat-online{width:10px;height:10px;border-radius:50%;position:absolute;bottom:0;right:0;border:2px solid #202c33;padding:0;object-fit:contain}
 .chat-header-name{color:white;font-weight:600;font-size:15px}
 .chat-header-status{color:#a5d6a7;font-size:11px}
 .chat-close{background:none;border:none;color:#8696a0;font-size:20px;cursor:pointer;margin-left:auto;padding:4px}
@@ -271,6 +286,7 @@ body{font-family:'Inter',sans-serif;background:#09090b;color:#e5e5e5;min-height:
 .msg-out{background:#005c4b;color:#e9edef;float:right;clear:both;border-radius:8px 0 8px 8px}
 .msg-in{background:#202c33;color:#e9edef;float:left;clear:both;border-radius:0 8px 8px 8px}
 .msg-time{font-size:10px;color:rgba(255,255,255,0.45);text-align:right;margin-top:3px;padding-left:15px;float:right}
+.msg-time img{width:12px;height:12px;object-fit:contain;display:inline;vertical-align:middle}
 .msg::after{content:'';display:table;clear:both}
 .msg-media{margin:4px 0;max-width:100%;border-radius:8px}
 .msg-media img{max-width:220px;border-radius:8px;max-height:220px;object-fit:cover;cursor:pointer}
@@ -342,10 +358,10 @@ ${coverSongs.length > 0 ? '<a href="#music" class="px-2 py-1 text-xs text-gray-4
 </div>
 <div class="flex justify-center gap-2">
 <a href="${DATA.realAccounts[0].url}" target="_blank" class="inline-flex items-center gap-1.5 px-4 py-2 glass rounded-full text-xs font-semibold hover:border-green-500/50">
-<img src="${ICONS.messenger}" alt="chat" class="icon-sm"> TikTok
+<img src="${ICONS.logoTiktok}" alt="tiktok" class="icon-sm"> TikTok
 </a>
 <a href="${DATA.realAccounts[1].url}" target="_blank" class="inline-flex items-center gap-1.5 px-4 py-2 glass rounded-full text-xs font-semibold hover:border-green-500/50">
-<img src="${ICONS.chatContact}" alt="contact" class="icon-sm"> Facebook
+<img src="${ICONS.logoFb}" alt="facebook" class="icon-sm"> Facebook
 </a>
 </div>
 </section>
@@ -376,7 +392,7 @@ ${acc.screenshot ? `<img src="${acc.screenshot}" alt="" class="w-12 h-12 rounded
 <div class="text-sm font-bold text-white">@baiillamaach_official</div>
 <div class="text-xs text-gray-400 mb-3">TikTok • Facebook</div>
 <a href="${DATA.realAccounts[0].url}" target="_blank" class="bg-green-500 px-5 py-2.5 rounded-full text-white font-bold text-xs hover:bg-green-600 flex items-center gap-2">
-<img src="${ICONS.messenger}" alt="chat" class="icon-sm"> Follow Official
+<img src="${ICONS.logoTiktok}" alt="tiktok" class="icon-sm"> Follow Official
 </a>
 <p class="text-xs text-gray-500 mt-3">⚠️ This is the only authentic account</p>
 </div>
@@ -411,7 +427,7 @@ ${a.screenshot ? `<img src="${a.screenshot}" alt="" class="w-full opacity-90">` 
 </div>
 <div class="flex gap-2 mt-3">
 <a href="${a.profileUrl}" target="_blank" class="flex-1 text-center bg-red-500 px-3 py-2 rounded-full text-white text-xs font-bold hover:bg-red-600 flex items-center justify-center gap-2">
-<img src="${ICONS.sendMessage}" alt="report" class="icon-sm"> Report
+<img src="${ICONS.report}" alt="report" class="icon-sm"> Report
 </a>
 <button class="flex-1 px-3 py-2 bg-[#1f1f23] border border-red-500/25 text-red-300 rounded-full text-xs font-bold hover:bg-red-500/10 flex items-center justify-center gap-2" onclick="navigator.clipboard.writeText('${a.username}');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)">
 <img src="${ICONS.upload}" alt="copy" class="icon-sm"> Copy
@@ -561,7 +577,7 @@ async function loadMessages(){
                     else if(m.mediaType==='video')mediaHTML='<div class="msg-media"><video controls src="'+m.mediaUrl+'"></video></div>';
                     else mediaHTML='<div class="msg-file">📎 <a href="'+m.mediaUrl+'" target="_blank">'+decodeURIComponent(m.mediaUrl.split('/').pop())+'</a></div>';
                 }
-                div.innerHTML='<div class="msg '+(isUser?'msg-out':'msg-in')+'">'+mediaHTML+(m.message?m.message:'')+'<span class="msg-time">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+(isUser?' <img src="${ICONS.sentStatus}" alt="✓" class="icon-sm" style="width:12px;height:12px;display:inline">':'')+'</span></div>';
+                div.innerHTML='<div class="msg '+(isUser?'msg-out':'msg-in')+'">'+mediaHTML+(m.message?m.message:'')+'<span class="msg-time">'+new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+(isUser?' <img src="${ICONS.sentStatus}" alt="✓" class="icon-sm" style="width:12px;height:12px;display:inline;vertical-align:middle">':'')+'</span></div>';
                 container.appendChild(div);
             });
             container.scrollTop=container.scrollHeight;
@@ -1330,7 +1346,7 @@ async function start(){
         console.log('📍 Admin Panel: http://localhost:'+PORT+'/admin');
         console.log('🔑 Admin Login: admin / admin123');
         console.log('💬 Real-time messaging with Socket.IO');
-        console.log('📱 All icons replaced with custom resources');
+        console.log('📱 All icons updated with correct filenames');
     });
 }
 
