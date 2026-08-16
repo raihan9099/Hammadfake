@@ -1,31 +1,42 @@
 {
   "name": "baiilla-maach-verification-hub",
-  "version": "1.0.0",
-  "description": "Official Verification Hub for Baiilla Maach with chat and admin panel",
+  "version": "3.0.0",
+  "description": "Premium verification hub for Baiilla Maach Official with real-time chat, music player, gallery, and admin panel",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
+  "keywords": [
+    "verification",
+    "celebrity",
+    "tiktok",
+    "facebook",
+    "chat",
+    "socket-io",
+    "music-player",
+    "mongodb",
+    "express",
+    "premium"
+  ],
+  "author": "Hammad Bin Amir",
+  "license": "MIT",
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "mongoose": "^8.5.1",
+    "mongoose": "^8.3.0",
     "multer": "^1.4.5-lts.1",
     "socket.io": "^4.7.5"
   },
   "devDependencies": {
-    "nodemon": "^3.1.4"
+    "nodemon": "^3.1.0"
   },
-  "keywords": [
-    "verification",
-    "chat",
-    "admin-panel",
-    "socket-io",
-    "mongodb",
-    "express"
-  ],
-  "author": "Baiilla Maach Official",
-  "license": "ISC"
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/raihan9099/Hammadfake.git"
+  }
 }
