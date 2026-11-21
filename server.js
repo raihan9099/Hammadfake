@@ -23,11 +23,15 @@ const io = socketIO(server, {
 
 const PORT = CONFIG.server.port;
 
+// ==================== CACHE & STATIC FILES ====================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/assets', express.static('assets'));
-app.use('/uploads', express.static('uploads'));
-app.use('/styles.css', express.static(path.join(__dirname, 'styles.css')));
+
+// Cache Assets for 7 Days (604800000 ms)
+app.use('/assets', express.static('assets', { maxAge: 604800000 }));
+app.use('/uploads', express.static('uploads', { maxAge: 604800000 }));
+app.use('/styles.css', express.static(path.join(__dirname, 'styles.css'), { maxAge: 604800000 }));
+
 app.use(session({
   secret: CONFIG.server.sessionSecret,
   resave: false,
@@ -52,7 +56,6 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
 });
 
 db.serialize(() => {
-  // Users Table
   db.run(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
@@ -67,7 +70,6 @@ db.serialize(() => {
     createdAt TEXT
   )`);
 
-  // Messages Table
   db.run(`CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sender TEXT,
@@ -81,7 +83,6 @@ db.serialize(() => {
     timestamp TEXT
   )`);
 
-  // Reports Table
   db.run(`CREATE TABLE IF NOT EXISTS reports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     reporterName TEXT,
@@ -93,15 +94,12 @@ db.serialize(() => {
     createdAt TEXT
   )`);
 
-  // Create Admin if not exists
   db.get(`SELECT * FROM users WHERE email = ? AND isAdmin = 1`, [CONFIG.admin.defaultEmail], async (err, row) => {
     const hash = await bcrypt.hash(CONFIG.admin.defaultPassword, 10);
     if (!row) {
       db.run(`INSERT INTO users (name, email, password, isAdmin) VALUES (?, ?, ?, 1)`, 
         ['Admin', CONFIG.admin.defaultEmail, hash], 
-        (err) => {
-          if (!err) console.log('✅ Admin created');
-        }
+        (err) => { if (!err) console.log('✅ Admin created'); }
       );
     } else {
       db.run(`UPDATE users SET password = ? WHERE email = ?`, [hash, CONFIG.admin.defaultEmail], (err) => {
@@ -139,7 +137,7 @@ app.get('/', (req, res) => {
   songs.forEach((s, i) => {
     songsListHTML += `<div class="song-item" onclick="playMusic(${i})" id="song-${i}">
       <span class="song-num">${String(i+1).padStart(2,'0')}</span>
-      <img src="${ASSETS.playGif}" class="song-thumb">
+      <img src="${ASSETS.playGif}" class="song-thumb" loading="lazy">
       <div class="song-info"><div class="song-title">${s.title}</div><div class="song-artist">Baiilla Maach</div></div>
       <span class="song-play">▶</span>
     </div>`;
@@ -166,8 +164,8 @@ app.get('/', (req, res) => {
   CONFIG.fakeAccounts.forEach(fake => {
     fakeCardsHTML += `<div class="fake-card">
       <div class="fake-img-wrap">
-        <img src="${fake.image}" class="fake-img">
-        <img src="${ASSETS.fakeDetect}" class="fake-overlay">
+        <img src="${fake.image}" class="fake-img" loading="lazy">
+        <img src="${ASSETS.fakeDetect}" class="fake-overlay" loading="lazy">
       </div>
       <div class="fake-body">
         <h4>${fake.username}</h4>
@@ -226,6 +224,8 @@ app.get('/', (req, res) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Baiilla Maach Official | Hammad Bin Amir</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
@@ -234,24 +234,24 @@ app.get('/', (req, res) => {
 <body>
   <header class="header">
     <div class="header-left">
-      <img src="${CONFIG.profile.avatar}" class="header-logo" onerror="this.style.display='none'">
+      <img src="${CONFIG.profile.avatar}" class="header-logo" alt="Logo">
       <span class="header-name">Baiilla Maach</span>
     </div>
-    <a href="/messenger" class="header-btn">💬 Support Chat</a>
+    <!-- Admin Link Removed -->
   </header>
 
   <div class="container">
     <div class="card profile-card">
       <div class="profile-cover"></div>
       <div class="profile-avatar-wrap">
-        <img src="${CONFIG.profile.avatar}" class="profile-avatar" onerror="this.style.display='none'">
+        <img src="${CONFIG.profile.avatar}" class="profile-avatar" alt="Profile">
         <div class="verified-badge">
           <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
         </div>
       </div>
-      <h2 class="profile-name">${CONFIG.profile.name}</h2>
+      <h2 class="profile-name typing-text" id="typeName"></h2>
       <div class="profile-username">${CONFIG.profile.username}</div>
-      <div class="profile-bio">${CONFIG.profile.bio}</div>
+      <div class="profile-bio typing-text" id="typeBio"></div>
 
       <div class="stats-row">
         <div class="stat"><div class="stat-num">${CONFIG.stats.tiktokFollowers}</div><div class="stat-label">Followers</div></div>
@@ -261,17 +261,17 @@ app.get('/', (req, res) => {
 
       <div class="btn-group">
         <a href="${CONFIG.links.tiktok}" target="_blank" class="btn btn-gradient">
-          <img src="${ASSETS.logoTikTok}" width="20"> Follow TikTok
+          <img src="${ASSETS.logoTikTok}" width="20" alt="TikTok" loading="lazy"> Follow TikTok
         </a>
         <a href="${CONFIG.links.facebook}" target="_blank" class="btn btn-gradient">
-          <img src="${ASSETS.logoFB}" width="20"> Follow Facebook
+          <img src="${ASSETS.logoFB}" width="20" alt="Facebook" loading="lazy"> Follow Facebook
         </a>
       </div>
 
       <div class="gif-strip">
-        <div class="gif-item"><img src="${ASSETS.followGif}"><span>Follow</span></div>
-        <div class="gif-item"><img src="${ASSETS.addGif}"><span>Add</span></div>
-        <div class="gif-item"><img src="${ASSETS.playGif}"><span>Play</span></div>
+        <div class="gif-item"><img src="${ASSETS.followGif}" alt="Follow" loading="lazy"><span>Follow</span></div>
+        <div class="gif-item"><img src="${ASSETS.addGif}" alt="Add" loading="lazy"><span>Add</span></div>
+        <div class="gif-item"><img src="${ASSETS.playGif}" alt="Play" loading="lazy"><span>Play</span></div>
       </div>
     </div>
 
@@ -284,18 +284,18 @@ app.get('/', (req, res) => {
       <div class="card-body">
         <div class="grid-2">
           <div class="verified-item">
-            <img src="${ASSETS.profile}" class="v-avatar">
+            <img src="${ASSETS.profile}" class="v-avatar" alt="TikTok" loading="lazy">
             <div class="v-info">
-              <h4>TikTok <img src="${ASSETS.blueTikTok}"></h4>
+              <h4>TikTok <img src="${ASSETS.blueTikTok}" alt="Verified" loading="lazy"></h4>
               <div class="v-handle">${CONFIG.profile.username}</div>
               <div class="v-detail">✓ Active · <strong>${CONFIG.stats.tiktokFollowers}</strong> Followers · <strong>${CONFIG.stats.tiktokLikes}</strong> Likes</div>
               <a href="${CONFIG.links.tiktok}" target="_blank" class="btn btn-outline btn-sm">Follow</a>
             </div>
           </div>
           <div class="verified-item">
-            <img src="${ASSETS.fbProfile}" class="v-avatar">
+            <img src="${ASSETS.fbProfile}" class="v-avatar" alt="Facebook" loading="lazy">
             <div class="v-info">
-              <h4>Facebook <img src="${ASSETS.blueFB}"></h4>
+              <h4>Facebook <img src="${ASSETS.blueFB}" alt="Verified" loading="lazy"></h4>
               <div class="v-handle">@BaiillaMaachOfficial</div>
               <div class="v-detail">✓ Active · <strong>${CONFIG.stats.facebookFollowers}</strong> Followers</div>
               <a href="${CONFIG.links.facebook}" target="_blank" class="btn btn-outline btn-sm">Follow</a>
@@ -326,7 +326,7 @@ app.get('/', (req, res) => {
       <div class="card-body">
         <div class="proof-grid" style="grid-template-columns: 1fr;">
           <div class="proof-item">
-            <img src="${ASSETS.realId}">
+            <img src="${ASSETS.realId}" alt="Real ID" loading="lazy">
             <div class="label">Real ID Verified</div>
           </div>
         </div>
@@ -343,7 +343,7 @@ app.get('/', (req, res) => {
       </div>
       <div class="music-section">
         <div class="music-header">
-          <img src="${ASSETS.playGif}" class="music-cover" id="mCover">
+          <img src="${ASSETS.playGif}" class="music-cover" id="mCover" alt="Cover" loading="lazy">
           <div class="music-info">
             <div class="music-title" id="mTitle">Select Song</div>
             <div class="music-artist">Baiilla Maach</div>
@@ -393,12 +393,40 @@ app.get('/', (req, res) => {
     </div>
   </div>
 
-  ${WELCOME_VOICE ? `<audio id="welcomeAudio" src="/${CONFIG.voice.welcome}" preload="auto"></audio>` : ''}
-  ${MANUAL_VOICE ? `<audio id="manualAudio" src="/${CONFIG.voice.manualAlert}" preload="auto"></audio>` : ''}
-  <audio id="musicAudio" preload="auto"></audio>
+  ${WELCOME_VOICE ? `<audio id="welcomeAudio" src="/${CONFIG.voice.welcome}" preload="none"></audio>` : ''}
+  ${MANUAL_VOICE ? `<audio id="manualAudio" src="/${CONFIG.voice.manualAlert}" preload="none"></audio>` : ''}
+  <audio id="musicAudio" preload="none"></audio>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
+    // Typing Animation Logic
+    const nameText = "${CONFIG.profile.name}";
+    const bioText = "${CONFIG.profile.bio}";
+    let iName = 0, iBio = 0;
+    const speed = 50; // Typing speed (ms)
+
+    function typeName() {
+      if (iName < nameText.length) {
+        document.getElementById("typeName").innerHTML += nameText.charAt(iName);
+        iName++;
+        setTimeout(typeName, speed);
+      } else {
+        document.getElementById("typeName").classList.remove("typing-text"); // remove border after finish
+        typeBio();
+      }
+    }
+    function typeBio() {
+      if (iBio < bioText.length) {
+        document.getElementById("typeBio").innerHTML += bioText.charAt(iBio);
+        iBio++;
+        setTimeout(typeBio, speed);
+      } else {
+        document.getElementById("typeBio").classList.remove("typing-text");
+      }
+    }
+    setTimeout(typeName, 500); // Start typing after 0.5s page load
+
+    // Audio & Music Logic
     var welcomeAudio = document.getElementById("welcomeAudio");
     var manualAudio = document.getElementById("manualAudio");
     var musicAudio = document.getElementById("musicAudio");
@@ -411,6 +439,7 @@ app.get('/', (req, res) => {
     }
     function playWelcomeVoice() { if (!welcomeAudio) return; stopAllAudio(); welcomeAudio.play(); }
     function playManualVoice() { if (!manualAudio) return; stopAllAudio(); manualAudio.play(); }
+    
     var tracks = ${songsJSON};
     var currentTrack = 0;
     var musicPlaying = false;
@@ -470,7 +499,11 @@ app.get('/', (req, res) => {
       var sec = Math.floor(s % 60);
       return m + ":" + String(sec).padStart(2, "0");
     }
-    if (welcomeAudio) setTimeout(function() { welcomeAudio.play(); }, 1500);
+    
+    // Play Welcome Voice after load
+    if (welcomeAudio) setTimeout(function() { welcomeAudio.play().catch(e => {}); }, 1500);
+    
+    // Chat Logic
     var socket = io();
     var chatUser = null;
     function toggleChat() { document.getElementById("chatPanel").classList.toggle("open"); }
@@ -592,8 +625,9 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   }
 });
 
-// ==================== MESSENGER PAGE ====================
-app.get('/messenger', (req, res) => {
+// ==================== ADMIN MESSENGER PAGE ====================
+// Route changed from /messenger to /admin
+app.get('/admin', (req, res) => {
   const themeVars = `<style>
     :root {
       --primary: ${THEME.colors.primary};
@@ -642,6 +676,8 @@ app.get('/messenger', (req, res) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Messenger | Baiilla Maach</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
@@ -843,7 +879,7 @@ app.get('/messenger', (req, res) => {
 </html>`);
 });
 
-// ==================== SOCKET.IO (SQLITE3) ====================
+// ==================== SOCKET.IO ====================
 io.on('connection', (socket) => {
   console.log('🔌 Socket connected');
   
@@ -913,7 +949,7 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
   console.log('========================================');
   console.log('🚀 Server: http://localhost:' + PORT);
-  console.log('🔧 Admin: http://localhost:' + PORT + '/messenger');
+  console.log('🔧 Admin: http://localhost:' + PORT + '/admin'); // Updated Log
   console.log('👤 User: ' + CONFIG.admin.defaultEmail + ' | 🔑 Pass: ' + CONFIG.admin.defaultPassword);
   console.log('========================================');
 });
