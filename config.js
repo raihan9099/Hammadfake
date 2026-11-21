@@ -8,10 +8,10 @@ module.exports = {
   },
 
   stats: {
-    tiktokFollowers: '7K',
-    tiktokLikes: '190K',
+    tiktokFollowers: '16.5K',
+    tiktokLikes: '689K',
     following: '0',
-    facebookFollowers: '2.5K'
+    facebookFollowers: '375K'
   },
 
   links: {
