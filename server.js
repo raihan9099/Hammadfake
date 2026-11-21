@@ -8,12 +8,12 @@ const THEME = require('./theme');
 const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
-const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const session = require('express-session');
+const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
 const server = http.createServer(app);
@@ -22,7 +22,6 @@ const io = socketIO(server, {
 });
 
 const PORT = CONFIG.server.port;
-const MONGO_URI = CONFIG.server.mongoUri;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -46,86 +45,73 @@ const upload = multer({ storage });
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-const userSchema = new mongoose.Schema({
-  name: String,
-  email: String,
-  password: String,
-  phone: String,
-  avatar: String,
-  isAdmin: { type: Boolean, default: false },
-  isVerified: { type: Boolean, default: false },
-  lastSeen: Date,
-  isOnline: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
+// ==================== SQLITE3 SETUP ====================
+const db = new sqlite3.Database('./database.sqlite', (err) => {
+  if (err) console.error('❌ SQLite Error:', err.message);
+  else console.log('✅ SQLite3 Connected');
 });
 
-const messageSchema = new mongoose.Schema({
-  sender: String,
-  receiver: String,
-  message: String,
-  type: { type: String, default: 'text' },
-  fileUrl: String,
-  fileName: String,
-  fileSize: Number,
-  seen: { type: Boolean, default: false },
-  timestamp: { type: Date, default: Date.now }
-});
+db.serialize(() => {
+  // Users Table
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    email TEXT UNIQUE,
+    password TEXT,
+    phone TEXT,
+    avatar TEXT,
+    isAdmin INTEGER DEFAULT 0,
+    isVerified INTEGER DEFAULT 0,
+    lastSeen TEXT,
+    isOnline INTEGER DEFAULT 0,
+    createdAt TEXT
+  )`);
 
-const postSchema = new mongoose.Schema({
-  title: String,
-  content: String,
-  image: String,
-  category: String,
-  author: String,
-  likes: { type: Number, default: 0 },
-  views: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now }
-});
+  // Messages Table
+  db.run(`CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender TEXT,
+    receiver TEXT,
+    message TEXT,
+    type TEXT DEFAULT 'text',
+    fileUrl TEXT,
+    fileName TEXT,
+    fileSize INTEGER,
+    seen INTEGER DEFAULT 0,
+    timestamp TEXT
+  )`);
 
-const reportSchema = new mongoose.Schema({
-  reporterName: String,
-  reporterEmail: String,
-  fakeAccount: String,
-  platform: String,
-  reason: String,
-  status: { type: String, default: 'pending' },
-  createdAt: { type: Date, default: Date.now }
-});
+  // Reports Table
+  db.run(`CREATE TABLE IF NOT EXISTS reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reporterName TEXT,
+    reporterEmail TEXT,
+    fakeAccount TEXT,
+    platform TEXT,
+    reason TEXT,
+    status TEXT DEFAULT 'pending',
+    createdAt TEXT
+  )`);
 
-const User = mongoose.model('User', userSchema);
-const Message = mongoose.model('Message', messageSchema);
-const Post = mongoose.model('Post', postSchema);
-const Report = mongoose.model('Report', reportSchema);
-
-mongoose.connect(MONGO_URI)
-  .then(async () => {
-    console.log('✅ MongoDB Connected');
-
-    const adminExists = await User.findOne({ email: CONFIG.admin.defaultEmail, isAdmin: true });
+  // Create Admin if not exists
+  db.get(`SELECT * FROM users WHERE email = ? AND isAdmin = 1`, [CONFIG.admin.defaultEmail], async (err, row) => {
     const hash = await bcrypt.hash(CONFIG.admin.defaultPassword, 10);
-    if (adminExists) {
-      await User.updateOne(
-        { email: CONFIG.admin.defaultEmail },
-        { $set: { password: hash, name: 'Admin', isAdmin: true } }
+    if (!row) {
+      db.run(`INSERT INTO users (name, email, password, isAdmin) VALUES (?, ?, ?, 1)`, 
+        ['Admin', CONFIG.admin.defaultEmail, hash], 
+        (err) => {
+          if (!err) console.log('✅ Admin created');
+        }
       );
-      console.log('✅ Admin updated');
     } else {
-      await User.create({
-        name: 'Admin',
-        email: CONFIG.admin.defaultEmail,
-        password: hash,
-        isAdmin: true
+      db.run(`UPDATE users SET password = ? WHERE email = ?`, [hash, CONFIG.admin.defaultEmail], (err) => {
+        if (!err) console.log('✅ Admin updated');
       });
-      console.log('✅ Admin created');
     }
+  });
+});
 
-    const totalUsers = await User.countDocuments({ isAdmin: false });
-    const totalMsgs = await Message.countDocuments({});
-    console.log('📊 Total users:', totalUsers);
-    console.log('📊 Total messages:', totalMsgs);
-  })
-  .catch(e => console.error('❌ MongoDB Error:', e.message));
-
+// ==================== HELPERS ====================
 const ASSETS = CONFIG.assets;
 const WELCOME_VOICE = fs.existsSync(CONFIG.voice.welcome);
 const MANUAL_VOICE = fs.existsSync(CONFIG.voice.manualAlert);
@@ -144,6 +130,7 @@ function getSongs() {
   } catch (e) { return []; }
 }
 
+// ==================== MAIN PAGE ====================
 app.get('/', (req, res) => {
   const songs = getSongs();
   const songsJSON = JSON.stringify(songs);
@@ -284,8 +271,6 @@ app.get('/', (req, res) => {
       <div class="gif-strip">
         <div class="gif-item"><img src="${ASSETS.followGif}"><span>Follow</span></div>
         <div class="gif-item"><img src="${ASSETS.addGif}"><span>Add</span></div>
-        <div class="gif-item"><img src="${ASSETS.propagandaGif}"><span>Official</span></div>
-        <div class="gif-item"><img src="${ASSETS.reportGif}"><span>Report</span></div>
         <div class="gif-item"><img src="${ASSETS.playGif}"><span>Play</span></div>
       </div>
     </div>
@@ -339,18 +324,10 @@ app.get('/', (req, res) => {
         <h3>Identity Verification</h3>
       </div>
       <div class="card-body">
-        <div class="proof-grid">
+        <div class="proof-grid" style="grid-template-columns: 1fr;">
           <div class="proof-item">
             <img src="${ASSETS.realId}">
             <div class="label">Real ID Verified</div>
-          </div>
-          <div class="proof-item">
-            <img src="${ASSETS.microphone}">
-            <div class="label">Voice Recording</div>
-          </div>
-          <div class="proof-item">
-            <img src="${ASSETS.fakeDetect}">
-            <div class="label">Fake Detection</div>
           </div>
         </div>
       </div>
@@ -542,71 +519,71 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-app.get('/api/msgs/:email', async (req, res) => {
-  try {
-    const msgs = await Message.find({
-      $or: [
-        { sender: req.params.email, receiver: 'admin' },
-        { sender: 'admin', receiver: req.params.email }
-      ]
-    }).sort({ timestamp: 1 }).lean();
-    res.json(msgs);
-  } catch (err) {
-    console.error('Error /api/msgs:', err.message);
-    res.json([]);
-  }
+// ==================== API ROUTES ====================
+app.get('/api/msgs/:email', (req, res) => {
+  const email = req.params.email;
+  db.all(`SELECT * FROM messages WHERE (sender = ? AND receiver = 'admin') OR (sender = 'admin' AND receiver = ?) ORDER BY timestamp ASC`, 
+    [email, email], 
+    (err, rows) => {
+      if (err) { console.error(err); return res.json([]); }
+      res.json(rows);
+    }
+  );
 });
 
-app.post('/api/admin/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email, isAdmin: true });
+app.post('/api/admin/login', (req, res) => {
+  const { email, password } = req.body;
+  db.get(`SELECT * FROM users WHERE email = ? AND isAdmin = 1`, [email], async (err, user) => {
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
     req.session.isAdmin = true;
     req.session.adminEmail = email;
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
+  });
 });
 
-app.get('/api/admin/users', async (req, res) => {
-  try {
-    if (!req.session.isAdmin) return res.status(401).json({ error: 'Unauthorized' });
-    const users = await User.find({ isAdmin: { $ne: true } }).sort({ lastSeen: -1 }).lean();
-    for (let u of users) {
-      u.unreadCount = await Message.countDocuments({ sender: u.email, receiver: 'admin', seen: false });
+app.get('/api/admin/users', (req, res) => {
+  if (!req.session.isAdmin) return res.status(401).json({ error: 'Unauthorized' });
+  
+  db.all(`SELECT * FROM users WHERE isAdmin = 0 ORDER BY lastSeen DESC`, [], (err, users) => {
+    if (err) return res.json([]);
+    
+    let count = 0;
+    if (users.length === 0) return res.json([]);
+
+    users.forEach(u => {
+      db.get(`SELECT COUNT(*) as c FROM messages WHERE sender = ? AND receiver = 'admin' AND seen = 0`, [u.email], (err, result) => {
+        u.unreadCount = result ? result.c : 0;
+        count++;
+        if (count === users.length) {
+          res.json(users);
+        }
+      });
+    });
+  });
+});
+
+app.post('/api/report', (req, res) => {
+  const { reporterName, reporterEmail, fakeAccount, platform, reason } = req.body;
+  db.run(`INSERT INTO reports (reporterName, reporterEmail, fakeAccount, platform, reason, createdAt) VALUES (?, ?, ?, ?, ?, ?)`,
+    [reporterName, reporterEmail, fakeAccount, platform, reason, new Date().toISOString()],
+    function(err) {
+      if (err) return res.status(500).json({ error: 'Server error' });
+      res.json({ success: true, report: { id: this.lastID } });
     }
-    res.json(users);
-  } catch (err) {
-    console.error('Error /api/admin/users:', err.message);
-    res.json([]);
-  }
+  );
 });
 
-app.post('/api/report', async (req, res) => {
-  try {
-    const { reporterName, reporterEmail, fakeAccount, platform, reason } = req.body;
-    const report = await Report.create({ reporterName, reporterEmail, fakeAccount, platform, reason });
-    res.json({ success: true, report });
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
+app.get('/api/admin/reports', (req, res) => {
+  if (!req.session.isAdmin) return res.status(401).json({ error: 'Unauthorized' });
+  db.all(`SELECT * FROM reports ORDER BY createdAt DESC`, [], (err, rows) => {
+    if (err) return res.json([]);
+    res.json(rows);
+  });
 });
 
-app.get('/api/admin/reports', async (req, res) => {
-  try {
-    if (!req.session.isAdmin) return res.status(401).json({ error: 'Unauthorized' });
-    const reports = await Report.find().sort({ createdAt: -1 }).lean();
-    res.json(reports);
-  } catch (err) {
-    res.json([]);
-  }
-});
-
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+app.post('/api/upload', upload.single('file'), (req, res) => {
   try {
     const fileUrl = '/uploads/' + req.file.filename;
     res.json({ url: fileUrl, name: req.file.originalname, size: req.file.size });
@@ -615,6 +592,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+// ==================== MESSENGER PAGE ====================
 app.get('/messenger', (req, res) => {
   const themeVars = `<style>
     :root {
@@ -865,57 +843,73 @@ app.get('/messenger', (req, res) => {
 </html>`);
 });
 
+// ==================== SOCKET.IO (SQLITE3) ====================
 io.on('connection', (socket) => {
   console.log('🔌 Socket connected');
-  socket.on('register', async (data) => {
-    try {
-      console.log('📝 Register:', data.email);
-      socket.userData = data;
-      let user = await User.findOne({ email: data.email });
+  
+  socket.on('register', (data) => {
+    console.log('📝 Register:', data.email);
+    socket.userData = data;
+    
+    db.get(`SELECT * FROM users WHERE email = ?`, [data.email], async (err, user) => {
       if (!user) {
         const hash = await bcrypt.hash('default123', 10);
-        user = await User.create({ name: data.name, email: data.email, password: hash });
-        console.log('✅ New user created:', data.email);
+        db.run(`INSERT INTO users (name, email, password, isOnline, lastSeen) VALUES (?, ?, ?, 1, ?)`, 
+          [data.name, data.email, hash, new Date().toISOString()], 
+          (err) => {
+            if (!err) console.log('✅ New user created:', data.email);
+            io.emit('userStatus', { email: data.email, online: true });
+          }
+        );
+      } else {
+        db.run(`UPDATE users SET isOnline = 1, lastSeen = ? WHERE email = ?`, 
+          [new Date().toISOString(), data.email], 
+          () => io.emit('userStatus', { email: data.email, online: true })
+        );
       }
-      await User.updateOne({ email: data.email }, { $set: { isOnline: true, lastSeen: new Date() } });
-      io.emit('userStatus', { email: data.email, online: true });
-    } catch (err) {
-      console.error('Register error:', err.message);
-    }
+    });
   });
-  socket.on('sendMsg', async (data) => {
-    try {
-      console.log('💬 Msg:', data.sender, '→', data.receiver, ':', data.message.substring(0, 30));
-      const msg = await Message.create({
-        sender: data.sender,
-        receiver: data.receiver,
-        message: data.message,
-        type: data.type || 'text',
-        fileUrl: data.fileUrl,
-        fileName: data.fileName,
-        fileSize: data.fileSize
-      });
-      io.emit('newMsg', msg);
-    } catch (err) {
-      console.error('Msg error:', err.message);
-    }
+  
+  socket.on('sendMsg', (data) => {
+    console.log('💬 Msg:', data.sender, '→', data.receiver);
+    const timestamp = new Date().toISOString();
+    
+    db.run(`INSERT INTO messages (sender, receiver, message, type, fileUrl, fileName, fileSize, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [data.sender, data.receiver, data.message, data.type || 'text', data.fileUrl, data.fileName, data.fileSize, timestamp],
+      function(err) {
+        if (err) return console.error('Msg error:', err.message);
+        
+        const msgData = {
+          id: this.lastID,
+          sender: data.sender,
+          receiver: data.receiver,
+          message: data.message,
+          type: data.type || 'text',
+          timestamp: timestamp
+        };
+        io.emit('newMsg', msgData);
+      }
+    );
   });
-  socket.on('markRead', async (data) => {
-    try {
-      await Message.updateMany({ sender: data.user, receiver: 'admin', seen: false }, { $set: { seen: true } });
-    } catch (err) {}
+  
+  socket.on('markRead', (data) => {
+    db.run(`UPDATE messages SET seen = 1 WHERE sender = ? AND receiver = 'admin' AND seen = 0`, [data.user]);
   });
-  socket.on('disconnect', async () => {
+  
+  socket.on('disconnect', () => {
     if (socket.userData) {
-      try {
-        await User.updateOne({ email: socket.userData.email }, { $set: { isOnline: false, lastSeen: new Date() } });
-        io.emit('userStatus', { email: socket.userData.email, online: false });
-        console.log('🔴 Offline:', socket.userData.email);
-      } catch (err) {}
+      db.run(`UPDATE users SET isOnline = 0, lastSeen = ? WHERE email = ?`, 
+        [new Date().toISOString(), socket.userData.email], 
+        () => {
+          io.emit('userStatus', { email: socket.userData.email, online: false });
+          console.log('🔴 Offline:', socket.userData.email);
+        }
+      );
     }
   });
 });
 
+// ==================== START SERVER ====================
 server.listen(PORT, () => {
   console.log('========================================');
   console.log('🚀 Server: http://localhost:' + PORT);
