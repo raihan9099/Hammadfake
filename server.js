@@ -1,6 +1,9 @@
 // ==================== SERVE REACT APP ====================
+const path = require('path');
 const express = require('express');
 const compression = require('compression');
+
+const app = express();
 
 // Add near the top after other middleware
 app.use(compression());
@@ -16,7 +19,6 @@ app.use(express.static(DIST, { maxAge: 0, index: false }));
 // (those directives stay exactly as you have them)
 
 // ==================== MAIN PAGE (React) ====================
-// Replace your existing app.get('/', ...) with this:
 app.get('/', (req, res) => {
   res.sendFile(path.join(DIST, 'index.html'));
 });
