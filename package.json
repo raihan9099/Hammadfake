@@ -1,7 +1,6 @@
 {
   "name": "baiilla-maach",
   "version": "1.0.0",
-  "description": "EDL-style futuristic 3D website",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
