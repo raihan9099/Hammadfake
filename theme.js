@@ -1,103 +1,50 @@
 // theme.js
 module.exports = {
   colors: {
-    // Facebook's actual neutral palette
-    primary: '#1877F2',      // FB blue (only for links/active)
-    secondary: '#166FE5',
-    accent: '#1877F2',
-    danger: '#FA383E',
-    success: '#42B72A',
-    warning: '#F7B928',
-    dark: '#1C1E21',
-    light: '#F0F2F5',        // FB page background
-    white: '#FFFFFF',
-    card: '#FFFFFF',
-    hover: '#F2F2F2',
-    textPrimary: '#1C1E21',  // FB primary text
-    textSecondary: '#65676B',// FB secondary text
-    textMuted: '#8A8D91',    // FB muted
-    border: '#CED0D4',       // FB divider
-    borderLight: '#E4E6EB',
-    divider: '#E4E6EB',
-    inputBg: '#F0F2F5',
-    inputBorder: '#CED0D4',
-    overlay: 'rgba(0,0,0,0.5)',
-    // Legacy aliases so old rules don't break
-    textPrimaryOld: '#333',
-    textSecondaryOld: '#666',
-    textMutedOld: '#888',
-    borderLightOld: '#f0f0f0'
+    primary: '#18181B',
+    secondary: '#27272A',
+    accent: '#3B82F6',
+    danger: '#EF4444',
+    success: '#10B981',
+    warning: '#F59E0B',
+    dark: '#09090B',
+    light: '#FAFAFA',
+    textPrimary: '#18181B',
+    textSecondary: '#52525B',
+    textMuted: '#A1A1AA',
+    border: '#E4E4E7',
+    borderLight: '#F4F4F5'
   },
-
   gradients: {
-    // Facebook has no gradients — keep flat colors
-    primary: '#1877F2',
-    pink: '#FA383E',
-    success: '#42B72A',
-    danger: '#FA383E',
-    background: '#F0F2F5',
-    subtlePrimary: 'rgba(24,119,242,0.1)'
+    primary: 'linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)',
+    pink: 'linear-gradient(135deg, #EF4444 0%, #F59E0B 100%)',
+    success: 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
   },
-
   shadows: {
-    // Facebook's flat, minimal shadows
-    sm: '0 1px 2px rgba(0,0,0,0.1)',
-    md: '0 1px 2px rgba(0,0,0,0.1)',
-    lg: '0 2px 12px rgba(0,0,0,0.2)',
-    primary: '0 1px 2px rgba(0,0,0,0.1)',
-    danger: '0 1px 2px rgba(0,0,0,0.1)',
-    success: '0 1px 2px rgba(0,0,0,0.1)',
-    glow: 'none',
-    none: 'none'
+    sm: '0 1px 2px rgba(0,0,0,0.04)',
+    md: '0 4px 12px rgba(0,0,0,0.06)',
+    lg: '0 12px 32px rgba(0,0,0,0.08)',
+    primary: '0 4px 12px rgba(59,130,246,0.15)',
+    danger: '0 4px 12px rgba(239,68,68,0.15)',
+    success: '0 4px 12px rgba(16,185,129,0.15)',
+    glow: '0 0 0 3px rgba(59,130,246,0.1)'
   },
-
   radius: {
-    sm: '6px',    // FB uses 6px
-    md: '8px',
-    lg: '8px',
-    xl: '12px',
-    pill: '999px',// FB pill buttons
+    sm: '6px',
+    md: '10px',
+    lg: '14px',
+    xl: '20px',
+    pill: '999px',
     round: '50%'
   },
-
   button: {
     paddingY: '8px',
     paddingX: '16px',
-    fontSize: '15px',
-    fontWeight: '600',
+    fontSize: '14px',
+    fontWeight: '500',
     lift: '0',
     hoverScale: '1',
     activeScale: '0.98',
-    transition: 'background-color 0.15s ease, color 0.15s ease'
-  },
-
-  body: {
-    background: '#F0F2F5',   // FB page bg
-    backgroundSize: 'auto',
-    animation: 'none'
-  },
-
-  card: {
-    background: '#FFFFFF',
-    backdropBlur: 'none',
-    hoverLift: '0',
-    border: '1px solid #E4E6EB'
-  },
-
-  // Facebook font stack — exact match
-  typography: {
-    fontFamily: `-apple-system, BlinkMacSystemFont, "Segoe UI Historic", "Segoe UI", Helvetica, Arial, sans-serif`,
-    // Facebook doesn't use Inter — it uses system fonts
-    sizeBase: '15px',
-    sizeSmall: '13px',
-    sizeLarge: '17px',
-    sizeH1: '24px',
-    sizeH2: '20px',
-    sizeH3: '17px',
-    lineHeight: '1.3333',
-    weightNormal: '400',
-    weightMedium: '500',
-    weightSemiBold: '600',
-    weightBold: '700'
+    transition: 'all 0.15s ease'
   }
 };
