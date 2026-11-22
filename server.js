@@ -1,7 +1,7 @@
-// server.js — Premium single-dashboard system
+// server.js
 require('dotenv').config();
-process.on('uncaughtException', (e) => console.error('Uncaught:', e.message));
-process.on('unhandledRejection', (e) => console.error('Rejection:', e));
+process.on('uncaughtException', (e) => { console.error('Uncaught:', e.message); });
+process.on('unhandledRejection', (e) => { console.error('Rejection:', e); });
 
 const CONFIG = require('./config');
 const THEME = require('./theme');
@@ -17,22 +17,27 @@ const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIO(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
+const io = socketIO(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] }
+});
+
 const PORT = process.env.PORT || CONFIG.server.port || 3000;
 
-/* ==================== MIDDLEWARE ==================== */
+// ==================== CACHE & STATIC FILES ====================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/assets', express.static('assets', { maxAge: 604800000 }));
 app.use('/uploads', express.static('uploads', { maxAge: 604800000 }));
-app.use('/styles.css', express.static(path.join(__dirname, 'styles.css')));
-app.use('/client.js', express.static(path.join(__dirname, 'client.js')));
-app.use('/admin.js', express.static(path.join(__dirname, 'admin.js')));
+app.use('/styles.css', express.static(path.join(__dirname, 'styles.css'), { maxAge: 604800000 }));
+app.use('/client.js', express.static(path.join(__dirname, 'client.js'), { maxAge: 604800000 }));
+app.use('/admin.js', express.static(path.join(__dirname, 'admin.js'), { maxAge: 604800000 }));
+app.use('/space.js', express.static(path.join(__dirname, 'space.js'), { maxAge: 604800000 }));
 
 app.use(session({
   secret: CONFIG.server.sessionSecret,
-  resave: false, saveUninitialized: false,
+  resave: false,
+  saveUninitialized: false,
   cookie: { maxAge: 86400000 }
 }));
 
@@ -46,10 +51,10 @@ const upload = multer({ storage });
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-/* ==================== DATABASE ==================== */
+// ==================== SQLITE3 SETUP ====================
 const db = new sqlite3.Database('./database.sqlite', (err) => {
-  if (err) console.error('❌ SQLite:', err.message);
-  else console.log('✅ SQLite connected');
+  if (err) console.error('❌ SQLite Error:', err.message);
+  else console.log('✅ SQLite3 Connected');
 });
 
 db.serialize(() => {
@@ -83,7 +88,7 @@ db.serialize(() => {
   });
 });
 
-/* ==================== HELPERS ==================== */
+// ==================== HELPERS ====================
 const ASSETS = CONFIG.assets;
 const WELCOME_VOICE = fs.existsSync(CONFIG.voice.welcome);
 const MANUAL_VOICE = fs.existsSync(CONFIG.voice.manualAlert);
@@ -112,7 +117,7 @@ const THEME_CSS = `<style>:root{
   --c-border-light:${THEME.colors.borderLight};
 }</style>`;
 
-/* ==================== PUBLIC PROFILE ==================== */
+// ==================== MAIN PAGE ====================
 app.get('/', (req, res) => {
   const songs = getSongs();
 
@@ -161,7 +166,7 @@ app.get('/', (req, res) => {
       </div>
       <div class="profile-body">
         <h1 class="profile-name">${CONFIG.profile.name}</h1>
-        <div class="profile-username">${CONFIG.profile.username} <span style="color:var(--primary);font-weight:600">✓</span></div>
+        <div class="profile-username">${CONFIG.profile.username} <span style="color:var(--cyan);font-weight:600">✓</span></div>
         <p class="profile-bio">${CONFIG.profile.bio}</p>
 
         <div class="profile-stats">
@@ -273,6 +278,8 @@ app.get('/', (req, res) => {
       tracks: ${JSON.stringify(songs)}
     };
   </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="/space.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/client.js"></script>
 </body>
@@ -281,7 +288,7 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-/* ==================== API ==================== */
+// ==================== API ROUTES ====================
 app.get('/api/msgs/:email', (req, res) => {
   const email = req.params.email;
   db.all(`SELECT * FROM messages WHERE (sender = ? AND receiver = 'admin') OR (sender = 'admin' AND receiver = ?) ORDER BY timestamp ASC`,
@@ -298,24 +305,6 @@ app.post('/api/admin/login', (req, res) => {
     req.session.isAdmin = true;
     req.session.adminEmail = email;
     res.json({ success: true });
-  });
-});
-
-app.get('/api/admin/stats', (req, res) => {
-  if (!req.session.isAdmin) return res.status(401).json({ error: 'Unauthorized' });
-  const stats = {};
-  db.get(`SELECT COUNT(*) as c FROM users WHERE isAdmin = 0`, (e, r) => {
-    stats.users = r ? r.c : 0;
-    db.get(`SELECT COUNT(*) as c FROM messages`, (e2, r2) => {
-      stats.messages = r2 ? r2.c : 0;
-      db.get(`SELECT COUNT(*) as c FROM reports`, (e3, r3) => {
-        stats.reports = r3 ? r3.c : 0;
-        db.get(`SELECT COUNT(*) as c FROM users WHERE isOnline = 1`, (e4, r4) => {
-          stats.online = r4 ? r4.c : 0;
-          res.json(stats);
-        });
-      });
-    });
   });
 });
 
@@ -366,228 +355,108 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   }
 });
 
-/* ==================== ADMIN DASHBOARD ==================== */
+// ==================== ADMIN MESSENGER PAGE ====================
 app.get('/admin', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard — Baiilla Maach</title>
+  <title>Admin Messenger | Baiilla Maach</title>
   ${THEME_CSS}
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <div class="login-overlay" id="loginOverlay">
     <div class="login-card">
-      <h1>Welcome back</h1>
-      <p class="sub">Sign in to your dashboard</p>
-      <input type="text" id="loginEmail" placeholder="Email" value="${CONFIG.admin.defaultEmail}">
+      <h1>Admin Messenger</h1>
+      <p class="sub">Baiilla Maach Support Panel</p>
+      <input type="text" id="loginEmail" placeholder="Username" value="${CONFIG.admin.defaultEmail}">
       <input type="password" id="loginPassword" placeholder="Password" value="${CONFIG.admin.defaultPassword}">
-      <button id="loginBtn" onclick="doLogin()">Sign in</button>
+      <button id="loginBtn" onclick="doLogin()">Sign In</button>
       <div class="error" id="loginError"></div>
     </div>
   </div>
 
   <div class="dashboard" id="dashboard">
-    <aside class="dash-sidebar" id="dashSidebar">
+    <aside class="dash-sidebar">
       <div class="dash-sidebar-head">
-        <h2>Baiilla Maach</h2>
-        <div class="sub">Admin dashboard</div>
+        <h2>Conversations</h2>
+        <div class="sub">Baiilla Maach Admin</div>
       </div>
       <nav class="dash-nav">
-        <button class="dash-nav-item active" onclick="showView('overview', this)">
-          <span class="icon">📊</span> Overview
-        </button>
-        <button class="dash-nav-item" onclick="showView('messages', this)">
+        <button class="dash-nav-item active" onclick="showView('messages', this)">
           <span class="icon">💬</span> Messages
-          <span class="badge-count" id="navUnread" style="display:none">0</span>
-        </button>
-        <button class="dash-nav-item" onclick="showView('music', this)">
-          <span class="icon">🎵</span> Music
-        </button>
-        <button class="dash-nav-item" onclick="showView('reports', this)">
-          <span class="icon">🚨</span> Reports
         </button>
         <button class="dash-nav-item" onclick="showView('users', this)">
           <span class="icon">👥</span> Users
         </button>
-        <button class="dash-nav-item" onclick="showView('settings', this)">
-          <span class="icon">⚙️</span> Settings
+        <button class="dash-nav-item" onclick="showView('reports', this)">
+          <span class="icon">🚨</span> Reports
         </button>
       </nav>
-      <div class="dash-sidebar-foot">
+      <div style="padding:12px">
         <button class="btn btn-secondary btn-block" onclick="doLogout()">Sign out</button>
       </div>
     </aside>
 
     <main class="dash-content">
-      <!-- Overview -->
-      <div class="dash-view active" id="view-overview">
-        <div class="dash-header">
-          <div>
-            <h1 class="dash-title">Overview</h1>
-            <p class="dash-subtitle">Your account at a glance</p>
-          </div>
-        </div>
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-card-label">Total Users</div>
-            <div class="stat-card-value" id="statUsers">—</div>
-            <div class="stat-card-sub" id="statOnline">— online now</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-card-label">Messages</div>
-            <div class="stat-card-value" id="statMessages">—</div>
-            <div class="stat-card-sub">all time</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-card-label">Reports</div>
-            <div class="stat-card-value" id="statReports">—</div>
-            <div class="stat-card-sub">pending review</div>
-          </div>
-        </div>
-
-        <div class="data-card">
-          <div class="data-head">
-            <h3>Recent users</h3>
-            <button class="btn btn-sm btn-secondary" onclick="showView('users', document.querySelectorAll('.dash-nav-item')[4])">View all</button>
-          </div>
-          <div id="recentUsersList">
-            <div class="empty-state"><p>Loading...</p></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Messages -->
-      <div class="dash-view" id="view-messages">
-        <div class="dash-header">
-          <div>
-            <h1 class="dash-title">Messages</h1>
-            <p class="dash-subtitle">Chat with your users</p>
-          </div>
-        </div>
-        <div class="messages-view">
-          <div class="msg-sidebar" id="msgSidebar">
-            <div class="msg-search">
-              <input type="text" id="msgSearch" placeholder="Search users..." oninput="renderMsgUsers()">
+      <div class="dash-view active" id="view-messages">
+        <div style="display:grid;grid-template-columns:300px 1fr;gap:20px;height:calc(100vh - 80px)">
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:20px;overflow:hidden;display:flex;flex-direction:column">
+            <div style="padding:12px;border-bottom:1px solid var(--border)">
+              <input type="text" id="searchInput" placeholder="Search users..." oninput="filterUsers()" style="width:100%;padding:10px 14px;border:1px solid var(--border);background:rgba(255,255,255,0.05);border-radius:10px;color:var(--text);outline:none;font-family:inherit">
             </div>
-            <div class="msg-users" id="msgUsers">
-              <div class="empty-state"><p>Loading...</p></div>
-            </div>
+            <div id="userList" style="flex:1;overflow-y:auto"></div>
           </div>
-          <div class="msg-main" id="msgMain">
-            <div class="msg-main-head">
-              <div class="avatar" id="msgAvatar">?</div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:20px;overflow:hidden;display:flex;flex-direction:column">
+            <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+              <div id="chatAvatar" style="width:36px;height:36px;border-radius:50%;background:var(--gradient-primary);display:flex;align-items:center;justify-content:center;font-weight:700;color:white">?</div>
               <div>
-                <div class="name" id="msgName">Select a conversation</div>
-                <div class="status" id="msgStatus">—</div>
+                <div id="chatName" style="font-weight:600;font-size:14px">Select a conversation</div>
+                <div id="chatStatus" style="font-size:12px;color:var(--text-tertiary)">Offline</div>
               </div>
             </div>
-            <div class="msg-thread" id="msgThread">
-              <div class="empty-state">
-                <div class="icon">💬</div>
-                <h3>No conversation selected</h3>
-                <p>Pick a user from the left to start chatting</p>
+            <div id="chatMessages" style="flex:1;overflow-y:auto;padding:20px">
+              <div class="empty-state"><h3>No conversation selected</h3><p>Pick a user from the left</p></div>
+            </div>
+            <div id="chatInputArea" style="padding:12px;border-top:1px solid var(--border);display:none">
+              <div style="display:flex;gap:8px">
+                <input type="text" id="msgInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()" style="flex:1;padding:10px 16px;border:1px solid var(--border);background:rgba(255,255,255,0.05);border-radius:10px;color:var(--text);outline:none;font-family:inherit">
+                <button onclick="sendMessage()" style="padding:0 20px;background:var(--gradient-primary);color:white;border:none;border-radius:10px;font-weight:600;cursor:pointer">Send</button>
               </div>
             </div>
-            <div class="msg-compose" id="msgCompose" style="display:none">
-              <input type="text" id="msgInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
-              <button onclick="sendMessage()">Send</button>
-            </div>
           </div>
         </div>
       </div>
 
-      <!-- Music -->
-      <div class="dash-view" id="view-music">
-        <div class="dash-header">
-          <div>
-            <h1 class="dash-title">Music</h1>
-            <p class="dash-subtitle">Manage your cover songs</p>
-          </div>
-        </div>
-        <div class="data-card">
-          <div class="data-head">
-            <h3>Songs list</h3>
-            <a href="/" target="_blank" class="btn btn-sm btn-secondary">View public page</a>
-          </div>
-          <div id="musicList">
-            <div class="empty-state"><p>Loading...</p></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Reports -->
-      <div class="dash-view" id="view-reports">
-        <div class="dash-header">
-          <div>
-            <h1 class="dash-title">Reports</h1>
-            <p class="dash-subtitle">Fake accounts reported by users</p>
-          </div>
-        </div>
-        <div class="data-card">
-          <div class="data-head"><h3>All reports</h3></div>
-          <div id="reportsList">
-            <div class="empty-state"><p>Loading...</p></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Users -->
       <div class="dash-view" id="view-users">
-        <div class="dash-header">
-          <div>
-            <h1 class="dash-title">Users</h1>
-            <p class="dash-subtitle">Everyone who has chatted with you</p>
-          </div>
+        <div style="margin-bottom:20px">
+          <h1 style="font-size:24px;font-weight:800">Users</h1>
+          <p style="color:var(--text-secondary);font-size:14px">Everyone who has chatted with you</p>
         </div>
-        <div class="data-card">
-          <div class="data-head"><h3>All users</h3></div>
-          <div id="usersList">
-            <div class="empty-state"><p>Loading...</p></div>
-          </div>
-        </div>
+        <div id="usersList" style="background:var(--bg-card);border:1px solid var(--border);border-radius:20px;overflow:hidden"></div>
       </div>
 
-      <!-- Settings -->
-      <div class="dash-view" id="view-settings">
-        <div class="dash-header">
-          <div>
-            <h1 class="dash-title">Settings</h1>
-            <p class="dash-subtitle">Update your public profile</p>
-          </div>
+      <div class="dash-view" id="view-reports">
+        <div style="margin-bottom:20px">
+          <h1 style="font-size:24px;font-weight:800">Reports</h1>
+          <p style="color:var(--text-secondary);font-size:14px">Fake accounts reported by users</p>
         </div>
-        <div class="data-card">
-          <div class="data-head"><h3>Profile</h3></div>
-          <div class="section-body" style="padding:20px">
-            <div class="form-group">
-              <label class="form-label">Display name</label>
-              <input class="form-input" type="text" id="setName" value="${CONFIG.profile.name}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Username</label>
-              <input class="form-input" type="text" id="setUsername" value="${CONFIG.profile.username}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Bio</label>
-              <input class="form-input" type="text" id="setBio" value="${CONFIG.profile.bio}">
-            </div>
-            <button class="btn btn-primary" onclick="saveSettings()">Save changes</button>
-            <p class="form-help" style="margin-top:12px">Settings are saved in <code>config.js</code>. Edit manually to persist across deploys.</p>
-          </div>
-        </div>
+        <div id="reportsList" style="background:var(--bg-card);border:1px solid var(--border);border-radius:20px;overflow:hidden"></div>
       </div>
     </main>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="/space.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>`);
 });
 
-/* ==================== SOCKET.IO ==================== */
+// ==================== SOCKET.IO ====================
 io.on('connection', (socket) => {
   console.log('🔌 Socket connected');
 
@@ -598,9 +467,7 @@ io.on('connection', (socket) => {
         const hash = await bcrypt.hash('default123', 10);
         db.run(`INSERT INTO users (name, email, password, isOnline, lastSeen) VALUES (?, ?, ?, 1, ?)`,
           [data.name, data.email, hash, new Date().toISOString()],
-          (err) => {
-            io.emit('userStatus', { email: data.email, online: true });
-          });
+          () => io.emit('userStatus', { email: data.email, online: true }));
       } else {
         db.run(`UPDATE users SET isOnline = 1, lastSeen = ? WHERE email = ?`,
           [new Date().toISOString(), data.email],
@@ -630,17 +497,15 @@ io.on('connection', (socket) => {
     if (socket.userData) {
       db.run(`UPDATE users SET isOnline = 0, lastSeen = ? WHERE email = ?`,
         [new Date().toISOString(), socket.userData.email],
-        () => {
-          io.emit('userStatus', { email: socket.userData.email, online: false });
-        });
+        () => io.emit('userStatus', { email: socket.userData.email, online: false }));
     }
   });
 });
 
-/* ==================== START ==================== */
+// ==================== START SERVER ====================
 server.listen(PORT, () => {
   console.log('========================================');
   console.log('🚀 Server: http://localhost:' + PORT);
-  console.log('🔧 Dashboard: http://localhost:' + PORT + '/admin');
+  console.log('🔧 Admin: http://localhost:' + PORT + '/admin');
   console.log('========================================');
 });
