@@ -1,174 +1,140 @@
-// admin.js
+// client.js — public profile page
 (function () {
-  if (typeof io === 'undefined') return;
-  var socket = io();
-  var currentUser = null;
-  var allUsers = [];
-  var isLoggedIn = false;
-  var pollTimer = null;
+  var cfg = window.__CONFIG__ || {};
+  var tracks = cfg.tracks || [];
   var $ = function (id) { return document.getElementById(id); };
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, function (c) {
-      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
-    });
+  // Music player
+  var musicAudio = $('musicAudio');
+  var musicPlaying = false;
+  var currentTrack = 0;
+
+  function updatePlayBtn() {
+    var b = $('mPlayBtn');
+    if (b) b.textContent = musicPlaying ? '⏸' : '▶';
   }
 
-  socket.on('newMsg', function (m) {
-    if (currentUser && (
-      (m.sender === currentUser.email && m.receiver === 'admin') ||
-      (m.sender === 'admin' && m.receiver === currentUser.email)
-    )) {
-      appendMessage(m);
+  function updateMusicUI(i) {
+    var t = $('mTitle');
+    if (t && tracks[i]) t.textContent = tracks[i].title;
+    var items = document.querySelectorAll('.playlist-item');
+    for (var j = 0; j < items.length; j++) {
+      if (j === i) items[j].classList.add('active');
+      else items[j].classList.remove('active');
     }
-    loadUsers();
-  });
+  }
 
-  socket.on('userStatus', function (d) {
-    if (currentUser && currentUser.email === d.email) {
-      var s = $('chatStatus');
-      s.textContent = d.online ? '● Online' : '● Offline';
-      s.className = 'status ' + (d.online ? 'online' : 'offline');
-    }
-    loadUsers();
-  });
-
-  window.doLogin = function () {
-    var e = $('loginEmail').value.trim();
-    var p = $('loginPassword').value.trim();
-    var err = $('loginError');
-    var btn = $('loginBtn');
-    err.style.display = 'none';
-    if (!e || !p) { err.textContent = 'Fill all fields'; err.style.display = 'block'; return; }
-    btn.disabled = true; btn.textContent = 'Signing...';
-    fetch('/api/admin/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: e, password: p })
-    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-      .then(function (res) {
-        if (res.ok) {
-          isLoggedIn = true;
-          localStorage.setItem('adminSession', JSON.stringify({ email: e, password: p }));
-          $('loginOverlay').style.display = 'none';
-          $('app').style.display = 'block';
-          loadUsers();
-          pollTimer = setInterval(function () { if (isLoggedIn) loadUsers(); }, 10000);
-        } else {
-          err.textContent = '❌ ' + (res.d.error || 'Invalid credentials');
-          err.style.display = 'block';
-        }
-        btn.disabled = false; btn.textContent = 'Sign In';
-      })
-      .catch(function () {
-        err.textContent = '❌ Network error'; err.style.display = 'block';
-        btn.disabled = false; btn.textContent = 'Sign In';
-      });
+  window.playMusic = function (i) {
+    if (!tracks.length) return;
+    currentTrack = i;
+    musicAudio.src = tracks[i].url;
+    musicAudio.play().catch(function () {});
+    musicPlaying = true;
+    updatePlayBtn();
+    updateMusicUI(i);
   };
 
-  function loadUsers() {
-    if (!isLoggedIn) return;
-    fetch('/api/admin/users')
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        allUsers = data;
-        renderUserList();
-      })
-      .catch(function (e) { console.warn(e); });
-  }
+  window.toggleMusic = function () {
+    if (musicAudio.paused) {
+      if (!musicAudio.src && tracks.length) musicAudio.src = tracks[0].url;
+      musicAudio.play().catch(function () {});
+      musicPlaying = true;
+      updatePlayBtn();
+      updateMusicUI(currentTrack);
+    } else {
+      musicAudio.pause();
+      musicPlaying = false;
+      updatePlayBtn();
+    }
+  };
 
-  function renderUserList() {
-    var s = $('searchInput').value.toLowerCase();
-    var f = allUsers.filter(function (u) {
-      return u.name.toLowerCase().indexOf(s) !== -1 || u.email.toLowerCase().indexOf(s) !== -1;
+  window.prevMusic = function () {
+    if (!tracks.length) return;
+    window.playMusic((currentTrack - 1 + tracks.length) % tracks.length);
+  };
+  window.nextMusic = function () {
+    if (!tracks.length) return;
+    window.playMusic((currentTrack + 1) % tracks.length);
+  };
+  window.seekMusic = function (e) {
+    if (!musicAudio.duration) return;
+    var r = e.currentTarget.getBoundingClientRect();
+    musicAudio.currentTime = ((e.clientX - r.left) / r.width) * musicAudio.duration;
+  };
+
+  if (musicAudio) {
+    musicAudio.addEventListener('timeupdate', function () {
+      if (!musicAudio.duration) return;
+      var fill = $('mFill'), cur = $('mCur'), dur = $('mDur');
+      if (fill) fill.style.width = (musicAudio.currentTime / musicAudio.duration) * 100 + '%';
+      if (cur) cur.textContent = formatTime(musicAudio.currentTime);
+      if (dur) dur.textContent = formatTime(musicAudio.duration);
     });
-    var list = $('userList');
-    if (!f.length) { list.innerHTML = '<div class="empty-state"><p>No users yet</p></div>'; return; }
-    list.innerHTML = f.map(function (u) {
-      var active = currentUser && currentUser.email === u.email ? ' active' : '';
-      return '<div class="user-item' + active + '" onclick="selectUser(\'' + u.email + '\')">' +
-        '<div class="user-avatar">' + u.name.charAt(0).toUpperCase() + '</div>' +
-        '<div class="user-info">' +
-          '<div class="name">' + escapeHtml(u.name) + '</div>' +
-          '<div class="email">' + escapeHtml(u.email) + '</div>' +
-        '</div>' +
-        (u.unreadCount > 0 ? '<div class="unread">' + u.unreadCount + '</div>' : '') +
-        '</div>';
-    }).join('');
+    musicAudio.addEventListener('ended', window.nextMusic);
   }
 
-  window.filterUsers = function () { renderUserList(); };
+  function formatTime(s) {
+    if (isNaN(s)) return '0:00';
+    return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+  }
 
-  window.selectUser = function (email) {
-    var u = allUsers.find(function (x) { return x.email === email; });
-    if (!u) return;
-    currentUser = u;
-    $('chatAvatar').textContent = u.name.charAt(0).toUpperCase();
-    $('chatName').textContent   = u.name;
-    var st = $('chatStatus');
-    st.textContent = u.isOnline ? '● Online' : '● Offline';
-    st.className = 'status ' + (u.isOnline ? 'online' : 'offline');
+  // Chat
+  if (typeof io === 'undefined') return;
+  var socket = io();
+  var chatUser = null;
+
+  window.toggleChat = function () {
+    $('chatPanel').classList.toggle('open');
+  };
+
+  window.startChatSession = function () {
+    var n = $('chatNameInput').value.trim();
+    var e = $('chatEmailInput').value.trim();
+    if (!n || !e) return;
+    chatUser = { name: n, email: e };
+    socket.emit('register', chatUser);
+    $('chatLoginForm').style.display = 'none';
     $('chatInputArea').style.display = 'block';
+    loadChatMessages();
+  };
 
-    fetch('/api/msgs/' + encodeURIComponent(u.email))
+  function loadChatMessages() {
+    if (!chatUser) return;
+    fetch('/api/msgs/' + encodeURIComponent(chatUser.email))
       .then(function (r) { return r.json(); })
       .then(function (ms) {
-        var c = $('chatMessages');
-        if (!ms.length) {
-          c.innerHTML = '<div class="empty-state"><h3>No messages</h3></div>';
-        } else {
-          c.innerHTML = ms.map(function (m) {
-            var sent = m.sender === 'admin';
-            var t = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            return '<div class="msg ' + (sent ? 'sent' : 'received') + '">' +
-              escapeHtml(m.message) +
-              '<div class="time">' + t + '</div></div>';
-          }).join('');
-        }
-        c.scrollTop = c.scrollHeight;
-      })
-      .catch(function (e) { console.warn(e); });
-
-    socket.emit('markRead', { user: u.email });
-    renderUserList();
-  };
-
-  function appendMessage(m) {
-    if (!currentUser) return;
-    var c = $('chatMessages');
-    var sent = m.sender === 'admin';
-    var t = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    c.insertAdjacentHTML('beforeend',
-      '<div class="msg ' + (sent ? 'sent' : 'received') + '">' +
-      escapeHtml(m.message) +
-      '<div class="time">' + t + '</div></div>');
-    c.scrollTop = c.scrollHeight;
+        var b = $('chatBody');
+        b.innerHTML = '';
+        ms.forEach(renderChatMsg);
+        b.scrollTop = b.scrollHeight;
+      });
   }
 
-  window.sendMessage = function () {
-    if (!currentUser) return;
-    var i = $('msgInput');
+  function renderChatMsg(m) {
+    var b = $('chatBody');
+    var el = document.createElement('div');
+    el.className = 'msg ' + (m.sender === chatUser.email ? 'user' : 'admin');
+    el.textContent = m.message;
+    var t = document.createElement('div');
+    t.className = 'time';
+    t.textContent = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    el.appendChild(t);
+    b.appendChild(el);
+  }
+
+  window.sendChatMsg = function () {
+    var i = $('chatMsgInput');
     var m = i.value.trim();
-    if (!m) return;
-    socket.emit('sendMsg', { sender: 'admin', receiver: currentUser.email, message: m, type: 'text' });
-    appendMessage({ sender: 'admin', receiver: currentUser.email, message: m, timestamp: new Date() });
-    i.value = ''; i.focus();
+    if (!m || !chatUser) return;
+    socket.emit('sendMsg', { sender: chatUser.email, receiver: 'admin', message: m, type: 'text' });
+    i.value = '';
   };
 
-  window.doLogout = function () {
-    if (pollTimer) clearInterval(pollTimer);
-    localStorage.removeItem('adminSession');
-    location.reload();
-  };
-
-  var saved = localStorage.getItem('adminSession');
-  if (saved) {
-    try {
-      var d = JSON.parse(saved);
-      $('loginEmail').value = d.email || '';
-      $('loginPassword').value = d.password || '';
-    } catch (e) {}
-  }
-  var pw = $('loginPassword');
-  if (pw) pw.addEventListener('keypress', function (e) { if (e.key === 'Enter') window.doLogin(); });
+  socket.on('newMsg', function (m) {
+    if (chatUser && (m.sender === chatUser.email || m.receiver === chatUser.email)) {
+      renderChatMsg(m);
+      var b = $('chatBody');
+      b.scrollTop = b.scrollHeight;
+    }
+  });
 })();
