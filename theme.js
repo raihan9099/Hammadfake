@@ -1,50 +1,50 @@
 // theme.js
 module.exports = {
   colors: {
-    primary: '#18181B',
-    secondary: '#27272A',
-    accent: '#3B82F6',
-    danger: '#EF4444',
-    success: '#10B981',
-    warning: '#F59E0B',
-    dark: '#09090B',
-    light: '#FAFAFA',
-    textPrimary: '#18181B',
-    textSecondary: '#52525B',
-    textMuted: '#A1A1AA',
-    border: '#E4E4E7',
-    borderLight: '#F4F4F5'
+    primary: '#4A90FF',
+    secondary: '#9D6BFF',
+    accent: '#4AE3FF',
+    danger: '#FF6BCB',
+    success: '#4AE3FF',
+    warning: '#FFC84A',
+    dark: '#0A0E27',
+    light: '#0F1535',
+    textPrimary: '#FFFFFF',
+    textSecondary: '#A8B0D8',
+    textMuted: '#6B7394',
+    border: 'rgba(120,150,255,0.15)',
+    borderLight: 'rgba(120,150,255,0.08)'
   },
   gradients: {
-    primary: 'linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)',
-    pink: 'linear-gradient(135deg, #EF4444 0%, #F59E0B 100%)',
-    success: 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
+    primary: 'linear-gradient(135deg, #4A90FF 0%, #9D6BFF 100%)',
+    pink: 'linear-gradient(135deg, #FF6BCB 0%, #FF4A7A 100%)',
+    success: 'linear-gradient(135deg, #4AE3FF 0%, #4A90FF 100%)'
   },
   shadows: {
-    sm: '0 1px 2px rgba(0,0,0,0.04)',
-    md: '0 4px 12px rgba(0,0,0,0.06)',
-    lg: '0 12px 32px rgba(0,0,0,0.08)',
-    primary: '0 4px 12px rgba(59,130,246,0.15)',
-    danger: '0 4px 12px rgba(239,68,68,0.15)',
-    success: '0 4px 12px rgba(16,185,129,0.15)',
-    glow: '0 0 0 3px rgba(59,130,246,0.1)'
+    sm: '0 2px 8px rgba(0,0,0,0.4)',
+    md: '0 8px 24px rgba(0,0,0,0.5)',
+    lg: '0 20px 50px rgba(0,0,0,0.6)',
+    primary: '0 4px 20px rgba(74,144,255,0.4)',
+    danger: '0 4px 20px rgba(255,107,203,0.3)',
+    success: '0 4px 20px rgba(74,227,255,0.3)',
+    glow: '0 0 30px rgba(74,144,255,0.3)'
   },
   radius: {
-    sm: '6px',
-    md: '10px',
-    lg: '14px',
-    xl: '20px',
+    sm: '8px',
+    md: '12px',
+    lg: '20px',
+    xl: '24px',
     pill: '999px',
     round: '50%'
   },
   button: {
-    paddingY: '8px',
-    paddingX: '16px',
+    paddingY: '10px',
+    paddingX: '20px',
     fontSize: '14px',
-    fontWeight: '500',
-    lift: '0',
-    hoverScale: '1',
+    fontWeight: '600',
+    lift: '-2px',
+    hoverScale: '1.02',
     activeScale: '0.98',
-    transition: 'all 0.15s ease'
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
   }
 };
