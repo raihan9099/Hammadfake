@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-cosmos-900 text-white antialiased overflow-x-hidden;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  ::selection {
+    @apply bg-neon-cyan/30 text-white;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-cosmos-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neon-cyan/40 rounded-full;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply relative rounded-2xl border border-white/10 backdrop-blur-xl;
+    background: linear-gradient(
+      135deg,
+      rgba(16, 24, 60, 0.65) 0%,
+      rgba(5, 8, 23, 0.75) 100%
+    );
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .glass-card-glow {
+    @apply glass-card;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 40px rgba(34, 211, 238, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  .neon-text {
+    background: linear-gradient(90deg, #22d3ee, #a78bfa, #e879f9);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .btn-neon {
+    @apply relative inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold tracking-wide text-white transition-all duration-300;
+    background: linear-gradient(90deg, #22d3ee, #a78bfa);
+    box-shadow: 0 0 24px rgba(34, 211, 238, 0.4);
+  }
+  .btn-neon:hover {
+    @apply scale-105;
+    box-shadow: 0 0 40px rgba(34, 211, 238, 0.7);
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold tracking-wide text-white backdrop-blur-md transition-all duration-300 hover:border-neon-cyan/50 hover:bg-white/10 hover:shadow-glow;
+  }
+  .badge-neon {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-neon-cyan/30 bg-neon-cyan/10 px-3 py-1 text-xs font-medium tracking-wider text-neon-cyan;
+  }
+  .badge-violet {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-neon-violet/30 bg-neon-violet/10 px-3 py-1 text-xs font-medium tracking-wider text-neon-violet;
+  }
+  .badge-magenta {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-neon-magenta/30 bg-neon-magenta/10 px-3 py-1 text-xs font-medium tracking-wider text-neon-magenta;
+  }
+}
+
+/* Hide default scrollbar during 3D canvas */
+canvas {
+  display: block;
+}
