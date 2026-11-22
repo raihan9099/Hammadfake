@@ -1,29 +1,26 @@
 {
-  "name": "bailla-mach-portfolio",
-  "private": true,
+  "name": "bailla-mach",
   "version": "1.0.0",
-  "type": "module",
+  "description": "Bailla Mach — Fake Account Detection portfolio & backend",
+  "main": "server.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "start": "node server.js",
+    "build": "npm install",
+    "client:install": "cd client && npm install",
+    "client:build": "cd client && npm run build",
+    "postinstall": "npm run client:install && npm run client:build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.2",
-    "@react-three/fiber": "^8.17.10",
-    "@react-three/drei": "^9.114.0",
-    "three": "^0.169.0",
-    "framer-motion": "^11.11.0",
-    "lenis": "^1.1.13",
-    "@react-spring/three": "^9.7.4"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.2",
-    "vite": "^5.4.8",
-    "tailwindcss": "^3.4.13",
-    "postcss": "^8.4.47",
-    "autoprefixer": "^10.4.20"
+    "bcryptjs": "^2.4.3",
+    "compression": "^1.7.4",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-session": "^1.18.0",
+    "multer": "^1.4.5-lts.1",
+    "socket.io": "^4.7.5",
+    "sqlite3": "^5.1.7"
   }
 }
