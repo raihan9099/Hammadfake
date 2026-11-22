@@ -1,3 +1,4 @@
+// server.js — EDL Style Full Server
 require('dotenv').config();
 process.on('uncaughtException', (e) => { console.error('Uncaught:', e.message); });
 process.on('unhandledRejection', (e) => { console.error('Rejection:', e); });
@@ -16,9 +17,13 @@ const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIO(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
+const io = socketIO(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] }
+});
+
 const PORT = process.env.PORT || CONFIG.server.port || 3000;
 
+// ==================== CACHE & STATIC FILES ====================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -30,7 +35,7 @@ app.use('/admin.js', express.static(path.join(__dirname, 'admin.js'), { maxAge: 
 app.use('/space.js', express.static(path.join(__dirname, 'space.js'), { maxAge: 604800000 }));
 
 app.use(session({
-  secret: CONFIG.server.sessionSecret,
+  secret: CONFIG.server.sessionSecret || 'secret123',
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 86400000 }
@@ -46,6 +51,7 @@ const upload = multer({ storage });
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
+// ==================== SQLITE3 SETUP ====================
 const db = new sqlite3.Database('./database.sqlite', (err) => {
   if (err) console.error('❌ SQLite Error:', err.message);
   else console.log('✅ SQLite3 Connected');
@@ -82,14 +88,15 @@ db.serialize(() => {
   });
 });
 
-const ASSETS = CONFIG.assets;
-const WELCOME_VOICE = fs.existsSync(CONFIG.voice.welcome);
-const MANUAL_VOICE = fs.existsSync(CONFIG.voice.manualAlert);
+// ==================== HELPERS ====================
+const ASSETS = CONFIG.assets || {};
+const WELCOME_VOICE = CONFIG.voice && fs.existsSync(CONFIG.voice.welcome);
+const MANUAL_VOICE = CONFIG.voice && fs.existsSync(CONFIG.voice.manualAlert);
 
 function getSongs() {
   try {
     const dir = CONFIG.musicDir;
-    if (!fs.existsSync(dir)) return [];
+    if (!dir || !fs.existsSync(dir)) return [];
     return fs.readdirSync(dir)
       .filter(f => f.endsWith('.mp3'))
       .map((f, i) => ({
@@ -110,176 +117,109 @@ const THEME_CSS = `<style>:root{
   --c-border-light:${THEME.colors.borderLight};
 }</style>`;
 
+// ==================== MAIN PAGE (EDL STYLE) ====================
 app.get('/', (req, res) => {
   const songs = getSongs();
-  const songsListHTML = songs.map((s, i) => `
-    <div class="playlist-item" onclick="playMusic(${i})" id="song-${i}">
-      <span class="playlist-num">${String(i + 1).padStart(2, '0')}</span>
-      <div class="playlist-info">
-        <div class="playlist-title">${s.title}</div>
-        <div class="playlist-artist">Baiilla Maach</div>
-      </div>
-      <span style="color:var(--text-tertiary);font-size:11px">▶</span>
-    </div>`).join('');
-
-  const fakeCardsHTML = CONFIG.fakeAccounts.map(f => `
-    <div class="row-item" style="cursor:default">
-      <img src="${f.image}" class="row-avatar" style="border-radius:8px" alt="">
-      <div class="row-info">
-        <div class="row-title">${f.username}</div>
-        <div class="row-subtitle">📍 ${f.platform} · ${f.reason}</div>
-      </div>
-      <a href="${f.url}" target="_blank" class="btn btn-sm btn-danger">Report</a>
-    </div>`).join('');
-
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Baiilla Maach — Official</title>
+  <title>Baiilla Maach — The Temperature People®</title>
   ${THEME_CSS}
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header class="header">
-    <div class="header-left">
-      <img src="${CONFIG.profile.avatar}" class="header-logo" alt="">
-      <span class="header-name">Baiilla Maach</span>
-    </div>
-  </header>
-
-  <main class="public-wrap">
-    <div class="glass">
-      <div class="hero-section">
-        <h1 class="hero-logo">Baiilla Maach</h1>
-        <div class="hero-subtitle">${CONFIG.profile.name}</div>
-        <div class="hero-tag">${CONFIG.profile.username} · Verified</div>
-      </div>
-    </div>
-
-    <div class="glass">
-      <div class="story-section">
-        <div class="story-eyebrow">ABOUT</div>
-        <h2 class="story-headline">Official Profile</h2>
-        <p class="story-body">${CONFIG.profile.bio}</p>
-        <div class="profile-stats" style="display:flex;justify-content:center;gap:32px;margin-top:32px">
-          <div class="stat"><div class="stat-num" style="font-size:24px;font-weight:800">${CONFIG.stats.tiktokFollowers}</div><div class="stat-label" style="font-size:12px;color:#6B7394;text-transform:uppercase">Followers</div></div>
-          <div class="stat"><div class="stat-num" style="font-size:24px;font-weight:800">${CONFIG.stats.tiktokLikes}</div><div class="stat-label" style="font-size:12px;color:#6B7394;text-transform:uppercase">Likes</div></div>
-        </div>
-        <div style="display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap">
-          <a href="${CONFIG.links.tiktok}" target="_blank" class="btn btn-primary">Follow TikTok</a>
-          <a href="${CONFIG.links.facebook}" target="_blank" class="btn btn-secondary">Follow Facebook</a>
-        </div>
-      </div>
-    </div>
-
-    <div class="glass">
-      <div class="section-header">
-        <span class="section-eyebrow">OFFICIAL</span>
-        <h2 class="section-headline">Verified Accounts</h2>
-        <p class="section-desc">The only authentic accounts</p>
-      </div>
-      <div class="card-grid">
-        <div class="product-card">
-          <div class="card-icon">🎵</div>
-          <h3 class="card-title">TikTok ✓</h3>
-          <p class="card-desc">${CONFIG.profile.username} · ${CONFIG.stats.tiktokFollowers} followers</p>
-          <a href="${CONFIG.links.tiktok}" target="_blank" class="btn btn-secondary btn-sm" style="align-self:flex-start">View Profile</a>
-        </div>
-        <div class="product-card">
-          <div class="card-icon">📘</div>
-          <h3 class="card-title">Facebook ✓</h3>
-          <p class="card-desc">@BaiillaMaachOfficial · ${CONFIG.stats.facebookFollowers} followers</p>
-          <a href="${CONFIG.links.facebook}" target="_blank" class="btn btn-secondary btn-sm" style="align-self:flex-start">View Profile</a>
-        </div>
-      </div>
-    </div>
-
-    <div class="glass">
-      <div class="section-header">
-        <span class="section-eyebrow" style="color:#FF6BCB">WARNING</span>
-        <h2 class="section-headline">Fake Accounts</h2>
-        <p class="section-desc">Report these if you see them</p>
-      </div>
-      <div>${fakeCardsHTML}</div>
-    </div>
-
-    ${songs.length > 0 ? `
-    <div class="glass">
-      <div class="section-header">
-        <span class="section-eyebrow">MUSIC</span>
-        <h2 class="section-headline">Cover Songs</h2>
-      </div>
-      <div class="player">
-        <div class="player-head">
-          <img src="${ASSETS.playGif}" class="player-cover" id="mCover" alt="">
-          <div class="player-meta">
-            <div class="player-title" id="mTitle">Select a song</div>
-            <div class="player-sub">Baiilla Maach</div>
-          </div>
-        </div>
-        <div class="player-progress" onclick="seekMusic(event)">
-          <div class="player-progress-fill" id="mFill"></div>
-        </div>
-        <div class="player-times">
-          <span id="mCur">0:00</span>
-          <span id="mDur">0:00</span>
-        </div>
-        <div class="player-controls">
-          <button class="player-btn" onclick="prevMusic()">⏮</button>
-          <button class="player-btn player-btn-primary" id="mPlayBtn" onclick="toggleMusic()">▶</button>
-          <button class="player-btn" onclick="nextMusic()">⏭</button>
-        </div>
-        <div class="playlist">${songsListHTML}</div>
-      </div>
-    </div>` : ''}
-
-    <div class="glass">
-      <div class="contact-section">
-        <div class="contact-eyebrow">GET IN TOUCH</div>
-        <h2 class="contact-headline">SAY HELLO</h2>
-        <div class="contact-details">
-          <a href="mailto:${CONFIG.admin.defaultEmail}" class="contact-item">
-            <span class="contact-label">EMAIL</span>
-            <span class="contact-value">${CONFIG.admin.defaultEmail}</span>
-          </a>
-        </div>
-        <a href="/admin" class="btn btn-primary btn-block">CONTACT US →</a>
-      </div>
-    </div>
-  </main>
-
-  <button class="chat-fab" onclick="toggleChat()">💬</button>
-
-  <div class="chat-panel" id="chatPanel">
-    <div class="chat-head">
-      Chat Support
-      <button onclick="toggleChat()">✕</button>
-    </div>
-    <div class="chat-body" id="chatBody">
-      <div class="chat-login" id="chatLoginForm">
-        <h4>Start a conversation</h4>
-        <input type="text" id="chatNameInput" placeholder="Your name">
-        <input type="text" id="chatEmailInput" placeholder="Email or phone">
-        <button onclick="startChatSession()">Start Chat</button>
-      </div>
-    </div>
-    <div class="chat-input-area" id="chatInputArea">
-      <div class="chat-input-row">
-        <input type="text" id="chatMsgInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendChatMsg()">
-        <button onclick="sendChatMsg()">➤</button>
-      </div>
+  <div class="top-bar">
+    <div class="logo-text">EDL</div>
+    <div class="mode-toggle">
+      <button class="mode-btn">CHIROPRACTIC</button>
+      <button class="mode-btn active">INDUSTRIAL</button>
     </div>
   </div>
 
-  <audio id="musicAudio" preload="none"></audio>
+  <!-- 1. HERO -->
+  <section class="scroll-section hero-section">
+    <h1 class="hero-logo">EDL</h1>
+    <div class="hero-subtitle">The Temperature People® since 1943</div>
+    <div class="hero-tag">Baiilla Maach Official</div>
+    <div class="scroll-hint">SCROLL DOWN</div>
+  </section>
 
+  <!-- 2. STORY -->
+  <section class="scroll-section">
+    <div class="story-section">
+      <h2 class="story-headline">The Temperature People®</h2>
+      <p class="story-body">${CONFIG.profile.bio || 'Precision temperature measurement since 1943.'}</p>
+    </div>
+  </section>
+
+  <!-- 3. CHIROPRACTIC -->
+  <section class="scroll-section showcase-section" id="chiropractic">
+    <h2 class="showcase-title">Chiropractic</h2>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">🩺</div>
+        <h3 class="card-title">Nervo-Scope® Devices</h3>
+        <p class="card-desc">Precision thermal scanning instruments for accurate diagnostics.</p>
+        <span class="card-link">Browse Products →</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <h3 class="card-title">Nervo-Scope® Pro-Series</h3>
+        <p class="card-desc">Advanced thermal imaging for the modern practitioner.</p>
+        <span class="card-link">Browse Products →</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔧</div>
+        <h3 class="card-title">Chiropractic Accessories</h3>
+        <p class="card-desc">Cables, sensors, and accessories built to last.</p>
+        <span class="card-link">Browse Products →</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. INDUSTRIAL -->
+  <section class="scroll-section showcase-section" id="industrial">
+    <h2 class="showcase-title">Industrial</h2>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">🌡️</div>
+        <h3 class="card-title">Sensors</h3>
+        <p class="card-desc">Make contact with the industry standard by which all others are measured.</p>
+        <span class="card-link">Browse Products →</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔥</div>
+        <h3 class="card-title">Pyrometers</h3>
+        <p class="card-desc">We can take the heat. And measure it accurately and repeatedly.</p>
+        <span class="card-link">Browse Products →</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">📐</div>
+        <h3 class="card-title">Calibrators</h3>
+        <p class="card-desc">Engineered by skilled craftsmen to maximum reliability accuracy.</p>
+        <span class="card-link">Browse Products →</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. CONTACT -->
+  <section class="scroll-section contact-section">
+    <h2 class="contact-headline">Say Hello</h2>
+    <a href="mailto:${CONFIG.admin.defaultEmail}" class="contact-link">${CONFIG.admin.defaultEmail}</a>
+    <a href="tel:1.800.342.5335" class="contact-link">1.800.342.5335</a>
+    <a href="/admin" class="btn-glow">Contact Us</a>
+  </section>
+
+  <!-- Call Now Floating -->
+  <a href="tel:1.800.342.5335" class="call-now">📞 Call Now</a>
+
+  <!-- Scripts -->
   <script>
     window.__CONFIG__ = {
-      profile: ${JSON.stringify(CONFIG.profile)},
-      tracks: ${JSON.stringify(songs)},
-      fakeAccounts: ${JSON.stringify(CONFIG.fakeAccounts)}
+      profile: ${JSON.stringify(CONFIG.profile || {})},
+      tracks: ${JSON.stringify(songs)}
     };
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -292,11 +232,16 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
+// ==================== API ROUTES ====================
 app.get('/api/msgs/:email', (req, res) => {
   const email = req.params.email;
   db.all(`SELECT * FROM messages WHERE (sender = ? AND receiver = 'admin') OR (sender = 'admin' AND receiver = ?) ORDER BY timestamp ASC`,
     [email, email],
-    (err, rows) => { if (err) return res.json([]); res.json(rows); });
+    (err, rows) => {
+      if (err) { console.error(err); return res.json([]); }
+      res.json(rows);
+    }
+  );
 });
 
 app.post('/api/admin/login', (req, res) => {
@@ -313,26 +258,21 @@ app.post('/api/admin/login', (req, res) => {
 
 app.get('/api/admin/users', (req, res) => {
   if (!req.session.isAdmin) return res.status(401).json({ error: 'Unauthorized' });
+
   db.all(`SELECT * FROM users WHERE isAdmin = 0 ORDER BY lastSeen DESC`, [], (err, users) => {
     if (err) return res.json([]);
     let count = 0;
     if (users.length === 0) return res.json([]);
-    users.forEach(u => {
-      db.get(`SELECT COUNT(*) as c FROM messages WHERE sender = ? AND receiver = 'admin' AND seen = 0`,
-        [u.email], (err2, result) => {
-          u.unreadCount = result ? result.c : 0;
-          count++;
-          if (count === users.length) res.json(users);
-        });
-    });
-  });
-});
 
-app.get('/api/admin/reports', (req, res) => {
-  if (!req.session.isAdmin) return res.status(401).json({ error: 'Unauthorized' });
-  db.all(`SELECT * FROM reports ORDER BY createdAt DESC`, [], (err, rows) => {
-    if (err) return res.json([]);
-    res.json(rows);
+    users.forEach(u => {
+      db.get(`SELECT COUNT(*) as c FROM messages WHERE sender = ? AND receiver = 'admin' AND seen = 0`, [u.email], (err, result) => {
+        u.unreadCount = result ? result.c : 0;
+        count++;
+        if (count === users.length) {
+          res.json(users);
+        }
+      });
+    });
   });
 });
 
@@ -343,17 +283,28 @@ app.post('/api/report', (req, res) => {
     function (err) {
       if (err) return res.status(500).json({ error: 'Server error' });
       res.json({ success: true, report: { id: this.lastID } });
-    });
+    }
+  );
+});
+
+app.get('/api/admin/reports', (req, res) => {
+  if (!req.session.isAdmin) return res.status(401).json({ error: 'Unauthorized' });
+  db.all(`SELECT * FROM reports ORDER BY createdAt DESC`, [], (err, rows) => {
+    if (err) return res.json([]);
+    res.json(rows);
+  });
 });
 
 app.post('/api/upload', upload.single('file'), (req, res) => {
   try {
-    res.json({ url: '/uploads/' + req.file.filename, name: req.file.originalname, size: req.file.size });
+    const fileUrl = '/uploads/' + req.file.filename;
+    res.json({ url: fileUrl, name: req.file.originalname, size: req.file.size });
   } catch (err) {
     res.status(500).json({ error: 'Upload failed' });
   }
 });
 
+// ==================== ADMIN PAGE ====================
 app.get('/admin', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -454,6 +405,7 @@ app.get('/admin', (req, res) => {
 </html>`);
 });
 
+// ==================== SOCKET.IO ====================
 io.on('connection', (socket) => {
   console.log('🔌 Socket connected');
 
@@ -464,11 +416,13 @@ io.on('connection', (socket) => {
         const hash = await bcrypt.hash('default123', 10);
         db.run(`INSERT INTO users (name, email, password, isOnline, lastSeen) VALUES (?, ?, ?, 1, ?)`,
           [data.name, data.email, hash, new Date().toISOString()],
-          () => io.emit('userStatus', { email: data.email, online: true }));
+          () => io.emit('userStatus', { email: data.email, online: true })
+        );
       } else {
         db.run(`UPDATE users SET isOnline = 1, lastSeen = ? WHERE email = ?`,
           [new Date().toISOString(), data.email],
-          () => io.emit('userStatus', { email: data.email, online: true }));
+          () => io.emit('userStatus', { email: data.email, online: true })
+        );
       }
     });
   });
@@ -483,7 +437,8 @@ io.on('connection', (socket) => {
           id: this.lastID, sender: data.sender, receiver: data.receiver,
           message: data.message, type: data.type || 'text', timestamp
         });
-      });
+      }
+    );
   });
 
   socket.on('markRead', (data) => {
@@ -494,14 +449,20 @@ io.on('connection', (socket) => {
     if (socket.userData) {
       db.run(`UPDATE users SET isOnline = 0, lastSeen = ? WHERE email = ?`,
         [new Date().toISOString(), socket.userData.email],
-        () => io.emit('userStatus', { email: socket.userData.email, online: false }));
+        () => {
+          io.emit('userStatus', { email: socket.userData.email, online: false });
+          console.log('🔴 Offline:', socket.userData.email);
+        }
+      );
     }
   });
 });
 
+// ==================== START SERVER ====================
 server.listen(PORT, () => {
   console.log('========================================');
   console.log('🚀 Server: http://localhost:' + PORT);
   console.log('🔧 Admin: http://localhost:' + PORT + '/admin');
+  console.log('👤 User: ' + (CONFIG.admin ? CONFIG.admin.defaultEmail : 'admin') + ' | 🔑 Pass: ' + (CONFIG.admin ? CONFIG.admin.defaultPassword : 'admin'));
   console.log('========================================');
 });
