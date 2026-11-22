@@ -1,4 +1,4 @@
-// client.js — public profile page
+// client.js — public profile
 (function () {
   var cfg = window.__CONFIG__ || {};
   var tracks = cfg.tracks || [];
@@ -13,7 +13,6 @@
     var b = $('mPlayBtn');
     if (b) b.textContent = musicPlaying ? '⏸' : '▶';
   }
-
   function updateMusicUI(i) {
     var t = $('mTitle');
     if (t && tracks[i]) t.textContent = tracks[i].title;
@@ -23,7 +22,6 @@
       else items[j].classList.remove('active');
     }
   }
-
   window.playMusic = function (i) {
     if (!tracks.length) return;
     currentTrack = i;
@@ -33,7 +31,6 @@
     updatePlayBtn();
     updateMusicUI(i);
   };
-
   window.toggleMusic = function () {
     if (musicAudio.paused) {
       if (!musicAudio.src && tracks.length) musicAudio.src = tracks[0].url;
@@ -47,7 +44,6 @@
       updatePlayBtn();
     }
   };
-
   window.prevMusic = function () {
     if (!tracks.length) return;
     window.playMusic((currentTrack - 1 + tracks.length) % tracks.length);
@@ -61,7 +57,6 @@
     var r = e.currentTarget.getBoundingClientRect();
     musicAudio.currentTime = ((e.clientX - r.left) / r.width) * musicAudio.duration;
   };
-
   if (musicAudio) {
     musicAudio.addEventListener('timeupdate', function () {
       if (!musicAudio.duration) return;
@@ -72,7 +67,6 @@
     });
     musicAudio.addEventListener('ended', window.nextMusic);
   }
-
   function formatTime(s) {
     if (isNaN(s)) return '0:00';
     return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
@@ -86,7 +80,6 @@
   window.toggleChat = function () {
     $('chatPanel').classList.toggle('open');
   };
-
   window.startChatSession = function () {
     var n = $('chatNameInput').value.trim();
     var e = $('chatEmailInput').value.trim();
@@ -97,7 +90,6 @@
     $('chatInputArea').style.display = 'block';
     loadChatMessages();
   };
-
   function loadChatMessages() {
     if (!chatUser) return;
     fetch('/api/msgs/' + encodeURIComponent(chatUser.email))
@@ -109,7 +101,6 @@
         b.scrollTop = b.scrollHeight;
       });
   }
-
   function renderChatMsg(m) {
     var b = $('chatBody');
     var el = document.createElement('div');
@@ -121,7 +112,6 @@
     el.appendChild(t);
     b.appendChild(el);
   }
-
   window.sendChatMsg = function () {
     var i = $('chatMsgInput');
     var m = i.value.trim();
@@ -129,7 +119,6 @@
     socket.emit('sendMsg', { sender: chatUser.email, receiver: 'admin', message: m, type: 'text' });
     i.value = '';
   };
-
   socket.on('newMsg', function (m) {
     if (chatUser && (m.sender === chatUser.email || m.receiver === chatUser.email)) {
       renderChatMsg(m);
