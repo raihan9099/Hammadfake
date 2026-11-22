@@ -30,8 +30,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/assets', express.static('assets', { maxAge: 604800000 }));
 app.use('/uploads', express.static('uploads', { maxAge: 604800000 }));
 app.use('/styles.css', express.static(path.join(__dirname, 'styles.css'), { maxAge: 604800000 }));
-app.use('/client.js', express.static(path.join(__dirname, 'client.js'), { maxAge: 604800000 }));
-app.use('/admin.js', express.static(path.join(__dirname, 'admin.js'), { maxAge: 604800000 }));
 
 app.use(session({
   secret: CONFIG.server.sessionSecret,
@@ -245,9 +243,9 @@ app.get('/', (req, res) => {
           <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
         </div>
       </div>
-      <h2 class="profile-name" id="typeName"></h2>
+      <h2 class="profile-name typing-text" id="typeName"></h2>
       <div class="profile-username">${CONFIG.profile.username}</div>
-      <div class="profile-bio" id="typeBio"></div>
+      <div class="profile-bio typing-text" id="typeBio"></div>
 
       <div class="stats-row">
         <div class="stat"><div class="stat-num">${CONFIG.stats.tiktokFollowers}</div><div class="stat-label">Followers</div></div>
@@ -395,12 +393,168 @@ app.get('/', (req, res) => {
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    window.__CONFIG__ = {
-      profile: ${JSON.stringify(CONFIG.profile)},
-      tracks: ${songsJSON}
-    };
+    // ---- Typing animation ----
+    var nameText = ${JSON.stringify(CONFIG.profile.name)};
+    var bioText  = ${JSON.stringify(CONFIG.profile.bio)};
+    var iName = 0, iBio = 0;
+    var speed = 50;
+
+    function typeName() {
+      if (iName < nameText.length) {
+        document.getElementById("typeName").innerHTML += nameText.charAt(iName);
+        iName++;
+        setTimeout(typeName, speed);
+      } else {
+        document.getElementById("typeName").classList.remove("typing-text");
+        typeBio();
+      }
+    }
+    function typeBio() {
+      if (iBio < bioText.length) {
+        document.getElementById("typeBio").innerHTML += bioText.charAt(iBio);
+        iBio++;
+        setTimeout(typeBio, speed);
+      } else {
+        document.getElementById("typeBio").classList.remove("typing-text");
+      }
+    }
+    setTimeout(typeName, 500);
+
+    // ---- Audio ----
+    var welcomeAudio = document.getElementById("welcomeAudio");
+    var manualAudio  = document.getElementById("manualAudio");
+    var musicAudio   = document.getElementById("musicAudio");
+    var musicPlaying = false;
+    var currentTrack = 0;
+    var tracks = ${songsJSON};
+
+    function stopAllAudio() {
+      if (welcomeAudio) { welcomeAudio.pause(); welcomeAudio.currentTime = 0; }
+      if (manualAudio)  { manualAudio.pause();  manualAudio.currentTime = 0; }
+      if (musicAudio)   { musicAudio.pause(); }
+      musicPlaying = false;
+      updatePlayBtn();
+    }
+    function playWelcomeVoice() { if (!welcomeAudio) return; stopAllAudio(); welcomeAudio.play(); }
+    function playManualVoice()  { if (!manualAudio)  return; stopAllAudio(); manualAudio.play(); }
+
+    function updatePlayBtn() {
+      var b = document.getElementById("mPlayBtn");
+      if (b) b.innerHTML = musicPlaying ? "⏸" : "▶";
+      var c = document.getElementById("mCover");
+      if (c) { if (musicPlaying) c.classList.add("playing"); else c.classList.remove("playing"); }
+    }
+    function updateMusicUI(i) {
+      var t = document.getElementById("mTitle");
+      if (t && tracks[i]) t.textContent = tracks[i].title;
+      var items = document.querySelectorAll(".song-item");
+      for (var j = 0; j < items.length; j++) {
+        if (j === i) items[j].classList.add("active");
+        else items[j].classList.remove("active");
+      }
+    }
+    function playMusic(i) {
+      if (!tracks.length) return;
+      stopAllAudio();
+      currentTrack = i;
+      musicAudio.src = tracks[i].url;
+      musicAudio.play().catch(function(){});
+      musicPlaying = true;
+      updatePlayBtn();
+      updateMusicUI(i);
+    }
+    function toggleMusic() {
+      if (musicAudio.paused) {
+        if (!musicAudio.src && tracks.length) musicAudio.src = tracks[0].url;
+        stopAllAudio();
+        musicAudio.play().catch(function(){});
+        musicPlaying = true;
+        updatePlayBtn();
+        updateMusicUI(currentTrack);
+      } else {
+        musicAudio.pause();
+        musicPlaying = false;
+        updatePlayBtn();
+      }
+    }
+    function prevMusic() { playMusic((currentTrack - 1 + tracks.length) % tracks.length); }
+    function nextMusic() { playMusic((currentTrack + 1) % tracks.length); }
+    function seekMusic(e) {
+      if (!musicAudio.duration) return;
+      var r = e.currentTarget.getBoundingClientRect();
+      musicAudio.currentTime = ((e.clientX - r.left) / r.width) * musicAudio.duration;
+    }
+    musicAudio.addEventListener("timeupdate", function() {
+      if (musicAudio.duration) {
+        var fill = document.getElementById("mSliderFill");
+        var cur = document.getElementById("mCurrentTime");
+        var dur = document.getElementById("mDuration");
+        if (fill) fill.style.width = (musicAudio.currentTime / musicAudio.duration) * 100 + "%";
+        if (cur) cur.textContent = formatTime(musicAudio.currentTime);
+        if (dur) dur.textContent = formatTime(musicAudio.duration);
+      }
+    });
+    musicAudio.addEventListener("ended", nextMusic);
+    function formatTime(s) {
+      if (isNaN(s)) return "0:00";
+      var m = Math.floor(s / 60);
+      var sec = Math.floor(s % 60);
+      return m + ":" + String(sec).padStart(2, "0");
+    }
+
+    if (welcomeAudio) setTimeout(function() { welcomeAudio.play().catch(function(){}); }, 1500);
+
+    // ---- Chat ----
+    var socket = io();
+    var chatUser = null;
+    function toggleChat() { document.getElementById("chatPanel").classList.toggle("open"); }
+    function startChatSession() {
+      var n = document.getElementById("chatNameInput").value.trim();
+      var e = document.getElementById("chatEmailInput").value.trim();
+      if (!n || !e) return;
+      chatUser = { name: n, email: e };
+      socket.emit("register", { name: n, email: e });
+      document.getElementById("chatLoginForm").style.display = "none";
+      document.getElementById("chatInputArea").style.display = "block";
+      loadChatMessages();
+    }
+    function loadChatMessages() {
+      if (!chatUser) return;
+      fetch("/api/msgs/" + encodeURIComponent(chatUser.email))
+        .then(function(r){ return r.json(); })
+        .then(function(ms) {
+          var b = document.getElementById("chatBody");
+          b.innerHTML = "";
+          for (var i = 0; i < ms.length; i++) renderChatMsg(ms[i]);
+          b.scrollTop = b.scrollHeight;
+        });
+    }
+    function renderChatMsg(m) {
+      var b = document.getElementById("chatBody");
+      var el = document.createElement("div");
+      el.className = "msg " + (m.sender === chatUser.email ? "user" : "admin");
+      el.textContent = m.message;
+      var t = document.createElement("div");
+      t.className = "time";
+      t.textContent = new Date(m.timestamp).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+      el.appendChild(t);
+      b.appendChild(el);
+    }
+    function sendChatMsg() {
+      var i = document.getElementById("chatMsgInput");
+      var m = i.value.trim();
+      if (!m || !chatUser) return;
+      socket.emit("sendMsg", { sender: chatUser.email, receiver: "admin", message: m, type: "text" });
+      i.value = "";
+    }
+    socket.on("newMsg", function(m) {
+      if (chatUser && (m.sender === chatUser.email || m.receiver === chatUser.email)) {
+        renderChatMsg(m);
+        var b = document.getElementById("chatBody");
+        b.scrollTop = b.scrollHeight;
+      }
+    });
   </script>
-  <script src="/client.js"></script>
 </body>
 </html>`;
 
@@ -584,7 +738,150 @@ app.get('/admin', (req, res) => {
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/admin.js"></script>
+  <script>
+    var socket = io();
+    var currentUser = null;
+    var allUsers = [];
+    var isLoggedIn = false;
+    var pollTimer = null;
+
+    socket.on("newMsg", function(m) {
+      if (currentUser && ((m.sender === currentUser.email && m.receiver === "admin") || (m.sender === "admin" && m.receiver === currentUser.email))) {
+        appendMessage(m);
+      }
+      loadUsers();
+    });
+    socket.on("userStatus", function(d) {
+      if (currentUser && currentUser.email === d.email) {
+        var s = document.getElementById("chatStatus");
+        s.textContent = d.online ? "● Online" : "● Offline";
+        s.className = "status " + (d.online ? "online" : "offline");
+      }
+      loadUsers();
+    });
+    async function doLogin() {
+      var e = document.getElementById("loginEmail").value.trim();
+      var p = document.getElementById("loginPassword").value.trim();
+      var err = document.getElementById("loginError");
+      var btn = document.getElementById("loginBtn");
+      err.style.display = "none";
+      if (!e || !p) { err.textContent = "Fill all fields"; err.style.display = "block"; return; }
+      btn.disabled = true;
+      btn.textContent = "Signing...";
+      try {
+        var r = await fetch("/api/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: e, password: p })
+        });
+        var d = await r.json();
+        if (r.ok) {
+          isLoggedIn = true;
+          localStorage.setItem("adminSession", JSON.stringify({ email: e, password: p }));
+          document.getElementById("loginOverlay").style.display = "none";
+          document.getElementById("app").style.display = "block";
+          loadUsers();
+          pollTimer = setInterval(function() { if (isLoggedIn) loadUsers(); }, 10000);
+        } else {
+          err.textContent = "❌ Invalid credentials";
+          err.style.display = "block";
+        }
+      } catch(ex) {
+        err.textContent = "❌ Network error";
+        err.style.display = "block";
+      }
+      btn.disabled = false;
+      btn.textContent = "Sign In";
+    }
+    async function loadUsers() {
+      if (!isLoggedIn) return;
+      try {
+        var r = await fetch("/api/admin/users");
+        var data = await r.json();
+        allUsers = data;
+        renderUserList();
+      } catch(e) { console.log("Error:", e); }
+    }
+    function renderUserList() {
+      var s = document.getElementById("searchInput").value.toLowerCase();
+      var f = allUsers.filter(function(u) { return u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s); });
+      var h = "";
+      for (var i = 0; i < f.length; i++) {
+        var u = f[i];
+        var a = currentUser && currentUser.email === u.email;
+        h += '<div class="user-item' + (a ? " active" : "") + '" onclick="selectUser(\\'' + u.email + '\\')">' +
+          '<div class="user-avatar">' + u.name.charAt(0).toUpperCase() + '</div>' +
+          '<div class="user-info"><div class="name">' + u.name + '</div>' +
+          '<div class="email">' + u.email + '</div></div>' +
+          (u.unreadCount > 0 ? '<div class="unread">' + u.unreadCount + '</div>' : "") +
+          '</div>';
+      }
+      document.getElementById("userList").innerHTML = h || '<div class="empty-state"><p>No users yet</p></div>';
+    }
+    function filterUsers() { renderUserList(); }
+    async function selectUser(e) {
+      var u = allUsers.find(function(u) { return u.email === e; });
+      if (!u) return;
+      currentUser = u;
+      document.getElementById("chatAvatar").textContent = u.name.charAt(0).toUpperCase();
+      document.getElementById("chatName").textContent = u.name;
+      document.getElementById("chatStatus").textContent = u.isOnline ? "● Online" : "● Offline";
+      document.getElementById("chatStatus").className = "status " + (u.isOnline ? "online" : "offline");
+      document.getElementById("chatInputArea").style.display = "block";
+      try {
+        var r = await fetch("/api/msgs/" + u.email);
+        var ms = await r.json();
+        var h = "";
+        if (ms.length === 0) { h = '<div class="empty-state"><h3>No messages</h3></div>'; }
+        else {
+          for (var i = 0; i < ms.length; i++) {
+            var m = ms[i];
+            var s = m.sender === "admin";
+            var t = new Date(m.timestamp).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+            h += '<div class="msg ' + (s ? "sent" : "received") + '">' + m.message + '<div class="time">' + t + '</div></div>';
+          }
+        }
+        document.getElementById("chatMessages").innerHTML = h;
+        document.getElementById("chatMessages").scrollTop = 99999;
+      } catch(ex) { console.log(ex); }
+      socket.emit("markRead", { user: u.email });
+      renderUserList();
+    }
+    function appendMessage(m) {
+      if (!currentUser) return;
+      var c = document.getElementById("chatMessages");
+      var s = m.sender === "admin";
+      var t = new Date(m.timestamp).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+      c.innerHTML += '<div class="msg ' + (s ? "sent" : "received") + '">' + m.message + '<div class="time">' + t + '</div></div>';
+      c.scrollTop = 99999;
+    }
+    function sendMessage() {
+      if (!currentUser) return;
+      var i = document.getElementById("msgInput");
+      var m = i.value.trim();
+      if (!m) return;
+      socket.emit("sendMsg", { sender: "admin", receiver: currentUser.email, message: m, type: "text" });
+      appendMessage({ sender: "admin", receiver: currentUser.email, message: m, timestamp: new Date() });
+      i.value = "";
+      i.focus();
+    }
+    function doLogout() {
+      if (pollTimer) clearInterval(pollTimer);
+      localStorage.removeItem("adminSession");
+      location.reload();
+    }
+    var saved = localStorage.getItem("adminSession");
+    if (saved) {
+      var d = JSON.parse(saved);
+      document.getElementById("loginEmail").value = d.email;
+      document.getElementById("loginPassword").value = d.password;
+    }
+    document.addEventListener("DOMContentLoaded", function() {
+      document.getElementById("loginPassword").addEventListener("keypress", function(e) {
+        if (e.key === "Enter") doLogin();
+      });
+    });
+  </script>
 </body>
 </html>`);
 });
@@ -660,5 +957,6 @@ server.listen(PORT, () => {
   console.log('========================================');
   console.log('🚀 Server: http://localhost:' + PORT);
   console.log('🔧 Admin: http://localhost:' + PORT + '/admin');
+  console.log('👤 User: ' + CONFIG.admin.defaultEmail + ' | 🔑 Pass: ' + CONFIG.admin.defaultPassword);
   console.log('========================================');
 });
