@@ -1,4 +1,3 @@
-// theme.js — EDL dark space palette
 module.exports = {
   colors: {
     primary: '#4A90FF',
@@ -18,8 +17,7 @@ module.exports = {
   gradients: {
     primary: 'linear-gradient(135deg, #4A90FF 0%, #9D6BFF 100%)',
     pink: 'linear-gradient(135deg, #FF6BCB 0%, #FF4A7A 100%)',
-    success: 'linear-gradient(135deg, #4AE3FF 0%, #4A90FF 100%)',
-    cosmos: 'linear-gradient(135deg, #060818 0%, #0F1638 100%)'
+    success: 'linear-gradient(135deg, #4AE3FF 0%, #4A90FF 100%)'
   },
   shadows: {
     sm: '0 2px 8px rgba(0,0,0,0.4)',
