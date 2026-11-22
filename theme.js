@@ -1,69 +1,103 @@
+// theme.js
 module.exports = {
   colors: {
-    primary: '#667eea',
-    secondary: '#764ba2',
-    accent: '#f093fb',
-    danger: '#eb3349',
-    success: '#00b09b',
-    warning: '#f59e0b',
-    dark: '#1a1a2e',
-    light: '#f8f9fa',
-    textPrimary: '#333',
-    textSecondary: '#666',
-    textMuted: '#888',
-    border: '#e0e0e0',
-    borderLight: '#f0f0f0'
+    // Facebook's actual neutral palette
+    primary: '#1877F2',      // FB blue (only for links/active)
+    secondary: '#166FE5',
+    accent: '#1877F2',
+    danger: '#FA383E',
+    success: '#42B72A',
+    warning: '#F7B928',
+    dark: '#1C1E21',
+    light: '#F0F2F5',        // FB page background
+    white: '#FFFFFF',
+    card: '#FFFFFF',
+    hover: '#F2F2F2',
+    textPrimary: '#1C1E21',  // FB primary text
+    textSecondary: '#65676B',// FB secondary text
+    textMuted: '#8A8D91',    // FB muted
+    border: '#CED0D4',       // FB divider
+    borderLight: '#E4E6EB',
+    divider: '#E4E6EB',
+    inputBg: '#F0F2F5',
+    inputBorder: '#CED0D4',
+    overlay: 'rgba(0,0,0,0.5)',
+    // Legacy aliases so old rules don't break
+    textPrimaryOld: '#333',
+    textSecondaryOld: '#666',
+    textMutedOld: '#888',
+    borderLightOld: '#f0f0f0'
   },
 
   gradients: {
-    primary: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    pink: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-    success: 'linear-gradient(135deg, #00b09b, #96c93d)',
-    danger: 'linear-gradient(135deg, #eb3349, #f45c43)',
-    ocean: 'linear-gradient(135deg, #2E3192 0%, #1BFFFF 100%)',
-    sunset: 'linear-gradient(135deg, #ff6a00 0%, #ee0979 100%)',
-    candy: 'linear-gradient(135deg, #f093fb 0%, #f5576c 50%, #f8b500 100%)'
+    // Facebook has no gradients — keep flat colors
+    primary: '#1877F2',
+    pink: '#FA383E',
+    success: '#42B72A',
+    danger: '#FA383E',
+    background: '#F0F2F5',
+    subtlePrimary: 'rgba(24,119,242,0.1)'
   },
 
   shadows: {
-    sm: '0 2px 8px rgba(0,0,0,0.08)',
-    md: '0 10px 30px rgba(0,0,0,0.1)',
-    lg: '0 20px 50px rgba(0,0,0,0.15)',
-    primary: '0 10px 25px rgba(102,126,234,0.4)',
-    danger: '0 10px 25px rgba(235,51,73,0.4)',
-    success: '0 10px 25px rgba(0,176,155,0.4)',
-    glow: '0 0 20px rgba(102,126,234,0.5)'
+    // Facebook's flat, minimal shadows
+    sm: '0 1px 2px rgba(0,0,0,0.1)',
+    md: '0 1px 2px rgba(0,0,0,0.1)',
+    lg: '0 2px 12px rgba(0,0,0,0.2)',
+    primary: '0 1px 2px rgba(0,0,0,0.1)',
+    danger: '0 1px 2px rgba(0,0,0,0.1)',
+    success: '0 1px 2px rgba(0,0,0,0.1)',
+    glow: 'none',
+    none: 'none'
   },
 
   radius: {
-    sm: '8px',
-    md: '12px',
-    lg: '16px',
-    xl: '20px',
-    pill: '25px',
+    sm: '6px',    // FB uses 6px
+    md: '8px',
+    lg: '8px',
+    xl: '12px',
+    pill: '999px',// FB pill buttons
     round: '50%'
   },
 
   button: {
-    paddingY: '14px',
-    paddingX: '28px',
-    fontSize: '0.95em',
-    fontWeight: '700',
-    lift: '-3px',
-    hoverScale: '1.05',
-    activeScale: '0.97',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+    paddingY: '8px',
+    paddingX: '16px',
+    fontSize: '15px',
+    fontWeight: '600',
+    lift: '0',
+    hoverScale: '1',
+    activeScale: '0.98',
+    transition: 'background-color 0.15s ease, color 0.15s ease'
   },
 
   body: {
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    backgroundSize: '400% 400%',
-    animation: 'gradientShift 15s ease infinite'
+    background: '#F0F2F5',   // FB page bg
+    backgroundSize: 'auto',
+    animation: 'none'
   },
 
   card: {
-    background: 'rgba(255,255,255,0.95)',
-    backdropBlur: '20px',
-    hoverLift: '-4px'
+    background: '#FFFFFF',
+    backdropBlur: 'none',
+    hoverLift: '0',
+    border: '1px solid #E4E6EB'
+  },
+
+  // Facebook font stack — exact match
+  typography: {
+    fontFamily: `-apple-system, BlinkMacSystemFont, "Segoe UI Historic", "Segoe UI", Helvetica, Arial, sans-serif`,
+    // Facebook doesn't use Inter — it uses system fonts
+    sizeBase: '15px',
+    sizeSmall: '13px',
+    sizeLarge: '17px',
+    sizeH1: '24px',
+    sizeH2: '20px',
+    sizeH3: '17px',
+    lineHeight: '1.3333',
+    weightNormal: '400',
+    weightMedium: '500',
+    weightSemiBold: '600',
+    weightBold: '700'
   }
 };
