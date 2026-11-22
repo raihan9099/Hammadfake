@@ -1,10 +1,21 @@
-// client.js — public profile
+// client.js
 (function () {
   var cfg = window.__CONFIG__ || {};
   var tracks = cfg.tracks || [];
   var $ = function (id) { return document.getElementById(id); };
 
-  // Music player
+  // Scroll progress
+  window.addEventListener('scroll', () => {
+    const bar = $('scrollBar');
+    if (!bar) return;
+    const scrollTop = window.scrollY;
+    const height = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (scrollTop / height * 100) + '%';
+    const hint = $('sceneHint');
+    if (hint) hint.style.opacity = scrollTop > 100 ? '0' : '1';
+  });
+
+  // Music
   var musicAudio = $('musicAudio');
   var musicPlaying = false;
   var currentTrack = 0;
@@ -18,8 +29,7 @@
     if (t && tracks[i]) t.textContent = tracks[i].title;
     var items = document.querySelectorAll('.playlist-item');
     for (var j = 0; j < items.length; j++) {
-      if (j === i) items[j].classList.add('active');
-      else items[j].classList.remove('active');
+      items[j].classList.toggle('active', j === i);
     }
   }
   window.playMusic = function (i) {
