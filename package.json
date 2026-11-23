@@ -1,13 +1,14 @@
 {
   "name": "bailla-mach",
   "version": "1.0.0",
+  "private": true,
   "description": "Bailla Mach — Fake Account Detection portfolio & backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "client:install": "npm --prefix client install",
-    "client:build": "npm --prefix client run build",
-    "build": "npm install && npm run client:install && npm run client:build"
+    "dev": "node server.js",
+    "build": "npm install --prefix client && npm run build --prefix client",
+    "postinstall": "npm run build"
   },
   "engines": {
     "node": ">=18.0.0"
